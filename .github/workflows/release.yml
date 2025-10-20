@@ -63,7 +63,6 @@ jobs:
       # 7. Generate plugin JSON manifest
       - name: Generate plugin JSON
         run: |
-          # Assign GitHub env vars to Bash variables
           PLUGIN_SLUG="${PLUGIN_SLUG}"
           TAG_NAME="${TAG_NAME}"
           DOWNLOAD_URL="${DOWNLOAD_URL}"
