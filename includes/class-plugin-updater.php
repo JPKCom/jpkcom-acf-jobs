@@ -127,11 +127,31 @@ final class PluginUpdater {
         $info->author           = $remote->author ?? '';
         $info->author_profile   = $remote->author_profile ?? '';
 
+        // Normalize contributors to array of [username => ['profile' => '', 'avatar' => '']]
         $contributors = $remote->contributors ?? [];
-        if ( ! is_array( value: $contributors ) ) {
+        if ( is_object( value: $contributors ) ) {
+            // convert stdClass (from JSON) to array
+            $contributors = (array) $contributors;
+        }
+        if ( is_string( value: $contributors ) ) {
+            // single contributor name
             $contributors = [$contributors];
         }
-        $info->contributors     = array_map( callback: 'trim', array: $contributors );
+        if ( is_array( value: $contributors ) ) {
+            // if it's a list of plain strings, convert to WP-compatible structure
+            $contributors = array_reduce( array: $contributors, callback: function ( $carry, $item ): mixed {
+                $username = trim( string: $item );
+                $carry[$username] = [
+                    'profile' => 'https://profiles.wordpress.org/' . $username,
+                    'avatar'  => 'https://wordpress.org/grav-redirect.php?user=' . $username . '&s=36',
+                ];
+                return $carry;
+            }, initial: [] );
+        } else {
+            $contributors = [];
+        }
+        $info->contributors     = $contributors;
+
 
         $info->homepage         = $remote->homepage ?? '';
         $info->download_link    = $remote->download_url ?? '';
