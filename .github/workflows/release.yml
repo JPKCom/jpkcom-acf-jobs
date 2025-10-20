@@ -68,7 +68,7 @@ jobs:
           sudo apt-get install -y pandoc
           mkdir -p gh-pages-html gh-pages-json
           # HTML für gh-pages
-          cp README.md -o gh-pages-html/index.md
+          cp README.md gh-pages-html/index.md
           # HTML für JSON
           pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
 
