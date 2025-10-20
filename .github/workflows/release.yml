@@ -64,7 +64,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc
-          mkdir -p gh-pages-html
+          mkdir -p gh-pages-html gh-pages-json
           # HTML für gh-pages
           pandoc README.md -o gh-pages-html/index.html
           # HTML für JSON
@@ -122,11 +122,15 @@ jobs:
 
       # 9. Deploy JSON and README HTML to gh-pages branch
       - name: Deploy JSON and HTML to gh-pages
+        run: |
+          mkdir -p gh-pages-deploy
+          cp -r gh-pages-json/* gh-pages-deploy/
+          cp -r gh-pages-html/* gh-pages-deploy/
+        # deploy combined folder
+      - name: Deploy combined gh-pages output
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: |
-            gh-pages-json
-            gh-pages-html
+          publish_dir: gh-pages-deploy
           publish_branch: gh-pages
           keep_files: false
