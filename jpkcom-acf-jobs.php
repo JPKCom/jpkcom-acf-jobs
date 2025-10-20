@@ -3,7 +3,7 @@
 Plugin Name: JPKCom ACF Jobs
 Plugin URI: https://github.com/JPKCom/jpkcom-acf-jobs
 Description: Job application plugin for ACF
-Version: 1.0.0
+Version: 1.0.1
 Author: Jean Pierre Kolb <jpk@jpkc.com>
 Author URI: https://www.jpkc.com/
 Contributors: JPKCom
@@ -13,7 +13,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.3
 Network: true
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 Text Domain: jpkcom-acf-jobs
@@ -39,7 +39,7 @@ add_action( 'init', function() {
 
 	new PluginUpdater(
 		plugin_file: __FILE__,
-		current_version: '1.0.0',
+		current_version: '1.0.1',
 		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/jpkcom-acf-jobs.json'
 	);
 });
