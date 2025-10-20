@@ -18,8 +18,6 @@ License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 Text Domain: jpkcom-acf-jobs
 Domain Path: /languages
-GitHub Plugin URI: JPKCom/jpkcom-acf-jobs
-Primary Branch: main
 */
 
 use JPKComGitUpdate\PluginUpdater;
