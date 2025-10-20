@@ -18,7 +18,9 @@ jobs:
         id: vars
         run: |
           echo "PLUGIN_SLUG=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_ENV
-          echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+          TAG_NAME=${GITHUB_REF##*/}
+          TAG_NAME=${TAG_NAME#v}
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
           echo "ZIP_FILE=$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
           echo "DOWNLOAD_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF##*/}/$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
@@ -66,7 +68,7 @@ jobs:
           sudo apt-get install -y pandoc
           mkdir -p gh-pages-html gh-pages-json
           # HTML für gh-pages
-          pandoc README.md -o gh-pages-html/index.html
+          cp README.md -o gh-pages-html/index.md
           # HTML für JSON
           pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
 
@@ -109,10 +111,10 @@ jobs:
                   "changelog": os.environ.get("CHANGELOG"),
                   "faq": os.environ.get("FAQ")
               },
-              "readme_html": readme_html,   # <-- hier wird die komplette README als HTML hinzugefügt
+              "readme_html": readme_html,
               "banners": {
-                  "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
-                  "high": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-1544x500.avif"
+                  "low": f"https://jpkcom.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/jpkcom-acf-jobs-banner-772x250.avif",
+                  "high": f"https://jpkcom.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/jpkcom-acf-jobs-banner-1544x500.avif"
               }
           }
 
@@ -120,14 +122,18 @@ jobs:
           with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
               json.dump(plugin, f, indent=2, ensure_ascii=False)
 
-      # 9. Deploy JSON and README HTML to gh-pages branch
-      - name: Deploy JSON and HTML to gh-pages
+      # 9. Prepare all files for deployment (HTML + JSON + assets)
+      - name: Prepare gh-pages deployment folder
         run: |
           mkdir -p gh-pages-deploy
           cp -r gh-pages-json/* gh-pages-deploy/
           cp -r gh-pages-html/* gh-pages-deploy/
-        # deploy combined folder
-      - name: Deploy combined gh-pages output
+          if [ -d "assets" ]; then
+            cp -r assets gh-pages-deploy/
+          fi
+
+      # 10. Deploy everything to gh-pages branch
+      - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
