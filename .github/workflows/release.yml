@@ -37,26 +37,39 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc
 
-      # 5. Generate HTML for README and sections
-      - name: Convert README.md and sections to HTML
+      # 5. Generate HTML sections and extract contributors/tags
+      - name: Convert README.md to HTML and extract meta
         run: |
           mkdir -p gh-pages-html gh-pages-json
 
-          # Full README.html for gh-pages
+          # Convert entire README.md to HTML
           pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
           cp README.md gh-pages-html/index.md
 
-          # Sections to HTML
-          pandoc -f markdown -t html <(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/description.html
-          pandoc -f markdown -t html <(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/installation.html
-          pandoc -f markdown -t html <(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/changelog.html
-          pandoc -f markdown -t html <(awk '/^## FAQ/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/faq.html
+          # Extract section HTMLs if they exist
+          for SECTION in Description Installation Changelog FAQ; do
+            CONTENT=$(awk "/^## $SECTION/{flag=1;next}/^## /{flag=0}flag" README.md)
+            if [ ! -z "$CONTENT" ]; then
+              echo "$CONTENT" | pandoc -f markdown -t html -o gh-pages-json/${SECTION,,}.html
+            else
+              echo "<!-- No $SECTION section found -->" > gh-pages-json/${SECTION,,}.html
+            fi
+          done
 
-          # Extract Contributors and Tags
-          CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
-          TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
-          echo "CONTRIBUTORS=$CONTRIBUTORS" >> $GITHUB_ENV
-          echo "TAGS=$TAGS" >> $GITHUB_ENV
+          # Extract Contributors
+          CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
+          if [ -z "$CONTRIBUTORS" ]; then
+            CONTRIBUTORS="JPKCom"
+          fi
+
+          # Extract Tags
+          TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
+          if [ -z "$TAGS" ]; then
+            TAGS="ACF, Fields, CPT, CTT, Taxonomy, Forms"
+          fi
+
+          echo "CONTRIBUTORS=$(echo $CONTRIBUTORS | jq -R -s -c 'split(\" \") | map(select(. != \"\"))')" >> $GITHUB_ENV
+          echo "TAGS=$(echo $TAGS | jq -R -s -c 'split(\",\") | map(select(. != \"\"))')" >> $GITHUB_ENV
 
       # 6. Create ZIP archive of plugin
       - name: Create ZIP
@@ -71,7 +84,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 8. Generate plugin JSON manifest
+      # 8. Generate JSON manifest
       - name: Generate plugin JSON manifest
         shell: python
         run: |
@@ -84,6 +97,16 @@ jobs:
                       return f.read()
               return ""
 
+          contributors_raw = json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]'))
+          contributors = {}
+          for username in contributors_raw:
+              username = username.strip()
+              if username:
+                  contributors[username] = {
+                      "profile": f"https://profiles.wordpress.org/{username}",
+                      "avatar": f"https://wordpress.org/grav-redirect.php?user={username}&s=36"
+                  }
+
           plugin = {
               "name": "JPKCom ACF Jobs",
               "slug": os.environ.get("PLUGIN_SLUG"),
@@ -94,7 +117,7 @@ jobs:
               "requires_php": "8.3",
               "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
               "author_profile": "https://www.jpkc.com/",
-              "contributors": [c.strip() for c in json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]'))],
+              "contributors": contributors,
               "tags": [t.strip() for t in json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]'))],
               "license": "GPL-2.0+",
               "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
@@ -121,8 +144,8 @@ jobs:
           with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
               json.dump(plugin, f, indent=2, ensure_ascii=False)
 
-      # 9. Prepare all files for deployment (HTML + JSON + assets)
-      - name: Prepare gh-pages deployment folder
+      # 9. Prepare gh-pages deployment folder
+      - name: Prepare gh-pages deployment
         run: |
           mkdir -p gh-pages-deploy
           cp -r gh-pages-json/* gh-pages-deploy/
@@ -131,7 +154,7 @@ jobs:
             cp -r assets gh-pages-deploy/
           fi
 
-      # 10. Deploy everything to gh-pages branch
+      # 10. Deploy to gh-pages branch
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
