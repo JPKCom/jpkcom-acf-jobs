@@ -1,0 +1,103 @@
+name: Build WordPress Plugin ZIP, Generate Plugin Manifest & Deploy
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup environment variables
+      - name: Setup variables
+        id: vars
+        run: |
+          echo "PLUGIN_SLUG=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_ENV
+          echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+          echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "ZIP_FILE=$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF##*/}/$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
+
+      # 3. Setup Python for Markdown parsing
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # 4. Extract plugin sections (Description, Installation, Changelog, Contributors, Tags)
+      - name: Extract sections from README.md
+        id: extract
+        run: |
+          DESCRIPTION=$(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          INSTALLATION=$(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          CHANGELOG=$(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          echo "DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
+          echo "INSTALLATION=$INSTALLATION" >> $GITHUB_ENV
+          echo "CHANGELOG=$CHANGELOG" >> $GITHUB_ENV
+          echo "CONTRIBUTORS=$CONTRIBUTORS" >> $GITHUB_ENV
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
+
+      # 5. Create plugin ZIP archive
+      - name: Create ZIP
+        run: |
+          zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '*.github*' -x '*.DS_Store*'
+
+      # 6. Upload ZIP to the GitHub release
+      - name: Upload release ZIP
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_FILE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 7. Generate plugin JSON manifest with extended metadata
+      - name: Generate plugin JSON
+        run: |
+          cat <<EOF > plugin-${{ env.PLUGIN_SLUG }}.json
+          {
+            "name": "JPKCom ACF Jobs",
+            "slug": "${{ env.PLUGIN_SLUG }}",
+            "version": "${{ env.TAG_NAME }}",
+            "download_url": "${{ env.DOWNLOAD_URL }}",
+            "requires": "6.8",
+            "tested": "6.9",
+            "requires_php": "8.3",
+            "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
+            "author_profile": "https://www.jpkc.com/",
+            "contributors": ${CONTRIBUTORS:-["JPKCom"]},
+            "tags": ${TAGS:-["ACF","Fields","CPT","CTT","Taxonomy","Forms"]},
+            "license": "GPL-2.0+",
+            "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
+            "text_domain": "jpkcom-acf-jobs",
+            "domain_path": "/languages",
+            "network": true,
+            "requires_plugins": ["advanced-custom-fields-pro","acf-quickedit-fields"],
+            "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
+            "last_updated": "${{ env.DATE }}",
+            "sections": {
+              "description": "${{ env.DESCRIPTION }}",
+              "installation": "${{ env.INSTALLATION }}",
+              "changelog": "${{ env.CHANGELOG }}"
+            },
+            "banners": {
+              "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
+              "high": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-1544x500.avif"
+            }
+          }
+          EOF
+
+      # 8. Deploy manifest to gh-pages branch
+      - name: Deploy manifest to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          keep_files: true

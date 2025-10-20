@@ -31,6 +31,20 @@ define( constant_name: 'JPKCOM_ACFJOBS_PLUGIN_PATH', value: plugin_dir_path( __F
 define( constant_name: 'JPKCOM_ACFJOBS_PLUGIN_URL', value: plugin_dir_url( __FILE__ ) );
 
 
+use JPKComGitUpdate\PluginUpdater;
+
+// Initialize updater
+add_action( 'init', function() {
+	require_once plugin_dir_path( __FILE__ ) . 'includes/class-plugin-updater.php';
+
+	new PluginUpdater(
+		plugin_file: __FILE__,
+		current_version: '1.0.0',
+		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/jpkcom-acf-jobs.json'
+	);
+});
+
+
 /**
  * Return data from the plugin
  *
