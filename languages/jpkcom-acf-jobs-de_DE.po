@@ -1,0 +1,283 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: JPKCom ACF Jobs\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-17 16:13+0000\n"
+"PO-Revision-Date: 2025-10-17 16:57+0000\n"
+"Last-Translator: \n"
+"Language-Team: Deutsch\n"
+"Language: de_DE\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Loco https://localise.biz/\n"
+"X-Loco-Version: 2.8.0; wp-6.8.3; php-8.3.25\n"
+"X-Domain: jpkcom-acf-jobs"
+
+#: includes/helpers.php:289 includes/helpers.php:294 includes/helpers.php:299
+#: includes/helpers.php:304
+msgid "ago"
+msgstr "&nbsp;"
+
+#: templates/partials/debug/schema-job.php:70
+msgid "All required fields present"
+msgstr "Alle erforderlichen Felder sind vorhanden."
+
+#: templates/partials/job/job_attribute.php:16
+msgid "Attributes"
+msgstr "Attribute"
+
+#: debug-templates/single-job.php:45
+#: templates/partials/layout/pagination-page.php:13
+msgid "Back to overview"
+msgstr "Zurück zur Übersicht"
+
+#: templates/partials/job/job_base_salary_group.php:16
+msgid "Basic salary"
+msgstr "Grundgehalt"
+
+#: includes/breadcrumb.php:20
+msgid "Breadcrumb"
+msgstr "Brotkrumen"
+
+#: templates/partials/job/job_company.php:12
+#: templates/partials/archive/job_company.php:12
+msgid "Company"
+msgstr "Unternehmen"
+
+#: templates/archive-job_company.php:19
+#: debug-templates/archive-job_company.php:19
+msgid "Company overview"
+msgstr "Unternehmensübersicht"
+
+#: templates/archive-job.php:19 debug-templates/archive-job.php:19
+msgid "Current job offers"
+msgstr "Aktuelle Stellenangebote"
+
+#: includes/pagination.php:70
+msgid "Current Page"
+msgstr "Aktuelle Seite"
+
+#: includes/helpers.php:289
+msgid "day"
+msgstr "Tag"
+
+#: includes/helpers.php:289
+msgid "days"
+msgstr "Tagen"
+
+#: templates/single-job.php:57
+msgid "Description"
+msgstr "Beschreibung"
+
+#: templates/single-job.php:81
+msgid "Details"
+msgstr "Details"
+
+#: templates/single-job_company.php:31
+#: debug-templates/single-job_company.php:31
+msgid "Edit company"
+msgstr "Unternehmen bearbeiten"
+
+#: debug-templates/single-job.php:40
+msgid "Edit job"
+msgstr "Stellenangebot bearbeiten"
+
+#: templates/single-job_location.php:31
+#: debug-templates/single-job_location.php:31
+msgid "Edit location"
+msgstr "Standort bearbeiten"
+
+#: templates/partials/debug/schema-job.php:43
+msgid "Error parsing JSON-LD schema!"
+msgstr "Fehler beim Parsen des JSON-LD-Schemas!"
+
+#: includes/pagination.php:36
+msgid "First Page"
+msgstr "Erste Seite"
+
+#: includes/media.php:34
+msgid "Header Image (Width 992 / Height 558)"
+msgstr "Kopfzeilenbild (Breite 992 / Höhe 558)"
+
+#: includes/breadcrumb.php:23
+msgid "Home"
+msgstr "Home"
+
+#: templates/partials/job/job_type.php:48
+msgid "Home office"
+msgstr "Home-Office"
+
+#: templates/partials/job/job_type.php:56
+msgid "Home office and onsite work"
+msgstr "Home-Office und Arbeit vor Ort"
+
+#. URI of the plugin
+msgid "https://github.com/JPKCom/jpkcom-acf-jobs"
+msgstr "https://github.com/JPKCom/jpkcom-acf-jobs"
+
+#. Author URI of the plugin
+msgid "https://www.jpkc.com/"
+msgstr "https://www.jpkc.com/"
+
+#. Author of the plugin
+msgid "Jean Pierre Kolb <jpk@jpkc.com>"
+msgstr "Jean Pierre Kolb <jpk@jpkc.com>"
+
+#. Description of the plugin
+msgid "Job application plugin for ACF"
+msgstr "Bewerbungs-Plugin für ACF"
+
+#: includes/media.php:32
+msgid "Job Image (16:9 / Width 576px)"
+msgstr "Job-Bild (16:9 / Breite 576px)"
+
+#: includes/media.php:33
+msgid "Job Logo (Width 512 / Height 512)"
+msgstr "Job-Logo (Breite 512 / Höhe 512)"
+
+#: templates/partials/layout/pagination-page.php:10
+msgid "Job page navigation"
+msgstr "Navigation auf der Jobseite"
+
+#: templates/partials/job/job_closed.php:13
+msgid "Job vacancy currently already filled!"
+msgstr "Stellenangebot derzeit bereits besetzt!"
+
+#: includes/breadcrumb.php:31 includes/breadcrumb.php:39
+msgid "Jobs"
+msgstr "Stellenangebote"
+
+#. Name of the plugin
+msgid "JPKCom ACF Jobs"
+msgstr "JPKCom ACF Jobs"
+
+#: includes/pagination.php:96
+msgid "Last Page"
+msgstr "Letzte Seite"
+
+#: templates/partials/job/job_location.php:12
+#: templates/partials/archive/job_location.php:12
+msgid "Location"
+msgstr "Standort"
+
+#: templates/archive-job_location.php:19
+#: debug-templates/archive-job_location.php:19
+msgid "Locations overview"
+msgstr "Standorte Übersicht"
+
+#: templates/partials/debug/schema-job.php:65
+msgid "Missing mandatory fields"
+msgstr "Fehlende Pflichtfelder"
+
+#: includes/helpers.php:299
+msgid "month"
+msgstr "Monat"
+
+#: includes/helpers.php:299
+msgid "months"
+msgstr "Monaten"
+
+#: includes/pagination.php:80
+msgid "Next Page"
+msgstr "Nächste Seite"
+
+#: includes/shortcodes.php:396 templates/shortcodes/attributes.php:18
+msgid "No attributes found."
+msgstr "Keine Attribute gefunden."
+
+#: includes/shortcodes.php:428 templates/shortcodes/attributes.php:37
+msgid "No description."
+msgstr "Keine Beschreibung."
+
+#: includes/shortcodes.php:318
+msgid "No jobs found."
+msgstr "Keine Stellen gefunden."
+
+#: templates/shortcodes/list.php:19
+msgid "No jobs to display."
+msgstr "Keine Stellenangebote vorhanden."
+
+#: templates/partials/debug/schema-job.php:21
+msgid "No schema generated for this job."
+msgstr "Für diesen Auftrag wurde kein Schema generiert."
+
+#: templates/partials/job/job_type.php:52
+msgid "Onsite work"
+msgstr "Arbeit vor Ort"
+
+#: includes/pagination.php:71
+msgid "Page"
+msgstr "Seite"
+
+#: includes/pagination.php:30
+msgid "Page navigation"
+msgstr "Seiten-Navigation"
+
+#: includes/pagination.php:52
+msgid "Previous Page"
+msgstr "Vorherige Seite"
+
+#: includes/helpers.php:289 includes/helpers.php:294 includes/helpers.php:299
+#: includes/helpers.php:304
+msgid "Published"
+msgstr "Veröffentlicht vor"
+
+#: includes/helpers.php:276
+msgid "Published in the future"
+msgstr "In der Zukunft veröffentlicht"
+
+#: includes/helpers.php:280
+msgid "Published today"
+msgstr "Heute veröffentlicht"
+
+#: includes/helpers.php:284
+msgid "Published yesterday"
+msgstr "Gestern veröffentlicht"
+
+#: templates/archive-job_company.php:67
+#: debug-templates/archive-job_company.php:67
+msgid "There are currently no companies available."
+msgstr "Derzeit sind keine Unternehmen verfügbar."
+
+#: templates/archive-job.php:103 debug-templates/archive-job.php:67
+msgid "There are currently no job offers available."
+msgstr "Derzeit sind keine Stellenangebote verfügbar."
+
+#: templates/archive-job_location.php:67
+#: debug-templates/archive-job_location.php:67
+msgid "There are currently no locations available."
+msgstr "Derzeit sind keine Standorte verfügbar."
+
+#: templates/partials/job/job_type.php:12
+#: templates/partials/archive/job_type.php:12
+msgid "Type"
+msgstr "Typ"
+
+#: templates/archive-job.php:87 templates/archive-job_location.php:51
+#: templates/archive-job_company.php:51 debug-templates/archive-job.php:51
+#: debug-templates/archive-job_location.php:51
+#: debug-templates/archive-job_company.php:51
+msgid "View details…"
+msgstr "Details anzeigen…"
+
+#: templates/partials/job/job_type.php:60
+msgid "Ways of working"
+msgstr "Arbeitsweise"
+
+#: includes/helpers.php:294
+msgid "week"
+msgstr "Woche"
+
+#: includes/helpers.php:294
+msgid "weeks"
+msgstr "Wochen"
+
+#: includes/helpers.php:304
+msgid "year"
+msgstr "Jahr"
+
+#: includes/helpers.php:304
+msgid "years"
+msgstr "Jahren"

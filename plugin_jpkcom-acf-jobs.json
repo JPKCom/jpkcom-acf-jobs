@@ -1,0 +1,42 @@
+{
+  "name": "JPKCom ACF Jobs",
+  "slug": "jpkcom-acf-jobs",
+  "version": "v1.0.1",
+  "download_url": "https://github.com/JPKCom/jpkcom-acf-jobs/releases/download/v1.0.1/jpkcom-acf-jobs.zip",
+  "requires": "6.8",
+  "tested": "6.9",
+  "requires_php": "8.3",
+  "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
+  "author_profile": "https.environ.get('https://www.jpkc.com/')",
+  "contributors": [
+    "JPKCom  "
+  ],
+  "tags": [
+    "ACF",
+    "Fields",
+    "CPT",
+    "CTT",
+    "Taxonomy",
+    "Forms  "
+  ],
+  "license": "GPL-2.0+",
+  "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
+  "text_domain": "jpkcom-acf-jobs",
+  "domain_path": "/languages",
+  "network": true,
+  "requires_plugins": [
+    "advanced-custom-fields-pro",
+    "acf-quickedit-fields"
+  ],
+  "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
+  "last_updated": "2025-10-20",
+  "sections": {
+    "description": "\\nA plugin to provide a job application tool for ACF Pro.\\n\\nThe following plugins are required:\\n\\n- [Advanced Custom Fields Pro](https://www.advancedcustomfields.com/)\\n- [ACF Quick Edit Fields](https://wordpress.org/plugins/acf-quickedit-fields/)\\n\\nThe following is included:\\n\\n- Custom fields (`includes/acf-field_groups.php`)\\n- Custom content types (`includes/acf-post_types.php`)\\n- Custom taxonomies (`includes/acf-taxonomies.php`)\\n\\n### Get Template Parts\\n\\n```php\\n// Native WordPress:\\nget_template_part( 'jpkcom-acf-jobs/partials/job/company' );\\n// Plugin:\\njpkcom_acf_jobs_get_template_part( 'partials/job/company' );\\n```\\n\\n### Shortcodes\\n\\nAll shortcode attributes are optional.\\n\\n#### Job list with filter functions:\\n```\\n[jpkcom_acf_jobs_list type=\\\"FULL_TIME\\\" company=\\\"6,8\\\" location=\\\"1,3,7,11\\\" limit=\\\"10\\\" sort=\\\"DSC\\\" style=\\\"background:transparent;\\\" class=\\\"mb-5\\\" title=\\\"Attributes Headline\\\"]\\n```\\n\\n#### List of attributes displayd as `<details>` tags with filter functions:\\n```\\n[jpkcom_acf_jobs_attributes id=\\\"3,7,21\\\" style=\\\"background:transparent;\\\" class=\\\"mb-5\\\" title=\\\"Attributes Headline\\\"]\\n```\\n\\n### Helper functions\\n\\n#### Renders all ACF fields of a post with Bootstrap 5 markup.\\n\\n`@param string $post_type` Optional post type for field group query. If empty, 'current_post_type' is used.\\n\\n```php\\njpkcom_render_acf_fields();\\n```\\n",
+    "installation": "\\n1. In your admin panel, go to 'Plugins' > and click the 'Add New' button.\\n2. Click Upload Plugin and 'Choose File', then select the Plugin's .zip file. Click 'Install Now'.\\n3. Make sure the 'Advanced Custom Fields' and the 'ACF QuickEdit Fields' plugins are activated.\\n4. Click 'Activate' to use the plugin right away.\\n\\n",
+    "changelog": "\\n### 1.0.1\\n* GitHub workflow\\n\\n### 1.0.0\\n* Initial Release"
+  },
+  "banners": {
+    "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
+    "high": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-1544x500.avif"
+  }
+}

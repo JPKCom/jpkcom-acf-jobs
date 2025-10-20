@@ -1,0 +1,284 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: JPKCom ACF Jobs\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-17 16:13+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: \n"
+"Language: \n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Loco https://localise.biz/\n"
+"X-Loco-Version: 2.8.0; wp-6.8.3; php-8.3.25\n"
+"X-Domain: jpkcom-acf-jobs"
+
+#: includes/helpers.php:289 includes/helpers.php:294 includes/helpers.php:299
+#: includes/helpers.php:304
+msgid "ago"
+msgstr ""
+
+#: templates/partials/debug/schema-job.php:70
+msgid "All required fields present"
+msgstr ""
+
+#: templates/partials/job/job_attribute.php:16
+msgid "Attributes"
+msgstr ""
+
+#: debug-templates/single-job.php:45
+#: templates/partials/layout/pagination-page.php:13
+msgid "Back to overview"
+msgstr ""
+
+#: templates/partials/job/job_base_salary_group.php:16
+msgid "Basic salary"
+msgstr ""
+
+#: includes/breadcrumb.php:20
+msgid "Breadcrumb"
+msgstr ""
+
+#: templates/partials/job/job_company.php:12
+#: templates/partials/archive/job_company.php:12
+msgid "Company"
+msgstr ""
+
+#: templates/archive-job_company.php:19
+#: debug-templates/archive-job_company.php:19
+msgid "Company overview"
+msgstr ""
+
+#: templates/archive-job.php:19 debug-templates/archive-job.php:19
+msgid "Current job offers"
+msgstr ""
+
+#: includes/pagination.php:70
+msgid "Current Page"
+msgstr ""
+
+#: includes/helpers.php:289
+msgid "day"
+msgstr ""
+
+#: includes/helpers.php:289
+msgid "days"
+msgstr ""
+
+#: templates/single-job.php:57
+msgid "Description"
+msgstr ""
+
+#: templates/single-job.php:81
+msgid "Details"
+msgstr ""
+
+#: templates/single-job_company.php:31
+#: debug-templates/single-job_company.php:31
+msgid "Edit company"
+msgstr ""
+
+#: debug-templates/single-job.php:40
+msgid "Edit job"
+msgstr ""
+
+#: templates/single-job_location.php:31
+#: debug-templates/single-job_location.php:31
+msgid "Edit location"
+msgstr ""
+
+#: templates/partials/debug/schema-job.php:43
+msgid "Error parsing JSON-LD schema!"
+msgstr ""
+
+#: includes/pagination.php:36
+msgid "First Page"
+msgstr ""
+
+#: includes/media.php:34
+msgid "Header Image (Width 992 / Height 558)"
+msgstr ""
+
+#: includes/breadcrumb.php:23
+msgid "Home"
+msgstr ""
+
+#: templates/partials/job/job_type.php:48
+msgid "Home office"
+msgstr ""
+
+#: templates/partials/job/job_type.php:56
+msgid "Home office and onsite work"
+msgstr ""
+
+#. URI of the plugin
+msgid "https://github.com/JPKCom/jpkcom-acf-jobs"
+msgstr ""
+
+#. Author URI of the plugin
+msgid "https://www.jpkc.com/"
+msgstr ""
+
+#. Author of the plugin
+msgid "Jean Pierre Kolb <jpk@jpkc.com>"
+msgstr ""
+
+#. Description of the plugin
+msgid "Job application plugin for ACF"
+msgstr ""
+
+#: includes/media.php:32
+msgid "Job Image (16:9 / Width 576px)"
+msgstr ""
+
+#: includes/media.php:33
+msgid "Job Logo (Width 512 / Height 512)"
+msgstr ""
+
+#: templates/partials/layout/pagination-page.php:10
+msgid "Job page navigation"
+msgstr ""
+
+#: templates/partials/job/job_closed.php:13
+msgid "Job vacancy currently already filled!"
+msgstr ""
+
+#: includes/breadcrumb.php:31 includes/breadcrumb.php:39
+msgid "Jobs"
+msgstr ""
+
+#. Name of the plugin
+msgid "JPKCom ACF Jobs"
+msgstr ""
+
+#: includes/pagination.php:96
+msgid "Last Page"
+msgstr ""
+
+#: templates/partials/job/job_location.php:12
+#: templates/partials/archive/job_location.php:12
+msgid "Location"
+msgstr ""
+
+#: templates/archive-job_location.php:19
+#: debug-templates/archive-job_location.php:19
+msgid "Locations overview"
+msgstr ""
+
+#: templates/partials/debug/schema-job.php:65
+msgid "Missing mandatory fields"
+msgstr ""
+
+#: includes/helpers.php:299
+msgid "month"
+msgstr ""
+
+#: includes/helpers.php:299
+msgid "months"
+msgstr ""
+
+#: includes/pagination.php:80
+msgid "Next Page"
+msgstr ""
+
+#: includes/shortcodes.php:396 templates/shortcodes/attributes.php:18
+msgid "No attributes found."
+msgstr ""
+
+#: includes/shortcodes.php:428 templates/shortcodes/attributes.php:37
+msgid "No description."
+msgstr ""
+
+#: includes/shortcodes.php:318
+msgid "No jobs found."
+msgstr ""
+
+#: templates/shortcodes/list.php:19
+msgid "No jobs to display."
+msgstr ""
+
+#: templates/partials/debug/schema-job.php:21
+msgid "No schema generated for this job."
+msgstr ""
+
+#: templates/partials/job/job_type.php:52
+msgid "Onsite work"
+msgstr ""
+
+#: includes/pagination.php:71
+msgid "Page"
+msgstr ""
+
+#: includes/pagination.php:30
+msgid "Page navigation"
+msgstr ""
+
+#: includes/pagination.php:52
+msgid "Previous Page"
+msgstr ""
+
+#: includes/helpers.php:289 includes/helpers.php:294 includes/helpers.php:299
+#: includes/helpers.php:304
+msgid "Published"
+msgstr ""
+
+#: includes/helpers.php:276
+msgid "Published in the future"
+msgstr ""
+
+#: includes/helpers.php:280
+msgid "Published today"
+msgstr ""
+
+#: includes/helpers.php:284
+msgid "Published yesterday"
+msgstr ""
+
+#: templates/archive-job_company.php:67
+#: debug-templates/archive-job_company.php:67
+msgid "There are currently no companies available."
+msgstr ""
+
+#: templates/archive-job.php:103 debug-templates/archive-job.php:67
+msgid "There are currently no job offers available."
+msgstr ""
+
+#: templates/archive-job_location.php:67
+#: debug-templates/archive-job_location.php:67
+msgid "There are currently no locations available."
+msgstr ""
+
+#: templates/partials/job/job_type.php:12
+#: templates/partials/archive/job_type.php:12
+msgid "Type"
+msgstr ""
+
+#: templates/archive-job.php:87 templates/archive-job_location.php:51
+#: templates/archive-job_company.php:51 debug-templates/archive-job.php:51
+#: debug-templates/archive-job_location.php:51
+#: debug-templates/archive-job_company.php:51
+msgid "View details…"
+msgstr ""
+
+#: templates/partials/job/job_type.php:60
+msgid "Ways of working"
+msgstr ""
+
+#: includes/helpers.php:294
+msgid "week"
+msgstr ""
+
+#: includes/helpers.php:294
+msgid "weeks"
+msgstr ""
+
+#: includes/helpers.php:304
+msgid "year"
+msgstr ""
+
+#: includes/helpers.php:304
+msgid "years"
+msgstr ""
