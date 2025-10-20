@@ -63,20 +63,31 @@ jobs:
       # 7. Generate plugin JSON manifest
       - name: Generate plugin JSON
         run: |
-          # Use single quotes for EOF to prevent Bash interpreting special chars
-cat <<'EOF' > plugin-${{ env.PLUGIN_SLUG }}.json
+          # Assign environment variables to Bash variables
+          PLUGIN_SLUG="${PLUGIN_SLUG}"
+          TAG_NAME="${TAG_NAME}"
+          DOWNLOAD_URL="${DOWNLOAD_URL}"
+          DATE="${DATE}"
+          DESCRIPTION="${DESCRIPTION}"
+          INSTALLATION="${INSTALLATION}"
+          CHANGELOG="${CHANGELOG}"
+          CONTRIBUTORS="${CONTRIBUTORS:-[\"JPKCom\"]}"
+          TAGS="${TAGS:-[\"ACF\",\"Fields\",\"CPT\",\"CTT\",\"Taxonomy\",\"Forms\"]}"
+
+          # Heredoc must be flush-left, no indentation
+cat <<EOF > plugin-$PLUGIN_SLUG.json
 {
   "name": "JPKCom ACF Jobs",
-  "slug": "${{ env.PLUGIN_SLUG }}",
-  "version": "${{ env.TAG_NAME }}",
-  "download_url": "${{ env.DOWNLOAD_URL }}",
+  "slug": "$PLUGIN_SLUG",
+  "version": "$TAG_NAME",
+  "download_url": "$DOWNLOAD_URL",
   "requires": "6.8",
   "tested": "6.9",
   "requires_php": "8.3",
   "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
   "author_profile": "https://www.jpkc.com/",
-  "contributors": ${CONTRIBUTORS:-["JPKCom"]},
-  "tags": ${TAGS:-["ACF","Fields","CPT","CTT","Taxonomy","Forms"]},
+  "contributors": $CONTRIBUTORS,
+  "tags": $TAGS,
   "license": "GPL-2.0+",
   "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
   "text_domain": "jpkcom-acf-jobs",
@@ -84,11 +95,11 @@ cat <<'EOF' > plugin-${{ env.PLUGIN_SLUG }}.json
   "network": true,
   "requires_plugins": ["advanced-custom-fields-pro","acf-quickedit-fields"],
   "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
-  "last_updated": "${{ env.DATE }}",
+  "last_updated": "$DATE",
   "sections": {
-    "description": "${{ env.DESCRIPTION }}",
-    "installation": "${{ env.INSTALLATION }}",
-    "changelog": "${{ env.CHANGELOG }}"
+    "description": "$DESCRIPTION",
+    "installation": "$INSTALLATION",
+    "changelog": "$CHANGELOG"
   },
   "banners": {
     "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
