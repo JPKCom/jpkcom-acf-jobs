@@ -33,14 +33,11 @@ jobs:
       - name: Extract sections from README.md
         id: extract
         run: |
-          # Extract description, installation, changelog
           DESCRIPTION=$(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           INSTALLATION=$(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           CHANGELOG=$(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          # Extract contributors and tags
           CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
           TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
-          # Export to GitHub Actions environment
           echo "DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
           echo "INSTALLATION=$INSTALLATION" >> $GITHUB_ENV
           echo "CHANGELOG=$CHANGELOG" >> $GITHUB_ENV
@@ -75,7 +72,7 @@ jobs:
               "tested": "6.9",
               "requires_php": "8.3",
               "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
-              "author_profile": "https.environ.get('https://www.jpkc.com/')",
+              "author_profile": "https://www.jpkc.com/",
               "contributors": json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]')),
               "tags": json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]')),
               "license": "GPL-2.0+",
@@ -97,14 +94,15 @@ jobs:
               }
           }
 
-          with open(f"plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
+          os.makedirs("gh-pages-json", exist_ok=True)
+          with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
               json.dump(plugin, f, indent=2, ensure_ascii=False)
 
-      # 8. Deploy manifest to gh-pages branch
-      - name: Deploy manifest to gh-pages
+      # 8. Deploy only JSON to gh-pages branch
+      - name: Deploy JSON to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
+          publish_dir: gh-pages-json
           publish_branch: gh-pages
-          keep_files: true
+          keep_files: false
