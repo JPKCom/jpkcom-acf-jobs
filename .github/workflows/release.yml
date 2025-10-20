@@ -61,50 +61,44 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 7. Generate plugin JSON manifest
-      - name: Generate plugin JSON
+      - name: Generate plugin JSON manifest
+        shell: python
         run: |
-          PLUGIN_SLUG="${PLUGIN_SLUG}"
-          TAG_NAME="${TAG_NAME}"
-          DOWNLOAD_URL="${DOWNLOAD_URL}"
-          DATE="${DATE}"
-          DESCRIPTION="${DESCRIPTION}"
-          INSTALLATION="${INSTALLATION}"
-          CHANGELOG="${CHANGELOG}"
-          CONTRIBUTORS="${CONTRIBUTORS:-[\"JPKCom\"]}"
-          TAGS="${TAGS:-[\"ACF\",\"Fields\",\"CPT\",\"CTT\",\"Taxonomy\",\"Forms\"]}"
+          import os, json
 
-cat <<EOF > plugin-$PLUGIN_SLUG.json
-{
-  "name": "JPKCom ACF Jobs",
-  "slug": "$PLUGIN_SLUG",
-  "version": "$TAG_NAME",
-  "download_url": "$DOWNLOAD_URL",
-  "requires": "6.8",
-  "tested": "6.9",
-  "requires_php": "8.3",
-  "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
-  "author_profile": "https://www.jpkc.com/",
-  "contributors": $CONTRIBUTORS,
-  "tags": $TAGS,
-  "license": "GPL-2.0+",
-  "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
-  "text_domain": "jpkcom-acf-jobs",
-  "domain_path": "/languages",
-  "network": true,
-  "requires_plugins": ["advanced-custom-fields-pro","acf-quickedit-fields"],
-  "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
-  "last_updated": "$DATE",
-  "sections": {
-    "description": "$DESCRIPTION",
-    "installation": "$INSTALLATION",
-    "changelog": "$CHANGELOG"
-  },
-  "banners": {
-    "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
-    "high": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-1544x500.avif"
-  }
-}
-EOF
+          plugin = {
+              "name": "JPKCom ACF Jobs",
+              "slug": os.environ.get("PLUGIN_SLUG"),
+              "version": os.environ.get("TAG_NAME"),
+              "download_url": os.environ.get("DOWNLOAD_URL"),
+              "requires": "6.8",
+              "tested": "6.9",
+              "requires_php": "8.3",
+              "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
+              "author_profile": "https.environ.get('https://www.jpkc.com/')",
+              "contributors": json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]')),
+              "tags": json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]')),
+              "license": "GPL-2.0+",
+              "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
+              "text_domain": "jpkcom-acf-jobs",
+              "domain_path": "/languages",
+              "network": True,
+              "requires_plugins": ["advanced-custom-fields-pro","acf-quickedit-fields"],
+              "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
+              "last_updated": os.environ.get("DATE"),
+              "sections": {
+                  "description": os.environ.get("DESCRIPTION"),
+                  "installation": os.environ.get("INSTALLATION"),
+                  "changelog": os.environ.get("CHANGELOG")
+              },
+              "banners": {
+                  "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
+                  "high": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-1544x500.avif"
+              }
+          }
+
+          with open(f"plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
+              json.dump(plugin, f, indent=2, ensure_ascii=False)
 
       # 8. Deploy manifest to gh-pages branch
       - name: Deploy manifest to gh-pages
