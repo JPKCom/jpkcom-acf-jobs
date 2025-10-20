@@ -112,7 +112,7 @@ final class PluginUpdater {
         $sections = [];
         foreach ( ['description','installation','changelog','faq'] as $key ) {
             if ( ! empty($remote->sections->$key ) ) {
-                $sections[$key] = wp_kses_post( nl2br( string: trim( string: $remote->sections->$key ) ) );
+                $sections[$key] = wp_kses_post( string: trim( string: $remote->sections->$key ) );
             }
         }
 
@@ -127,29 +127,47 @@ final class PluginUpdater {
         $info->author           = $remote->author ?? '';
         $info->author_profile   = $remote->author_profile ?? '';
 
-        // Normalize contributors to array of [username => ['profile' => '', 'avatar' => '']]
+        /**
+         * Normalize contributors to WP-compatible array format.
+         *
+         * Example output:
+         * [
+         *   "JPKCom" => [
+         *     "profile" => "https://profiles.wordpress.org/JPKCom",
+         *     "avatar"  => "https://wordpress.org/grav-redirect.php?user=JPKCom&s=36"
+         *   ]
+         * ]
+         */
         $contributors = $remote->contributors ?? [];
+
         if ( is_object( value: $contributors ) ) {
-            // convert stdClass (from JSON) to array
             $contributors = (array) $contributors;
+        } elseif ( is_string( value: $contributors ) ) {
+            $contributors = [ $contributors ];
         }
-        if ( is_string( value: $contributors ) ) {
-            // single contributor name
-            $contributors = [$contributors];
-        }
+
         if ( is_array( value: $contributors ) ) {
-            // if it's a list of plain strings, convert to WP-compatible structure
-            $contributors = array_reduce( array: $contributors, callback: function ( $carry, $item ): mixed {
-                $username = trim( string: $item );
-                $carry[$username] = [
-                    'profile' => 'https://profiles.wordpress.org/' . $username,
-                    'avatar'  => 'https://wordpress.org/grav-redirect.php?user=' . $username . '&s=36',
-                ];
-                return $carry;
-            }, initial: [] );
+            $contributors = array_reduce(
+                array: $contributors,
+                callback: static function ( array $carry, $item ): array {
+                    $username = trim( string: (string) $item );
+                    if ( $username === '' ) {
+                        return $carry;
+                    }
+
+                    $carry[ $username ] = [
+                        'profile' => sprintf( format: 'https://profiles.wordpress.org/%s', values: $username ),
+                        'avatar'  => sprintf( format: 'https://wordpress.org/grav-redirect.php?user=%s&s=36', values: $username ),
+                    ];
+
+                    return $carry;
+                },
+                initial: []
+            );
         } else {
             $contributors = [];
         }
+
         $info->contributors     = $contributors;
 
 
