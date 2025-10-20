@@ -64,7 +64,7 @@ jobs:
       - name: Generate plugin JSON
         run: |
           # Use single quotes for EOF to prevent Bash interpreting special chars
-          cat <<'EOF' > plugin-${{ env.PLUGIN_SLUG }}.json
+cat <<'EOF' > plugin-${{ env.PLUGIN_SLUG }}.json
 {
   "name": "JPKCom ACF Jobs",
   "slug": "${{ env.PLUGIN_SLUG }}",
