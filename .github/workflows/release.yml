@@ -63,7 +63,7 @@ jobs:
       # 7. Generate plugin JSON manifest
       - name: Generate plugin JSON
         run: |
-          # Assign environment variables to Bash variables
+          # Assign GitHub env vars to Bash variables
           PLUGIN_SLUG="${PLUGIN_SLUG}"
           TAG_NAME="${TAG_NAME}"
           DOWNLOAD_URL="${DOWNLOAD_URL}"
@@ -74,7 +74,6 @@ jobs:
           CONTRIBUTORS="${CONTRIBUTORS:-[\"JPKCom\"]}"
           TAGS="${TAGS:-[\"ACF\",\"Fields\",\"CPT\",\"CTT\",\"Taxonomy\",\"Forms\"]}"
 
-          # Heredoc must be flush-left, no indentation
 cat <<EOF > plugin-$PLUGIN_SLUG.json
 {
   "name": "JPKCom ACF Jobs",
