@@ -109,13 +109,24 @@ final class PluginUpdater {
             return $result;
         }
 
+        $sections = [];
+        foreach ( ['description','installation','changelog','faq'] as $key ) {
+            if ( ! empty($remote->sections->$key ) ) {
+                $sections[$key] = wp_kses_post( nl2br( string: trim( string: $remote->sections->$key ) ) );
+            }
+        }
+
+        if ( ! empty( $remote->readme_html ) ) {
+            $sections['readme'] = wp_kses_post( $remote->readme_html );
+        }
+
         $info = new \stdClass();
         $info->name            = $remote->name ?? '';
         $info->slug            = $remote->slug ?? $this->plugin_slug;
         $info->version         = $remote->version ?? $this->current_version;
         $info->author          = $remote->author ?? '';
         $info->author_profile  = $remote->author_profile ?? '';
-        $info->contributors    = $remote->contributors ?? [];
+        $info->contributors     = array_map( callback: 'trim', array: $remote->contributors ?? [] );
         $info->homepage        = $remote->homepage ?? '';
         $info->download_link   = $remote->download_url ?? '';
         $info->requires        = $remote->requires ?? '6.8';
@@ -123,13 +134,13 @@ final class PluginUpdater {
         $info->requires_php    = $remote->requires_php ?? '8.3';
         $info->license         = $remote->license ?? 'GPL-2.0+';
         $info->license_uri     = $remote->license_uri ?? 'http://www.gnu.org/licenses/gpl-2.0.txt';
-        $info->tags            = $remote->tags ?? [];
+        $info->tags             = array_map( callback: 'trim', array: $remote->tags ?? [] );
         $info->network         = $remote->network ?? false;
         $info->requires_plugins = $remote->requires_plugins ?? [];
         $info->text_domain     = $remote->text_domain ?? '';
         $info->domain_path     = $remote->domain_path ?? '';
         $info->last_updated    = $remote->last_updated ?? '';
-        $info->sections        = (array)($remote->sections ?? []);
+        $info->sections        = $sections;
         $info->banners         = (array)($remote->banners ?? []);
 
         return $info;

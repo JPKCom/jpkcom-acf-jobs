@@ -22,6 +22,8 @@ GitHub Plugin URI: JPKCom/jpkcom-acf-jobs
 Primary Branch: main
 */
 
+use JPKComGitUpdate\PluginUpdater;
+
 if ( ! defined( constant_name: 'WPINC' ) ) {
     die;
 }
@@ -31,8 +33,6 @@ define( constant_name: 'JPKCOM_ACFJOBS_PLUGIN_PATH', value: plugin_dir_path( __F
 define( constant_name: 'JPKCOM_ACFJOBS_PLUGIN_URL', value: plugin_dir_url( __FILE__ ) );
 
 
-use JPKComGitUpdate\PluginUpdater;
-
 // Initialize updater
 add_action( 'init', function() {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/class-plugin-updater.php';
@@ -40,7 +40,7 @@ add_action( 'init', function() {
 	new PluginUpdater(
 		plugin_file: __FILE__,
 		current_version: '1.0.2',
-		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/jpkcom-acf-jobs.json'
+		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json'
 	);
 });
 

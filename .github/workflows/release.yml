@@ -36,11 +36,13 @@ jobs:
           DESCRIPTION=$(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           INSTALLATION=$(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           CHANGELOG=$(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          FAQ=$(awk '/^## FAQ/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
           TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
           echo "DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
           echo "INSTALLATION=$INSTALLATION" >> $GITHUB_ENV
           echo "CHANGELOG=$CHANGELOG" >> $GITHUB_ENV
+          echo "FAQ=$FAQ" >> $GITHUB_ENV
           echo "CONTRIBUTORS=$CONTRIBUTORS" >> $GITHUB_ENV
           echo "TAGS=$TAGS" >> $GITHUB_ENV
 
@@ -57,11 +59,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. Generate plugin JSON manifest
+      # 7. Convert README.md to HTML for gh-pages and JSON
+      - name: Convert README.md to HTML
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+          mkdir -p gh-pages-html
+          # HTML für gh-pages
+          pandoc README.md -o gh-pages-html/index.html
+          # HTML für JSON
+          pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
+
+      # 8. Generate plugin JSON manifest
       - name: Generate plugin JSON manifest
         shell: python
         run: |
           import os, json
+
+          # Load README-HTML
+          readme_html_path = "gh-pages-json/readme.html"
+          readme_html = ""
+          if os.path.exists(readme_html_path):
+              with open(readme_html_path, encoding="utf-8") as f:
+                  readme_html = f.read()
 
           plugin = {
               "name": "JPKCom ACF Jobs",
@@ -73,8 +93,8 @@ jobs:
               "requires_php": "8.3",
               "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
               "author_profile": "https://www.jpkc.com/",
-              "contributors": json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]')),
-              "tags": json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]')),
+              "contributors": [c.strip() for c in json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]'))],
+              "tags": [t.strip() for t in json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]'))],
               "license": "GPL-2.0+",
               "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
               "text_domain": "jpkcom-acf-jobs",
@@ -86,8 +106,10 @@ jobs:
               "sections": {
                   "description": os.environ.get("DESCRIPTION"),
                   "installation": os.environ.get("INSTALLATION"),
-                  "changelog": os.environ.get("CHANGELOG")
+                  "changelog": os.environ.get("CHANGELOG"),
+                  "faq": os.environ.get("FAQ")
               },
+              "readme_html": readme_html,   # <-- hier wird die komplette README als HTML hinzugefügt
               "banners": {
                   "low": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-772x250.avif",
                   "high": "https://jpkcom.com/assets/jpkcom-acf-jobs-banner-1544x500.avif"
@@ -98,11 +120,13 @@ jobs:
           with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
               json.dump(plugin, f, indent=2, ensure_ascii=False)
 
-      # 8. Deploy only JSON to gh-pages branch
-      - name: Deploy JSON to gh-pages
+      # 9. Deploy JSON and README HTML to gh-pages branch
+      - name: Deploy JSON and HTML to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: gh-pages-json
+          publish_dir: |
+            gh-pages-json
+            gh-pages-html
           publish_branch: gh-pages
           keep_files: false
