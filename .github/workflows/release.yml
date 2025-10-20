@@ -108,8 +108,18 @@ jobs:
               with open(meta_path, encoding="utf-8") as f:
                   meta = json.load(f)
 
-          # Parse contributors
-          contributors_raw = json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]'))
+          # ---- Safe JSON loading helper ----
+          def safe_json_env(key, fallback):
+              val = os.environ.get(key, "").strip()
+              if not val:
+                  return fallback
+              try:
+                  return json.loads(val)
+              except Exception:
+                  return fallback
+
+          # Parse contributors safely
+          contributors_raw = safe_json_env("CONTRIBUTORS", ["JPKCom"])
           contributors = {}
           for username in contributors_raw:
               username = username.strip()
@@ -119,7 +129,8 @@ jobs:
                       "avatar": f"https://wordpress.org/grav-redirect.php?user={username}&s=36"
                   }
 
-          tags = json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]'))
+          # Parse tags safely
+          tags = safe_json_env("TAGS", ["Plugin","WordPress"])
 
           plugin = {
               "name": meta.get("PluginName", ""),
