@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup environment variables
+      # 2️⃣ Setup variables
       - name: Setup variables
         id: vars
         run: |
@@ -25,78 +25,90 @@ jobs:
           echo "ZIP_FILE=$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
           echo "DOWNLOAD_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF##*/}/$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
 
-      # 3. Setup Python
+      # 3️⃣ Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # 4. Install Pandoc
+      # 4️⃣ Install Pandoc
       - name: Install Pandoc
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc
+          sudo apt-get install -y pandoc jq
 
-      # 5. Generate HTML sections and extract contributors/tags
-      - name: Convert README.md to HTML and extract meta
+      # 5️⃣ Extract metadata and sections from README
+      - name: Parse README and generate HTML
+        id: readme
         run: |
           mkdir -p gh-pages-html gh-pages-json
 
-          # Convert entire README.md to HTML
-          pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
-          cp README.md gh-pages-html/index.md
+          # Extract plugin metadata from README.md (Key: Value)
+          declare -A META
+          while IFS=":" read -r key value; do
+            key=$(echo "$key" | sed 's/^\*\*//;s/\*\*$//;s/ //g')
+            value=$(echo "$value" | sed 's/^ *//;s/  *$//')
+            [ -n "$key" ] && META[$key]="$value"
+          done < <(grep -E '^\*\*[A-Za-z ]+:\*\*' README.md)
 
-          # Extract section HTMLs if they exist
+          # Save JSON metadata for later
+          echo "${META[@]}" > meta.txt
+          jq -n '$ARGS.named' --args "${!META[@]}" "${META[@]}" > gh-pages-json/readme_meta.json
+
+          # Convert README.md to full standalone HTML (with <head>, <body>)
+          pandoc README.md -f markdown -t html5 \
+            --metadata title="${META[PluginName]:-${{ env.PLUGIN_SLUG }}}" \
+            -s -o gh-pages-html/index.html \
+            --css=https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css \
+            --metadata pagetitle="${META[PluginName]:-${{ env.PLUGIN_SLUG }}}"
+
+          # Generate individual sections (with fallback if missing)
           for SECTION in Description Installation Changelog FAQ; do
             CONTENT=$(awk "/^## $SECTION/{flag=1;next}/^## /{flag=0}flag" README.md)
             if [ ! -z "$CONTENT" ]; then
               echo "$CONTENT" | pandoc -f markdown -t html -o gh-pages-json/${SECTION,,}.html
             else
-              echo "<!-- No $SECTION section found -->" > gh-pages-json/${SECTION,,}.html
+              echo "" > gh-pages-json/${SECTION,,}.html
             fi
           done
 
-          # Extract Contributors
-          CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
-          if [ -z "$CONTRIBUTORS" ]; then
-            CONTRIBUTORS="JPKCom"
-          fi
-
-          # Extract Tags
-          TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
-          if [ -z "$TAGS" ]; then
-            TAGS="ACF, Fields, CPT, CTT, Taxonomy, Forms"
-          fi
+          # Extract contributors and tags into environment vars
+          CONTRIBUTORS=$(grep -m1 '^\*\*Contributors:\*\*' README.md | sed 's/\*\*Contributors:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
+          TAGS=$(grep -m1 '^\*\*Tags:\*\*' README.md | sed 's/\*\*Tags:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
 
           echo "CONTRIBUTORS=$(echo $CONTRIBUTORS | jq -R -s -c 'split(\" \") | map(select(. != \"\"))')" >> $GITHUB_ENV
-          echo "TAGS=$(echo $TAGS | jq -R -s -c 'split(\",\") | map(select(. != \"\"))')" >> $GITHUB_ENV
+          echo "TAGS=$(echo $TAGS | jq -R -s -c 'split(\" \") | map(select(. != \"\"))')" >> $GITHUB_ENV
 
-      # 6. Create ZIP archive of plugin
-      - name: Create ZIP
+      # 6️⃣ Create plugin ZIP
+      - name: Create plugin ZIP
         run: |
           zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '*.github*' -x '*.DS_Store*'
 
-      # 7. Upload ZIP to GitHub release
-      - name: Upload release ZIP
+      # 7️⃣ Upload ZIP to GitHub release
+      - name: Upload ZIP to GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ZIP_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 8. Generate JSON manifest
+      # 8️⃣ Generate JSON manifest dynamically
       - name: Generate plugin JSON manifest
         shell: python
         run: |
           import os, json
 
-          def load_section_html(filename):
-              path = f"gh-pages-json/{filename}.html"
-              if os.path.exists(path):
-                  with open(path, encoding="utf-8") as f:
-                      return f.read()
-              return ""
+          def load_section_html(name):
+              path = f"gh-pages-json/{name}.html"
+              return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 
+          meta = {}
+          meta_path = "gh-pages-json/readme_meta.json"
+          if os.path.exists(meta_path):
+              with open(meta_path, encoding="utf-8") as f:
+                  meta = json.load(f)
+
+          # Parse contributors
           contributors_raw = json.loads(os.environ.get("CONTRIBUTORS", '["JPKCom"]'))
           contributors = {}
           for username in contributors_raw:
@@ -107,36 +119,38 @@ jobs:
                       "avatar": f"https://wordpress.org/grav-redirect.php?user={username}&s=36"
                   }
 
+          tags = json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]'))
+
           plugin = {
-              "name": "JPKCom ACF Jobs",
+              "name": meta.get("PluginName", ""),
               "slug": os.environ.get("PLUGIN_SLUG"),
-              "version": os.environ.get("TAG_NAME"),
+              "version": meta.get("Version", os.environ.get("TAG_NAME")),
               "download_url": os.environ.get("DOWNLOAD_URL"),
-              "requires": "6.8",
-              "tested": "6.9",
-              "requires_php": "8.3",
-              "author": "<a href='https://www.jpkc.com/'>Jean Pierre Kolb</a>",
-              "author_profile": "https://www.jpkc.com/",
+              "requires": meta.get("Requiresatleast", "6.8"),
+              "tested": meta.get("Testedupto", "6.9"),
+              "requires_php": meta.get("RequiresPHP", "8.3"),
+              "author": meta.get("Author", ""),
+              "author_profile": meta.get("AuthorURI", ""),
               "contributors": contributors,
-              "tags": [t.strip() for t in json.loads(os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]'))],
-              "license": "GPL-2.0+",
-              "license_uri": "http://www.gnu.org/licenses/gpl-2.0.txt",
-              "text_domain": "jpkcom-acf-jobs",
-              "domain_path": "/languages",
-              "network": True,
-              "requires_plugins": ["advanced-custom-fields-pro","acf-quickedit-fields"],
-              "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
+              "tags": [t.strip() for t in tags],
+              "license": meta.get("License", "GPL-2.0+"),
+              "license_uri": meta.get("LicenseURI", "http://www.gnu.org/licenses/gpl-2.0.txt"),
+              "text_domain": meta.get("TextDomain", ""),
+              "domain_path": meta.get("DomainPath", "/languages"),
+              "network": meta.get("Network", "true").lower() == "true",
+              "requires_plugins": [p.strip() for p in meta.get("RequiresPlugins", "").split(",") if p.strip()],
+              "homepage": meta.get("PluginURI", f"https://github.com/JPKCom/{os.environ.get('PLUGIN_SLUG')}"),
               "last_updated": os.environ.get("DATE"),
               "sections": {
                   "description": load_section_html("description"),
                   "installation": load_section_html("installation"),
                   "changelog": load_section_html("changelog"),
-                  "faq": load_section_html("faq")
+                  "faq": load_section_html("faq"),
               },
-              "readme_html": load_section_html("readme"),
+              "readme_html": open("gh-pages-html/index.html", encoding="utf-8").read() if os.path.exists("gh-pages-html/index.html") else "",
               "banners": {
-                  "low": f"https://jpkcom.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/jpkcom-acf-jobs-banner-772x250.avif",
-                  "high": f"https://jpkcom.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/jpkcom-acf-jobs-banner-1544x500.avif"
+                  "low": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-772x250.avif",
+                  "high": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-1544x500.avif"
               }
           }
 
@@ -144,7 +158,7 @@ jobs:
           with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
               json.dump(plugin, f, indent=2, ensure_ascii=False)
 
-      # 9. Prepare gh-pages deployment folder
+      # 9️⃣ Prepare for deployment
       - name: Prepare gh-pages deployment
         run: |
           mkdir -p gh-pages-deploy
@@ -154,7 +168,7 @@ jobs:
             cp -r assets gh-pages-deploy/
           fi
 
-      # 10. Deploy to gh-pages branch
+      # 🔟 Deploy to GitHub Pages
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
