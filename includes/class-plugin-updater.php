@@ -121,27 +121,39 @@ final class PluginUpdater {
         }
 
         $info = new \stdClass();
-        $info->name            = $remote->name ?? '';
-        $info->slug            = $remote->slug ?? $this->plugin_slug;
-        $info->version         = $remote->version ?? $this->current_version;
-        $info->author          = $remote->author ?? '';
-        $info->author_profile  = $remote->author_profile ?? '';
-        $info->contributors     = array_map( callback: 'trim', array: $remote->contributors ?? [] );
-        $info->homepage        = $remote->homepage ?? '';
-        $info->download_link   = $remote->download_url ?? '';
-        $info->requires        = $remote->requires ?? '6.8';
-        $info->tested          = $remote->tested ?? '6.9';
-        $info->requires_php    = $remote->requires_php ?? '8.3';
-        $info->license         = $remote->license ?? 'GPL-2.0+';
-        $info->license_uri     = $remote->license_uri ?? 'http://www.gnu.org/licenses/gpl-2.0.txt';
-        $info->tags             = array_map( callback: 'trim', array: $remote->tags ?? [] );
-        $info->network         = $remote->network ?? false;
+        $info->name             = $remote->name ?? '';
+        $info->slug             = $remote->slug ?? $this->plugin_slug;
+        $info->version          = $remote->version ?? $this->current_version;
+        $info->author           = $remote->author ?? '';
+        $info->author_profile   = $remote->author_profile ?? '';
+
+        $contributors = $remote->contributors ?? [];
+        if ( ! is_array( value: $contributors ) ) {
+            $contributors = [$contributors];
+        }
+        $info->contributors     = array_map( callback: 'trim', array: $contributors );
+
+        $info->homepage         = $remote->homepage ?? '';
+        $info->download_link    = $remote->download_url ?? '';
+        $info->requires         = $remote->requires ?? '6.8';
+        $info->tested           = $remote->tested ?? '6.9';
+        $info->requires_php     = $remote->requires_php ?? '8.3';
+        $info->license          = $remote->license ?? 'GPL-2.0+';
+        $info->license_uri      = $remote->license_uri ?? 'http://www.gnu.org/licenses/gpl-2.0.txt';
+        
+        $tags = $remote->tags ?? [];
+        if ( ! is_array( value: $tags ) ) {
+            $tags = [$tags];
+        }
+        $info->tags             = array_map( callback: 'trim', array: $tags );
+
+        $info->network          = $remote->network ?? false;
         $info->requires_plugins = $remote->requires_plugins ?? [];
-        $info->text_domain     = $remote->text_domain ?? '';
-        $info->domain_path     = $remote->domain_path ?? '';
-        $info->last_updated    = $remote->last_updated ?? '';
-        $info->sections        = $sections;
-        $info->banners         = (array)($remote->banners ?? []);
+        $info->text_domain      = $remote->text_domain ?? '';
+        $info->domain_path      = $remote->domain_path ?? '';
+        $info->last_updated     = $remote->last_updated ?? '';
+        $info->sections         = $sections;
+        $info->banners          = (array)($remote->banners ?? []);
 
         return $info;
     }
