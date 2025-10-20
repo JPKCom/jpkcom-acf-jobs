@@ -25,35 +25,45 @@ jobs:
           echo "ZIP_FILE=$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
           echo "DOWNLOAD_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF##*/}/$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
 
-      # 3. Setup Python for parsing README.md
+      # 3. Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # 4. Extract plugin sections from README.md
-      - name: Extract sections from README.md
-        id: extract
+      # 4. Install Pandoc
+      - name: Install Pandoc
         run: |
-          DESCRIPTION=$(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          INSTALLATION=$(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          CHANGELOG=$(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          FAQ=$(awk '/^## FAQ/{flag=1;next}/^## /{flag=0}flag' README.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      # 5. Generate HTML for README and sections
+      - name: Convert README.md and sections to HTML
+        run: |
+          mkdir -p gh-pages-html gh-pages-json
+
+          # Full README.html for gh-pages
+          pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
+          cp README.md gh-pages-html/index.md
+
+          # Sections to HTML
+          pandoc -f markdown -t html <(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/description.html
+          pandoc -f markdown -t html <(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/installation.html
+          pandoc -f markdown -t html <(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/changelog.html
+          pandoc -f markdown -t html <(awk '/^## FAQ/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/faq.html
+
+          # Extract Contributors and Tags
           CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
           TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
-          echo "DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
-          echo "INSTALLATION=$INSTALLATION" >> $GITHUB_ENV
-          echo "CHANGELOG=$CHANGELOG" >> $GITHUB_ENV
-          echo "FAQ=$FAQ" >> $GITHUB_ENV
           echo "CONTRIBUTORS=$CONTRIBUTORS" >> $GITHUB_ENV
           echo "TAGS=$TAGS" >> $GITHUB_ENV
 
-      # 5. Create ZIP archive of plugin
+      # 6. Create ZIP archive of plugin
       - name: Create ZIP
         run: |
           zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '*.github*' -x '*.DS_Store*'
 
-      # 6. Upload ZIP to GitHub release
+      # 7. Upload ZIP to GitHub release
       - name: Upload release ZIP
         uses: softprops/action-gh-release@v2
         with:
@@ -61,29 +71,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. Convert README.md to HTML for gh-pages and JSON
-      - name: Convert README.md to HTML
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pandoc
-          mkdir -p gh-pages-html gh-pages-json
-          # HTML für gh-pages
-          cp README.md gh-pages-html/index.md
-          # HTML für JSON
-          pandoc README.md -f markdown -t html -o gh-pages-json/readme.html
-
       # 8. Generate plugin JSON manifest
       - name: Generate plugin JSON manifest
         shell: python
         run: |
           import os, json
 
-          # Load README-HTML
-          readme_html_path = "gh-pages-json/readme.html"
-          readme_html = ""
-          if os.path.exists(readme_html_path):
-              with open(readme_html_path, encoding="utf-8") as f:
-                  readme_html = f.read()
+          def load_section_html(filename):
+              path = f"gh-pages-json/{filename}.html"
+              if os.path.exists(path):
+                  with open(path, encoding="utf-8") as f:
+                      return f.read()
+              return ""
 
           plugin = {
               "name": "JPKCom ACF Jobs",
@@ -106,12 +105,12 @@ jobs:
               "homepage": "https://github.com/JPKCom/jpkcom-acf-jobs",
               "last_updated": os.environ.get("DATE"),
               "sections": {
-                  "description": os.environ.get("DESCRIPTION"),
-                  "installation": os.environ.get("INSTALLATION"),
-                  "changelog": os.environ.get("CHANGELOG"),
-                  "faq": os.environ.get("FAQ")
+                  "description": load_section_html("description"),
+                  "installation": load_section_html("installation"),
+                  "changelog": load_section_html("changelog"),
+                  "faq": load_section_html("faq")
               },
-              "readme_html": readme_html,
+              "readme_html": load_section_html("readme"),
               "banners": {
                   "low": f"https://jpkcom.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/jpkcom-acf-jobs-banner-772x250.avif",
                   "high": f"https://jpkcom.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/jpkcom-acf-jobs-banner-1544x500.avif"
