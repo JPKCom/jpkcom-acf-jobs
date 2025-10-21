@@ -106,25 +106,31 @@ jobs:
           tags_raw = os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]')
           tags = json.loads(tags_raw) if tags_raw.strip() else ["ACF","Fields","CPT","CTT","Taxonomy","Forms"]
 
+          def clean_meta_value(value):
+              """Entfernt Markdown-Formatierungen wie ** oder * aus Textwerten."""
+              if isinstance(value, str):
+                  return value.replace("**", "").replace("*", "").strip()
+              return value
+
           plugin = {
-              "name": meta.get("PluginName", ""),
+              "name": clean_meta_value(meta.get("PluginName", "")),
               "slug": os.environ.get("PLUGIN_SLUG"),
-              "version": meta.get("Version", os.environ.get("TAG_NAME")),
+              "version": clean_meta_value(meta.get("Version", os.environ.get("TAG_NAME"))),
               "download_url": os.environ.get("DOWNLOAD_URL"),
-              "requires": meta.get("Requiresatleast", "6.8"),
-              "tested": meta.get("Testedupto", "6.9"),
-              "requires_php": meta.get("RequiresPHP", "8.3"),
-              "author": meta.get("Author", ""),
-              "author_profile": meta.get("AuthorURI", ""),
+              "requires": clean_meta_value(meta.get("Requiresatleast", "6.8")),
+              "tested": clean_meta_value(meta.get("Testedupto", "6.9")),
+              "requires_php": clean_meta_value(meta.get("RequiresPHP", "8.3")),
+              "author": clean_meta_value(meta.get("Author", "")),
+              "author_profile": clean_meta_value(meta.get("AuthorURI", "")),
               "contributors": contributors,
               "tags": [t.strip() for t in tags],
-              "license": meta.get("License", "GPL-2.0+"),
-              "license_uri": meta.get("LicenseURI", "http://www.gnu.org/licenses/gpl-2.0.txt"),
-              "text_domain": meta.get("TextDomain", ""),
-              "domain_path": meta.get("DomainPath", "/languages"),
+              "license": clean_meta_value(meta.get("License", "GPL-2.0+")),
+              "license_uri": clean_meta_value(meta.get("LicenseURI", "http://www.gnu.org/licenses/gpl-2.0.txt")),
+              "text_domain": clean_meta_value(meta.get("TextDomain", "")),
+              "domain_path": clean_meta_value(meta.get("DomainPath", "/languages")),
               "network": str(meta.get("Network", "true")).lower() == "true",
-              "requires_plugins": [p.strip() for p in meta.get("RequiresPlugins", "").split(",") if p.strip()],
-              "homepage": meta.get("PluginURI", f"https://github.com/{os.environ.get('GITHUB_REPOSITORY')}"),
+              "requires_plugins": [clean_meta_value(p.strip()) for p in meta.get("RequiresPlugins", "").split(",") if p.strip()],
+              "homepage": clean_meta_value(meta.get("PluginURI", f"https://github.com/JPKCom/{os.environ.get('PLUGIN_SLUG')}")),
               "last_updated": os.environ.get("DATE"),
               "sections": {
                   "description": load_section_html("description"),
