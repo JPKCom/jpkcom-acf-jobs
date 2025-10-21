@@ -55,10 +55,11 @@ jobs:
 
           declare -A META
           while IFS=":" read -r key value; do
-            key=$(echo "$key" | sed 's/^\*\*//;s/\*\*$//;s/ //g')
-            value=$(echo "$value" | sed 's/^ *//;s/ *$//')
+            key=$(echo "$key" | sed -E 's/^\*\*//;s/\*\*$//;s/[[:space:]]//g')
+            value=$(echo "$value" | sed -E 's/^\*\*//;s/\*\*$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
             [ -n "$key" ] && META[$key]="$value"
           done < <(grep -E '^\*\*[^:]+:\*\*' README.md)
+
 
           {
             echo "{"
@@ -107,7 +108,6 @@ jobs:
           tags = json.loads(tags_raw) if tags_raw.strip() else ["ACF","Fields","CPT","CTT","Taxonomy","Forms"]
 
           def clean_meta_value(value):
-              """Entfernt Markdown-Formatierungen wie ** oder * aus Textwerten."""
               if isinstance(value, str):
                   return value.replace("**", "").replace("*", "").strip()
               return value
