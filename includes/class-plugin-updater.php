@@ -60,6 +60,8 @@ final class PluginUpdater {
         add_filter( 'plugins_api', [$this, 'plugin_info'], 20, 3 );
         add_filter( 'site_transient_update_plugins', [$this, 'check_update'] );
         add_action( 'upgrader_process_complete', [$this, 'clear_cache'], 10, 2 );
+        add_filter( 'plugins_api_result', [$this, 'plugin_info'], 20, 3 );
+
     }
 
     /**

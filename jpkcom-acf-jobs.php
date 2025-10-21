@@ -3,7 +3,7 @@
 Plugin Name: JPKCom ACF Jobs
 Plugin URI: https://github.com/JPKCom/jpkcom-acf-jobs
 Description: Job application plugin for ACF
-Version: 1.1.3
+Version: 1.1.4
 Author: Jean Pierre Kolb <jpk@jpkc.com>
 Author URI: https://www.jpkc.com/
 Contributors: JPKCom
@@ -13,7 +13,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.3
 Network: true
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 Text Domain: jpkcom-acf-jobs
@@ -37,10 +37,25 @@ add_action( 'init', function(): void {
 
 	new PluginUpdater(
 		plugin_file: __FILE__,
-		current_version: '1.1.3',
+		current_version: '1.1.4',
 		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json'
 	);
 });
+
+add_filter( 'plugin_action_links_' . JPKCOM_ACFJOBS_BASENAME, function( array $links ) : array {
+    $plugin_slug = dirname( path: JPKCOM_ACFJOBS_BASENAME ); // Plugin folder name
+    $url = admin_url( 'plugin-install.php?tab=plugin-information&plugin=' . $plugin_slug . '&TB_iframe=true&width=772&height=391' );
+
+    $links[] = sprintf(
+        '<a href="%s" class="thickbox open-plugin-details-modal" aria-label="More information about %s" data-title="%s">' . esc_html__( 'View details' ) . '</a>',
+        esc_url( $url ),
+        esc_attr( $plugin_slug ),
+        esc_attr( $plugin_slug )
+    );
+
+    return $links;
+});
+
 
 
 /**
