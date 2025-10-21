@@ -1,1 +1,21 @@
-{}
+{
+  "Author": "** Jean Pierre Kolb <jpk@jpkc.com>",
+  "TextDomain": "** jpkcom-acf-jobs",
+  "Version": "** 1.1.0",
+  "Description": "** Job application plugin for ACF",
+  "PluginURI": "** https://github.com/JPKCom/jpkcom-acf-jobs",
+  "DomainPath": "** /languages",
+  "RequiresPlugins": "** advanced-custom-fields-pro, acf-quickedit-fields",
+  "PluginName": "** JPKCom ACF Jobs",
+  "Contributors": "** JPKCom",
+  "Requiresatleast": "** 6.8",
+  "Network": "** true",
+  "Testedupto": "** 6.9",
+  "Stabletag": "** 1.1.0",
+  "RequiresPHP": "** 8.3",
+  "License": "** GPL-2.0+",
+  "LicenseURI": "** http://www.gnu.org/licenses/gpl-2.0.txt",
+  "Tags": "** ACF, Fields, CPT, CTT, Taxonomy, Forms",
+  "AuthorURI": "** https://www.jpkc.com/",
+  "_generated": true
+}
