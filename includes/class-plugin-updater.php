@@ -192,7 +192,15 @@ final class PluginUpdater {
      * @param object $transient WordPress transient data.
      * @return object
      */
-    public function check_update( object $transient ): object {
+    public function check_update( mixed $transient ): object {
+
+        // Defensive initialisation (WordPress may pass false on first run)
+        if ( ! is_object( value: $transient ) ) {
+            $transient = new \stdClass();
+            $transient->checked  = [];
+            $transient->response = [];
+        }
+
         if ( empty( $transient->checked ) ) {
             return $transient;
         }
@@ -213,8 +221,22 @@ final class PluginUpdater {
             $update->requires_php = $remote->requires_php ?? '';
             $update->plugin      = $plugin_basename;
 
+            $update->icons = [
+                'default' => $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg"
+            ];
+
+
             $transient->response[$plugin_basename] = $update;
-        }
+        } else {
+        $plugin_basename = plugin_basename( $this->plugin_file );
+        $transient->no_update[ $plugin_basename ] = (object) [
+            'slug'   => $this->plugin_slug,
+            'plugin' => $plugin_basename,
+            'icons'  => [
+                'default' => $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg"
+            ]
+        ];
+    }
 
         return $transient;
     }
