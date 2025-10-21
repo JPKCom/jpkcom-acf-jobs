@@ -112,7 +112,7 @@ final class PluginUpdater {
         $sections = [];
         foreach ( ['description','installation','changelog','faq'] as $key ) {
             if ( ! empty($remote->sections->$key ) ) {
-                $sections[$key] = wp_kses_post( string: trim( string: $remote->sections->$key ) );
+                $sections[$key] = wp_kses_post( trim( string: $remote->sections->$key ) );
             }
         }
 
@@ -127,49 +127,31 @@ final class PluginUpdater {
         $info->author           = $remote->author ?? '';
         $info->author_profile   = $remote->author_profile ?? '';
 
-        /**
-         * Normalize contributors to WP-compatible array format.
-         *
-         * Example output:
-         * [
-         *   "JPKCom" => [
-         *     "profile" => "https://profiles.wordpress.org/JPKCom",
-         *     "avatar"  => "https://wordpress.org/grav-redirect.php?user=JPKCom&s=36"
-         *   ]
-         * ]
-         */
         $contributors = $remote->contributors ?? [];
 
         if ( is_object( value: $contributors ) ) {
             $contributors = (array) $contributors;
         } elseif ( is_string( value: $contributors ) ) {
-            $contributors = [ $contributors ];
+            $contributors = [$contributors];
         }
 
-        if ( is_array( value: $contributors ) ) {
-            $contributors = array_reduce(
-                array: $contributors,
-                callback: static function ( array $carry, $item ): array {
-                    $username = trim( string: (string) $item );
-                    if ( $username === '' ) {
-                        return $carry;
-                    }
-
-                    $carry[ $username ] = [
-                        'profile' => sprintf( format: 'https://profiles.wordpress.org/%s', values: $username ),
-                        'avatar'  => sprintf( format: 'https://wordpress.org/grav-redirect.php?user=%s&s=36', values: $username ),
-                    ];
-
-                    return $carry;
-                },
-                initial: []
-            );
-        } else {
-            $contributors = [];
+        $wp_contributors = [];
+        foreach ( $contributors as $key => $value ) {
+            if ( is_string( value: $value ) ) {
+                $wp_contributors[$value] = [
+                    'profile' => sprintf( format: 'https://profiles.wordpress.org/%s', values: $value ),
+                    'avatar'  => sprintf( format: 'https://wordpress.org/grav-redirect.php?user=%s&s=36', values: $value ),
+                ];
+            } elseif ( is_array( value: $value ) || is_object( value: $value ) ) {
+                $value = (array) $value;
+                $wp_contributors[$key] = [
+                    'profile' => $value['profile'] ?? sprintf( format: 'https://profiles.wordpress.org/%s', values: $key ),
+                    'avatar'  => $value['avatar']  ?? sprintf( format: 'https://wordpress.org/grav-redirect.php?user=%s&s=36', values: $key ),
+                ];
+            }
         }
 
-        $info->contributors     = $contributors;
-
+        $info->contributors     = $wp_contributors;
 
         $info->homepage         = $remote->homepage ?? '';
         $info->download_link    = $remote->download_url ?? '';

@@ -37,29 +37,36 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc jq
 
-      # 5️⃣ Extract metadata and sections from README
+      # 5️⃣ Extract metadata and generate HTML
       - name: Extract metadata and generate HTML
         run: |
-          mkdir -p gh-pages-html gh-pages-json
+          mkdir -p gh-pages-html gh-pages-json gh-pages-deploy
 
+          # ✅ Plain HTML readme for WordPress backend
+          if [ -f README.md ]; then
+            pandoc README.md -f markdown -t html -o gh-pages-html/readme.html
+          fi
+
+          # ✅ Original styled HTML für gh-pages Webseite (optional)
           pandoc README.md -f markdown -t html5 \
             -s -o gh-pages-html/index.html \
             --metadata title="Plugin Documentation" \
             --css https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css \
             --metadata pagetitle="JPKCom Plugin Docs"
 
+          # Extract sections
           pandoc -f markdown -t html <(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/description.html || true
           pandoc -f markdown -t html <(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/installation.html || true
           pandoc -f markdown -t html <(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/changelog.html || true
           pandoc -f markdown -t html <(awk '/^## FAQ/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/faq.html || true
 
+          # Extract metadata for JSON
           declare -A META
           while IFS=":" read -r key value; do
             key=$(echo "$key" | sed -E 's/^\*\*//;s/\*\*$//;s/[[:space:]]//g')
             value=$(echo "$value" | sed -E 's/^\*\*//;s/\*\*$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
             [ -n "$key" ] && META[$key]="$value"
           done < <(grep -E '^\*\*[^:]+:\*\*' README.md)
-
 
           {
             echo "{"
@@ -68,15 +75,32 @@ jobs:
               printf '  "%s": "%s",\n' "$k" "$v"
             done
             echo "  \"_generated\": true"
-            echo "}"
+            echo "}" 
           } > gh-pages-json/readme_meta.json
 
+          # Contributors & Tags
           CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
           TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
           echo "CONTRIBUTORS=$CONTRIBUTORS" >> $GITHUB_ENV
           echo "TAGS=$TAGS" >> $GITHUB_ENV
 
-      # 8. Generate plugin manifest JSON
+          # Copy README.md to gh-pages for reference
+          cp README.md gh-pages-deploy/
+
+      # 6️⃣ Create plugin ZIP
+      - name: Create plugin ZIP
+        run: |
+          zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '*.github*' -x '*.DS_Store*'
+
+      # 7️⃣ Upload ZIP to GitHub release
+      - name: Upload ZIP to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_FILE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 8️⃣ Generate JSON manifest dynamically
       - name: Generate plugin manifest JSON
         shell: python
         run: |
@@ -92,7 +116,6 @@ jobs:
               with open(meta_path, encoding="utf-8") as f:
                   meta = json.load(f)
 
-          # --- Contributors parsen ---
           raw = os.environ.get("CONTRIBUTORS", '["JPKCom"]')
           contributors_raw = json.loads(raw) if raw.strip() else ["JPKCom"]
           contributors = {}
@@ -138,97 +161,7 @@ jobs:
                   "changelog": load_section_html("changelog"),
                   "faq": load_section_html("faq"),
               },
-              "readme_html": open("gh-pages-html/index.html", encoding="utf-8").read() if os.path.exists("gh-pages-html/index.html") else "",
-              "banners": {
-                  "low": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-772x250.avif",
-                  "high": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-1544x500.avif"
-              }
-          }
-
-          os.makedirs("gh-pages-json", exist_ok=True)
-          with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
-              json.dump(plugin, f, indent=2, ensure_ascii=False)
-
-      # 6️⃣ Create plugin ZIP
-      - name: Create plugin ZIP
-        run: |
-          zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '*.github*' -x '*.DS_Store*'
-
-      # 7️⃣ Upload ZIP to GitHub release
-      - name: Upload ZIP to GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ env.ZIP_FILE }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 8️⃣ Generate JSON manifest dynamically
-      - name: Generate plugin JSON manifest
-        shell: python
-        run: |
-          import os, json
-
-          def load_section_html(name):
-              path = f"gh-pages-json/{name}.html"
-              return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
-
-          meta = {}
-          meta_path = "gh-pages-json/readme_meta.json"
-          if os.path.exists(meta_path):
-              with open(meta_path, encoding="utf-8") as f:
-                  meta = json.load(f)
-
-          # ---- Safe JSON loading helper ----
-          def safe_json_env(key, fallback):
-              val = os.environ.get(key, "").strip()
-              if not val:
-                  return fallback
-              try:
-                  return json.loads(val)
-              except Exception:
-                  return fallback
-
-          # Parse contributors safely
-          contributors_raw = safe_json_env("CONTRIBUTORS", ["JPKCom"])
-          contributors = {}
-          for username in contributors_raw:
-              username = username.strip()
-              if username:
-                  contributors[username] = {
-                      "profile": f"https://profiles.wordpress.org/{username}",
-                      "avatar": f"https://wordpress.org/grav-redirect.php?user={username}&s=36"
-                  }
-
-          # Parse tags safely
-          tags = safe_json_env("TAGS", ["Plugin","WordPress"])
-
-          plugin = {
-              "name": meta.get("PluginName", ""),
-              "slug": os.environ.get("PLUGIN_SLUG"),
-              "version": meta.get("Version", os.environ.get("TAG_NAME")),
-              "download_url": os.environ.get("DOWNLOAD_URL"),
-              "requires": meta.get("Requiresatleast", "6.8"),
-              "tested": meta.get("Testedupto", "6.9"),
-              "requires_php": meta.get("RequiresPHP", "8.3"),
-              "author": meta.get("Author", ""),
-              "author_profile": meta.get("AuthorURI", ""),
-              "contributors": contributors,
-              "tags": [t.strip() for t in tags],
-              "license": meta.get("License", "GPL-2.0+"),
-              "license_uri": meta.get("LicenseURI", "http://www.gnu.org/licenses/gpl-2.0.txt"),
-              "text_domain": meta.get("TextDomain", ""),
-              "domain_path": meta.get("DomainPath", "/languages"),
-              "network": meta.get("Network", "true").lower() == "true",
-              "requires_plugins": [p.strip() for p in meta.get("RequiresPlugins", "").split(",") if p.strip()],
-              "homepage": meta.get("PluginURI", f"https://github.com/JPKCom/{os.environ.get('PLUGIN_SLUG')}"),
-              "last_updated": os.environ.get("DATE"),
-              "sections": {
-                  "description": load_section_html("description"),
-                  "installation": load_section_html("installation"),
-                  "changelog": load_section_html("changelog"),
-                  "faq": load_section_html("faq"),
-              },
-              "readme_html": open("gh-pages-html/index.html", encoding="utf-8").read() if os.path.exists("gh-pages-html/index.html") else "",
+              "readme_html": open("gh-pages-html/readme.html", encoding="utf-8").read() if os.path.exists("gh-pages-html/readme.html") else "",
               "banners": {
                   "low": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-772x250.avif",
                   "high": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-1544x500.avif"
