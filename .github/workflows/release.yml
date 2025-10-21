@@ -38,46 +38,110 @@ jobs:
           sudo apt-get install -y pandoc jq
 
       # 5️⃣ Extract metadata and sections from README
-      - name: Parse README and generate HTML
-        id: readme
+      - name: Extract metadata and generate HTML
         run: |
           mkdir -p gh-pages-html gh-pages-json
 
-          # Extract plugin metadata from README.md (Key: Value)
+          pandoc README.md -f markdown -t html5 \
+            -s -o gh-pages-html/index.html \
+            --metadata title="Plugin Documentation" \
+            --css https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css \
+            --metadata pagetitle="JPKCom Plugin Docs"
+
+          pandoc -f markdown -t html <(awk '/^## Description/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/description.html || true
+          pandoc -f markdown -t html <(awk '/^## Installation/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/installation.html || true
+          pandoc -f markdown -t html <(awk '/^## Changelog/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/changelog.html || true
+          pandoc -f markdown -t html <(awk '/^## FAQ/{flag=1;next}/^## /{flag=0}flag' README.md) -o gh-pages-json/faq.html || true
+
           declare -A META
           while IFS=":" read -r key value; do
             key=$(echo "$key" | sed 's/^\*\*//;s/\*\*$//;s/ //g')
-            value=$(echo "$value" | sed 's/^ *//;s/  *$//')
+            value=$(echo "$value" | sed 's/^ *//;s/ *$//')
             [ -n "$key" ] && META[$key]="$value"
-          done < <(grep -E '^\*\*[A-Za-z ]+:\*\*' README.md)
+          done < <(grep -E '^\*\*[^:]+:\*\*' README.md)
 
-          # Save JSON metadata for later
-          echo "${META[@]}" > meta.txt
-          jq -n '$ARGS.named' --args "${!META[@]}" "${META[@]}" > gh-pages-json/readme_meta.json
+          {
+            echo "{"
+            for k in "${!META[@]}"; do
+              v=${META[$k]}
+              printf '  "%s": "%s",\n' "$k" "$v"
+            done
+            echo "  \"_generated\": true"
+            echo "}"
+          } > gh-pages-json/readme_meta.json
 
-          # Convert README.md to full standalone HTML (with <head>, <body>)
-          pandoc README.md -f markdown -t html5 \
-            --metadata title="${META[PluginName]:-${{ env.PLUGIN_SLUG }}}" \
-            -s -o gh-pages-html/index.html \
-            --css=https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css \
-            --metadata pagetitle="${META[PluginName]:-${{ env.PLUGIN_SLUG }}}"
+          CONTRIBUTORS=$(grep -m1 '^**Contributors:**' README.md | sed 's/\*\*Contributors:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          TAGS=$(grep -m1 '^**Tags:**' README.md | sed 's/\*\*Tags:\*\* //' | sed 's/, */","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          echo "CONTRIBUTORS=$CONTRIBUTORS" >> $GITHUB_ENV
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
 
-          # Generate individual sections (with fallback if missing)
-          for SECTION in Description Installation Changelog FAQ; do
-            CONTENT=$(awk "/^## $SECTION/{flag=1;next}/^## /{flag=0}flag" README.md)
-            if [ ! -z "$CONTENT" ]; then
-              echo "$CONTENT" | pandoc -f markdown -t html -o gh-pages-json/${SECTION,,}.html
-            else
-              echo "" > gh-pages-json/${SECTION,,}.html
-            fi
-          done
+      # 8. Generate plugin manifest JSON
+      - name: Generate plugin manifest JSON
+        shell: python
+        run: |
+          import os, json
 
-          # Extract contributors and tags into environment vars
-          CONTRIBUTORS=$(grep -m1 '^\*\*Contributors:\*\*' README.md | sed 's/\*\*Contributors:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
-          TAGS=$(grep -m1 '^\*\*Tags:\*\*' README.md | sed 's/\*\*Tags:\*\* //' | tr ',' '\n' | awk '{$1=$1};1')
+          def load_section_html(name):
+              path = f"gh-pages-json/{name}.html"
+              return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 
-          echo "CONTRIBUTORS=$(echo $CONTRIBUTORS | jq -R -s -c 'split(\" \") | map(select(. != \"\"))')" >> $GITHUB_ENV
-          echo "TAGS=$(echo $TAGS | jq -R -s -c 'split(\" \") | map(select(. != \"\"))')" >> $GITHUB_ENV
+          meta = {}
+          meta_path = "gh-pages-json/readme_meta.json"
+          if os.path.exists(meta_path):
+              with open(meta_path, encoding="utf-8") as f:
+                  meta = json.load(f)
+
+          # --- Contributors parsen ---
+          raw = os.environ.get("CONTRIBUTORS", '["JPKCom"]')
+          contributors_raw = json.loads(raw) if raw.strip() else ["JPKCom"]
+          contributors = {}
+          for username in contributors_raw:
+              username = username.strip()
+              if username:
+                  contributors[username] = {
+                      "profile": f"https://profiles.wordpress.org/{username}",
+                      "avatar": f"https://wordpress.org/grav-redirect.php?user={username}&s=36"
+                  }
+
+          tags_raw = os.environ.get("TAGS", '["ACF","Fields","CPT","CTT","Taxonomy","Forms"]')
+          tags = json.loads(tags_raw) if tags_raw.strip() else ["ACF","Fields","CPT","CTT","Taxonomy","Forms"]
+
+          plugin = {
+              "name": meta.get("PluginName", ""),
+              "slug": os.environ.get("PLUGIN_SLUG"),
+              "version": meta.get("Version", os.environ.get("TAG_NAME")),
+              "download_url": os.environ.get("DOWNLOAD_URL"),
+              "requires": meta.get("Requiresatleast", "6.8"),
+              "tested": meta.get("Testedupto", "6.9"),
+              "requires_php": meta.get("RequiresPHP", "8.3"),
+              "author": meta.get("Author", ""),
+              "author_profile": meta.get("AuthorURI", ""),
+              "contributors": contributors,
+              "tags": [t.strip() for t in tags],
+              "license": meta.get("License", "GPL-2.0+"),
+              "license_uri": meta.get("LicenseURI", "http://www.gnu.org/licenses/gpl-2.0.txt"),
+              "text_domain": meta.get("TextDomain", ""),
+              "domain_path": meta.get("DomainPath", "/languages"),
+              "network": str(meta.get("Network", "true")).lower() == "true",
+              "requires_plugins": [p.strip() for p in meta.get("RequiresPlugins", "").split(",") if p.strip()],
+              "homepage": meta.get("PluginURI", f"https://github.com/{os.environ.get('GITHUB_REPOSITORY')}"),
+              "last_updated": os.environ.get("DATE"),
+              "sections": {
+                  "description": load_section_html("description"),
+                  "installation": load_section_html("installation"),
+                  "changelog": load_section_html("changelog"),
+                  "faq": load_section_html("faq"),
+              },
+              "readme_html": open("gh-pages-html/index.html", encoding="utf-8").read() if os.path.exists("gh-pages-html/index.html") else "",
+              "banners": {
+                  "low": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-772x250.avif",
+                  "high": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-1544x500.avif"
+              }
+          }
+
+          os.makedirs("gh-pages-json", exist_ok=True)
+          with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
+              json.dump(plugin, f, indent=2, ensure_ascii=False)
 
       # 6️⃣ Create plugin ZIP
       - name: Create plugin ZIP
