@@ -177,6 +177,12 @@ final class PluginUpdater {
         $info->sections         = $sections;
         $info->banners          = (array)($remote->banners ?? []);
 
+        if ( ! empty( $remote->icons ) ) {
+            $info->icons = (array) $remote->icons;
+        } elseif ( ! empty( $remote->icon ) ) {
+            $info->icons = [ 'default' => $remote->icon ];
+        }
+
         return $info;
     }
 

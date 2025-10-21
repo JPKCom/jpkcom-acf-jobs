@@ -165,6 +165,9 @@ jobs:
               "banners": {
                   "low": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-772x250.avif",
                   "high": f"https://{os.environ.get('GITHUB_REPOSITORY').split('/')[0].lower()}.github.io/{os.environ.get('PLUGIN_SLUG')}/assets/banner-1544x500.avif"
+              },
+              "icons": {
+                  "default": f"https://s.w.org/plugins/geopattern-icon/{os.environ.get('PLUGIN_SLUG')}.svg"
               }
           }
 
