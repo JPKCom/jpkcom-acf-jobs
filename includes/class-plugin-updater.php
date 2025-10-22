@@ -162,7 +162,7 @@ final class PluginUpdater {
         $info->requires_php     = $remote->requires_php ?? '8.3';
         $info->license          = $remote->license ?? 'GPL-2.0+';
         $info->license_uri      = $remote->license_uri ?? 'http://www.gnu.org/licenses/gpl-2.0.txt';
-        
+
         $tags = $remote->tags ?? [];
         if ( ! is_array( value: $tags ) ) {
             $tags = [$tags];
