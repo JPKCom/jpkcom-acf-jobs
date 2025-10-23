@@ -124,7 +124,7 @@ final class JPKComGitPluginUpdater {
 
         $info = new \stdClass();
         $info->name             = $remote->name ?? '';
-        $info->display_name     = $remote->display_name ?? $info->name;
+        $info->display_name     = $remote->display_name ?? ($remote->name ?? '');
         $info->slug             = $remote->slug ?? $this->plugin_slug;
         $info->version          = $remote->version ?? $this->current_version;
         $info->author           = $remote->author ?? '';
@@ -214,13 +214,13 @@ final class JPKComGitPluginUpdater {
         if ( version_compare( version1: $this->current_version, version2: $remote->version, operator: '<' ) ) {
             $plugin_basename = plugin_basename( $this->plugin_file );
 
-            $update              = new \stdClass();
-            $update->slug        = $this->plugin_slug;
-            $update->new_version = $remote->version;
-            $update->package     = $remote->download_url ?? '';
-            $update->tested      = $remote->tested ?? '';
+            $update               = new \stdClass();
+            $update->slug         = $this->plugin_slug;
+            $update->new_version  = $remote->version;
+            $update->package      = $remote->download_url ?? '';
+            $update->tested       = $remote->tested ?? '';
             $update->requires_php = $remote->requires_php ?? '';
-            $update->plugin      = $plugin_basename;
+            $update->plugin       = $plugin_basename;
 
             $update->icons = [
                 'default' => $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg"
