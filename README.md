@@ -1,22 +1,22 @@
 # JPKCom ACF Jobs
 
-**Plugin Name:** JPKCom ACF Jobs  
-**Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
-**Description:** Job application plugin for ACF  
-**Version:** 1.1.6  
-**Author:** Jean Pierre Kolb <jpk@jpkc.com>  
-**Author URI:** https://www.jpkc.com/  
-**Contributors:** JPKCom  
-**Tags:** ACF, Fields, CPT, CTT, Taxonomy, Forms  
-**Requires Plugins:** advanced-custom-fields-pro, acf-quickedit-fields  
-**Requires at least:** 6.8  
-**Tested up to:** 6.9  
-**Requires PHP:** 8.3  
-**Network:** true  
-**Stable tag:** 1.1.6  
-**License:** GPL-2.0+  
-**License URI:** http://www.gnu.org/licenses/gpl-2.0.txt  
-**Text Domain:** jpkcom-acf-jobs  
+**Plugin Name:** JPKCom ACF Jobs
+**Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs
+**Description:** Job application plugin for ACF
+**Version:** 1.1.7
+**Author:** Jean Pierre Kolb <jpk@jpkc.com>
+**Author URI:** https://www.jpkc.com/
+**Contributors:** JPKCom
+**Tags:** ACF, Fields, CPT, CTT, Taxonomy, Forms
+**Requires Plugins:** advanced-custom-fields-pro, acf-quickedit-fields
+**Requires at least:** 6.8
+**Tested up to:** 6.9
+**Requires PHP:** 8.3
+**Network:** true
+**Stable tag:** 1.1.7
+**License:** GPL-2.0+
+**License URI:** http://www.gnu.org/licenses/gpl-2.0.txt
+**Text Domain:** jpkcom-acf-jobs
 **Domain Path:** /languages
 
 A plugin to provide a job application tool for ACF Pro.
@@ -117,6 +117,9 @@ add_filter( 'jpkcom_acf_jobs_final_template', function( $template ) {
 
 
 ## Changelog
+
+### 1.1.7
+* New namespace for updater
 
 ### 1.1.6
 * Updater bugfix
