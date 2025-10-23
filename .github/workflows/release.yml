@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup variables
+      # 2. Setup variables
       - name: Setup variables
         id: vars
         run: |
@@ -25,29 +25,29 @@ jobs:
           echo "ZIP_FILE=$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
           echo "DOWNLOAD_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF##*/}/$(basename $GITHUB_REPOSITORY).zip" >> $GITHUB_ENV
 
-      # 3️⃣ Setup Python
+      # 3. Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
-      # 4️⃣ Install Pandoc
+      # 4. Install Pandoc
       - name: Install Pandoc
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc jq
 
-      # 5️⃣ Extract metadata and generate HTML
+      # 5. Extract metadata and generate HTML
       - name: Extract metadata and generate HTML
         run: |
           mkdir -p gh-pages-html gh-pages-json gh-pages-deploy
 
-          # ✅ Plain HTML readme for WordPress backend
+          # Plain HTML readme for WordPress backend
           if [ -f README.md ]; then
             pandoc README.md -f markdown -t html -o gh-pages-html/readme.html
           fi
 
-          # ✅ Original styled HTML für gh-pages Webseite (optional)
+          # Original styled HTML für gh-pages Webseite (optional)
           pandoc README.md -f markdown -t html5 \
             -s -o gh-pages-html/index.html \
             --metadata title="Plugin Documentation" \
@@ -75,7 +75,7 @@ jobs:
               printf '  "%s": "%s",\n' "$k" "$v"
             done
             echo "  \"_generated\": true"
-            echo "}" 
+            echo "}"
           } > gh-pages-json/readme_meta.json
 
           # Contributors & Tags
@@ -87,12 +87,12 @@ jobs:
           # Copy README.md to gh-pages for reference
           cp README.md gh-pages-deploy/
 
-      # 6️⃣ Create plugin ZIP
+      # 6. Create plugin ZIP
       - name: Create plugin ZIP
         run: |
           zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '*.github*' -x '*.DS_Store*' -x 'gh-pages-*/*'
 
-      # 7️⃣ Upload ZIP to GitHub release
+      # 7. Upload ZIP to GitHub release
       - name: Upload ZIP to GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -100,7 +100,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 8️⃣ Generate JSON manifest dynamically
+      # 8. Generate JSON manifest dynamically
       - name: Generate plugin manifest JSON
         shell: python
         run: |
@@ -137,6 +137,7 @@ jobs:
 
           plugin = {
               "name": clean_meta_value(meta.get("PluginName", "")),
+              "display_name": clean_meta_value(meta.get("PluginName", "")),
               "slug": os.environ.get("PLUGIN_SLUG"),
               "version": clean_meta_value(meta.get("Version", os.environ.get("TAG_NAME"))),
               "download_url": os.environ.get("DOWNLOAD_URL"),
@@ -175,7 +176,7 @@ jobs:
           with open(f"gh-pages-json/plugin_{os.environ.get('PLUGIN_SLUG')}.json", "w", encoding="utf-8") as f:
               json.dump(plugin, f, indent=2, ensure_ascii=False)
 
-      # 9️⃣ Prepare for deployment
+      # 9. Prepare for deployment
       - name: Prepare gh-pages deployment
         run: |
           mkdir -p gh-pages-deploy
@@ -185,7 +186,7 @@ jobs:
             cp -r assets gh-pages-deploy/
           fi
 
-      # 🔟 Deploy to GitHub Pages
+      # 10. Deploy to GitHub Pages
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
