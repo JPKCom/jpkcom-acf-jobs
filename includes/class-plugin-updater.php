@@ -124,6 +124,7 @@ final class JPKComGitPluginUpdater {
 
         $info = new \stdClass();
         $info->name             = $remote->name ?? '';
+        $info->display_name     = $remote->display_name ?? $info->name;
         $info->slug             = $remote->slug ?? $this->plugin_slug;
         $info->version          = $remote->version ?? $this->current_version;
         $info->author           = $remote->author ?? '';
