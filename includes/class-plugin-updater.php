@@ -2,20 +2,20 @@
 /**
  * JPKCom Plugin Updater – GitHub Self-Hosted Updates
  *
- * Namespace: JPKComGitUpdate
+ * Namespace: JPKComAcfJobsGitUpdate
  * PHP Version: 8.3+
  * WordPress Version: 6.8+
  */
 
 declare(strict_types=1);
 
-namespace JPKComGitUpdate;
+namespace JPKComAcfJobsGitUpdate;
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
 }
 
-final class PluginUpdater {
+final class JPKComGitPluginUpdater {
 
     /** @var string Plugin slug (directory name) */
     private string $plugin_slug;
