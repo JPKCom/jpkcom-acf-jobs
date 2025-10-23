@@ -3,7 +3,7 @@
 Plugin Name: JPKCom ACF Jobs
 Plugin URI: https://github.com/JPKCom/jpkcom-acf-jobs
 Description: Job application plugin for ACF
-Version: 1.1.10
+Version: 1.1.11
 Author: Jean Pierre Kolb <jpk@jpkc.com>
 Author URI: https://www.jpkc.com/
 Contributors: JPKCom
@@ -13,7 +13,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.3
 Network: true
-Stable tag: 1.1.10
+Stable tag: 1.1.11
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 Text Domain: jpkcom-acf-jobs
@@ -37,43 +37,21 @@ add_action( 'init', function(): void {
 
 	new JPKComGitPluginUpdater(
 		plugin_file: __FILE__,
-		current_version: '1.1.10',
+		current_version: '1.1.11',
 		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json'
 	);
 });
 
 
 /**
- * Return data from the plugin
- *
- * @param string $value
- * @return mixed
- */
-function jpkcom_acfjobs_get_plugin_data( $value = 'Version' ): mixed {
-
-    if ( ! function_exists( function: 'get_plugin_data' ) ) {
-
-            require_once ABSPATH . '/wp-admin/includes/plugin.php';
-
-    }
-
-    $plugin_data = get_plugin_data( __FILE__ );
-
-    return $plugin_data[ $value ];
-
-}
-
-
-/**
  * Load language files
  */
 function jpkcom_acfjobs_textdomain(): void {
-
     load_plugin_textdomain(
-        jpkcom_acfjobs_get_plugin_data( value: 'TextDomain' ),
+        'jpkcom-acf-jobs',
         false,
-        dirname( path: JPKCOM_ACFJOBS_BASENAME ) . jpkcom_acfjobs_get_plugin_data( value: 'DomainPath' ) );
-
+        dirname( path: JPKCOM_ACFJOBS_BASENAME ) . '/languages'
+    );
 }
 
 add_action( 'plugins_loaded', 'jpkcom_acfjobs_textdomain' );
