@@ -51,7 +51,7 @@ jobs:
           pandoc README.md -f markdown -t html5 \
             -s -o gh-pages-html/index.html \
             --metadata title="Plugin Documentation" \
-            --css https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css \
+            --css https://cdnjs.cloudflare.com/ajax/libs/simpledotcss/2.3.7/simple.min.css \
             --metadata pagetitle="JPKCom Plugin Docs"
 
           # Extract sections
