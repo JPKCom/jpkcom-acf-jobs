@@ -1,0 +1,87 @@
+<wpml-config>
+  <custom-types>
+    <custom-type translate="1" display-as-translated="1">job_location</custom-type>
+    <custom-type translate="1" display-as-translated="1">job_company</custom-type>
+    <custom-type translate="1">job</custom-type>
+  </custom-types>
+  <taxonomies>
+    <taxonomy translate="1" display-as-translated="1">job-attribute</taxonomy>
+  </taxonomies>
+  <custom-fields>
+    <custom-field action="translate">job_short_description</custom-field>
+    <custom-field action="translate">_job_short_description</custom-field>
+    <custom-field action="copy">job_type</custom-field>
+    <custom-field action="copy">_job_type</custom-field>
+    <custom-field action="copy-once">job_url</custom-field>
+    <custom-field action="copy-once">_job_url</custom-field>
+    <custom-field action="copy">job_work_type</custom-field>
+    <custom-field action="copy">_job_work_type</custom-field>
+    <custom-field action="copy-once">job_location</custom-field>
+    <custom-field action="copy-once">_job_location</custom-field>
+    <custom-field action="copy-once">job_company</custom-field>
+    <custom-field action="copy-once">_job_company</custom-field>
+    <custom-field action="copy-once">job_base_salary_group_job_salary</custom-field>
+    <custom-field action="copy-once">_job_base_salary_group_job_salary</custom-field>
+    <custom-field action="copy-once">job_base_salary_group_job_salary_currency</custom-field>
+    <custom-field action="copy-once">_job_base_salary_group_job_salary_currency</custom-field>
+    <custom-field action="copy-once">job_base_salary_group_job_salary_period</custom-field>
+    <custom-field action="copy-once">_job_base_salary_group_job_salary_period</custom-field>
+    <custom-field action="copy">job_base_salary_group</custom-field>
+    <custom-field action="copy">_job_base_salary_group</custom-field>
+    <custom-field action="copy-once">job_attribute</custom-field>
+    <custom-field action="copy-once">_job_attribute</custom-field>
+    <custom-field action="copy-once">job_closed</custom-field>
+    <custom-field action="copy-once">_job_closed</custom-field>
+    <custom-field action="copy-once">job_featured</custom-field>
+    <custom-field action="copy-once">_job_featured</custom-field>
+    <custom-field action="copy-once">job_expiry_date</custom-field>
+    <custom-field action="copy-once">_job_expiry_date</custom-field>
+    <custom-field action="copy-once">job_application_show_description</custom-field>
+    <custom-field action="copy-once">_job_application_show_description</custom-field>
+    <custom-field action="translate">job_application_description</custom-field>
+    <custom-field action="translate">_job_application_description</custom-field>
+    <custom-field action="copy-once">job_application_show_button</custom-field>
+    <custom-field action="copy-once">_job_application_show_button</custom-field>
+    <custom-field action="translate">job_application_button</custom-field>
+    <custom-field action="translate">_job_application_button</custom-field>
+    <custom-field action="copy-once">job_application_show_shortcode</custom-field>
+    <custom-field action="copy-once">_job_application_show_shortcode</custom-field>
+    <custom-field action="translate">job_layout_content_0_text_left</custom-field>
+    <custom-field action="translate">_job_layout_content_0_text_left</custom-field>
+    <custom-field action="copy-once">job_layout_content_0_img_right</custom-field>
+    <custom-field action="copy-once">_job_layout_content_0_img_right</custom-field>
+    <custom-field action="copy-once">job_layout_content_1_img_left</custom-field>
+    <custom-field action="copy-once">_job_layout_content_1_img_left</custom-field>
+    <custom-field action="translate">job_layout_content_1_text_right</custom-field>
+    <custom-field action="translate">_job_layout_content_1_text_right</custom-field>
+    <custom-field action="translate">job_layout_content_2_wysiwyg_full</custom-field>
+    <custom-field action="translate">_job_layout_content_2_wysiwyg_full</custom-field>
+    <custom-field action="copy-once">_job_layout_content_layout_meta</custom-field>
+    <custom-field action="copy-once">job_layout_content</custom-field>
+    <custom-field action="copy-once">_job_layout_content</custom-field>
+    <custom-field action="copy-once">job_location_place</custom-field>
+    <custom-field action="copy-once">_job_location_place</custom-field>
+    <custom-field action="copy-once">job_location_zip</custom-field>
+    <custom-field action="copy-once">_job_location_zip</custom-field>
+    <custom-field action="copy-once">job_location_street</custom-field>
+    <custom-field action="copy-once">_job_location_street</custom-field>
+    <custom-field action="copy-once">job_location_region</custom-field>
+    <custom-field action="copy-once">_job_location_region</custom-field>
+    <custom-field action="copy-once">job_location_country</custom-field>
+    <custom-field action="copy-once">_job_location_country</custom-field>
+    <custom-field action="copy-once">job_location_jobs</custom-field>
+    <custom-field action="copy-once">_job_location_jobs</custom-field>
+    <custom-field action="copy-once">job_company_url</custom-field>
+    <custom-field action="copy-once">_job_company_url</custom-field>
+    <custom-field action="copy-once">job_company_logo</custom-field>
+    <custom-field action="copy-once">_job_company_logo</custom-field>
+    <custom-field action="copy-once">job_company_jobs</custom-field>
+    <custom-field action="copy-once">_job_company_jobs</custom-field>
+    <custom-field action="copy-once">job_application_shortcode</custom-field>
+    <custom-field action="copy-once">_job_application_shortcode</custom-field>
+    <custom-field action="copy-once">job_layout_content_0_img_left</custom-field>
+    <custom-field action="copy-once">_job_layout_content_0_img_left</custom-field>
+    <custom-field action="translate">job_layout_content_0_text_right</custom-field>
+    <custom-field action="translate">_job_layout_content_0_text_right</custom-field>
+  </custom-fields>
+</wpml-config>
