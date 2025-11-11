@@ -63,5 +63,46 @@
     <custom-field action="copy-once">job_company_url</custom-field>
     <custom-field action="copy-once">job_company_logo</custom-field>
     <custom-field action="copy-once">job_company_jobs</custom-field>
+
+    <!-- ============================================ -->
+    <!-- ACF Internal Fields - IGNORE THESE -->
+    <!-- These store field keys, not actual content -->
+    <!-- ============================================ -->
+    <custom-field action="ignore">_job_short_description</custom-field>
+    <custom-field action="ignore">_job_type</custom-field>
+    <custom-field action="ignore">_job_url</custom-field>
+    <custom-field action="ignore">_job_work_type</custom-field>
+    <custom-field action="ignore">_job_location</custom-field>
+    <custom-field action="ignore">_job_company</custom-field>
+    <custom-field action="ignore">_job_base_salary_group_job_salary</custom-field>
+    <custom-field action="ignore">_job_base_salary_group_job_salary_currency</custom-field>
+    <custom-field action="ignore">_job_base_salary_group_job_salary_period</custom-field>
+    <custom-field action="ignore">_job_base_salary_group</custom-field>
+    <custom-field action="ignore">_job_attribute</custom-field>
+    <custom-field action="ignore">_job_closed</custom-field>
+    <custom-field action="ignore">_job_featured</custom-field>
+    <custom-field action="ignore">_job_expiry_date</custom-field>
+    <custom-field action="ignore">_job_application_show_description</custom-field>
+    <custom-field action="ignore">_job_application_description</custom-field>
+    <custom-field action="ignore">_job_application_show_button</custom-field>
+    <custom-field action="ignore">_job_application_button</custom-field>
+    <custom-field action="ignore">_job_application_show_shortcode</custom-field>
+    <custom-field action="ignore">_job_application_shortcode</custom-field>
+    <custom-field action="ignore">_job_layout_content</custom-field>
+    <custom-field action="ignore">_job_layout_content_%_text_left</custom-field>
+    <custom-field action="ignore">_job_layout_content_%_img_right</custom-field>
+    <custom-field action="ignore">_job_layout_content_%_img_left</custom-field>
+    <custom-field action="ignore">_job_layout_content_%_text_right</custom-field>
+    <custom-field action="ignore">_job_layout_content_%_wysiwyg_full</custom-field>
+    <custom-field action="ignore">_job_layout_content_%_acf_fc_layout</custom-field>
+    <custom-field action="ignore">_job_location_place</custom-field>
+    <custom-field action="ignore">_job_location_zip</custom-field>
+    <custom-field action="ignore">_job_location_street</custom-field>
+    <custom-field action="ignore">_job_location_region</custom-field>
+    <custom-field action="ignore">_job_location_country</custom-field>
+    <custom-field action="ignore">_job_location_jobs</custom-field>
+    <custom-field action="ignore">_job_company_url</custom-field>
+    <custom-field action="ignore">_job_company_logo</custom-field>
+    <custom-field action="ignore">_job_company_jobs</custom-field>
   </custom-fields>
 </wpml-config>
