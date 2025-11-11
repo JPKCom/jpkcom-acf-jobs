@@ -36,11 +36,17 @@ if ( ! function_exists( function: 'jpkcom_render_acf_fields' ) ) {
 
             if ( empty( $value ) ) continue;
 
+            // Skip ACF internal fields (they start with _)
+            if ( str_starts_with( haystack: $key, needle: '_' ) ) continue;
+
+            // Get field object - works with both field names and field keys
             $acf_field = function_exists( function: 'get_field_object' ) ? get_field_object( $key, $post->ID ) : null;
             $type      = $acf_field['type'] ?? '';
-            $label     = $acf_field['label'] ?? jpkcom_get_acf_field_label( field_name: $key, post_type: $post_type );
 
-            // 🧠 Icon-Mapping nach Feldtyp
+            // Get label - use field object first, then helper function (handles both names and keys)
+            $label = $acf_field['label'] ?? jpkcom_get_acf_field_label( field_name_or_key: $key, post_type: $post_type );
+
+            // 🧠 Icon-Mapping by Field Type
             $icons = [
                 'text'        => '📝',
                 'email'       => '✉️',
@@ -116,7 +122,7 @@ if ( ! function_exists( function: 'jpkcom_render_acf_fields' ) ) {
                             echo '<thead class="table-light"><tr>';
                             foreach ( array_keys( array: $value[0] ) as $sub_key ) {
 
-                                echo '<th>' . esc_html( jpkcom_get_acf_field_label( field_name: $sub_key, post_type: $post_type ) ) . '</th>';
+                                echo '<th>' . esc_html( jpkcom_get_acf_field_label( field_name_or_key: $sub_key, post_type: $post_type ) ) . '</th>';
                             }
 
                             echo '</tr></thead>';
@@ -152,7 +158,7 @@ if ( ! function_exists( function: 'jpkcom_render_acf_fields' ) ) {
                         foreach ( $value as $sub_key => $sub_val ) {
 
                             if ( empty( $sub_val ) ) continue;
-                            echo '<dt class="col-sm-4 small text-muted">' . esc_html( jpkcom_get_acf_field_label( field_name: $sub_key, post_type: $post_type ) ) . '</dt>';
+                            echo '<dt class="col-sm-4 small text-muted">' . esc_html( jpkcom_get_acf_field_label( field_name_or_key: $sub_key, post_type: $post_type ) ) . '</dt>';
                             echo '<dd class="col-sm-8 small">' . esc_html( is_array( value: $sub_val ) ? implode( separator: ', ', array: $sub_val ) : $sub_val ) . '</dd>';
 
                         }
@@ -204,12 +210,32 @@ if ( ! function_exists( function: 'jpkcom_render_acf_fields' ) ) {
 
 
 if ( ! function_exists( function: 'acf_get_field_label' ) ) {
+    /**
+     * Get ACF field label by field key or field name.
+     *
+     * @param string $field_key_or_name Field key or field name
+     * @return string Field label or formatted fallback
+     */
+    function acf_get_field_label( string $field_key_or_name ): string {
 
-    function acf_get_field_label( $field_key ): mixed {
+        if ( function_exists( function: 'acf_get_field' ) ) {
 
-        $field = acf_get_field( $field_key );
+            $field = acf_get_field( $field_key_or_name );
 
-        return $field['label'] ?? ucfirst( string: str_replace( search: '_', replace: ' ', subject: $field_key ) );
+            if ( $field && ! empty( $field['label'] ) ) {
+
+                return $field['label'];
+
+            }
+
+        }
+
+        // Fallback: remove field_ prefix and format nicely
+        $clean_name = str_starts_with( haystack: $field_key_or_name, needle: 'field_' )
+            ? substr( string: $field_key_or_name, offset: 6 )
+            : $field_key_or_name;
+
+        return ucfirst( string: str_replace( search: '_', replace: ' ', subject: $clean_name ) );
 
     }
 
@@ -218,14 +244,28 @@ if ( ! function_exists( function: 'acf_get_field_label' ) ) {
 
 if ( ! function_exists( function: 'jpkcom_get_acf_field_label' ) ) {
     /**
-     * Returns the ACF field label based on the field name.
+     * Returns the ACF field label based on the field name or field key.
      *
-     * @param string $field_name
+     * @param string $field_name_or_key Field name or field key
      * @param string $post_type Optional - for better context
      * @return string
      */
-    function jpkcom_get_acf_field_label( string $field_name, string $post_type = '' ): string {
+    function jpkcom_get_acf_field_label( string $field_name_or_key, string $post_type = '' ): string {
 
+        // Try to get field directly by key first (most reliable)
+        if ( function_exists( function: 'acf_get_field' ) && str_starts_with( haystack: $field_name_or_key, needle: 'field_' ) ) {
+
+            $field = acf_get_field( $field_name_or_key );
+
+            if ( $field && ! empty( $field['label'] ) ) {
+
+                return $field['label'];
+
+            }
+
+        }
+
+        // Search through field groups for field name or key
         if ( function_exists( function: 'acf_get_field_groups' ) && function_exists( function: 'acf_get_fields' ) ) {
 
             $groups = acf_get_field_groups( ['post_type' => $post_type] );
@@ -238,9 +278,25 @@ if ( ! function_exists( function: 'jpkcom_get_acf_field_label' ) ) {
 
                     foreach ( $fields as $field ) {
 
-                        if ( $field['name'] === $field_name ) {
+                        // Check both field name and field key
+                        if ( $field['name'] === $field_name_or_key || $field['key'] === $field_name_or_key ) {
 
                             return $field['label'];
+
+                        }
+
+                        // Also check sub_fields for repeater/group fields
+                        if ( ! empty( $field['sub_fields'] ) && is_array( value: $field['sub_fields'] ) ) {
+
+                            foreach ( $field['sub_fields'] as $sub_field ) {
+
+                                if ( $sub_field['name'] === $field_name_or_key || $sub_field['key'] === $field_name_or_key ) {
+
+                                    return $sub_field['label'];
+
+                                }
+
+                            }
 
                         }
 
@@ -252,8 +308,12 @@ if ( ! function_exists( function: 'jpkcom_get_acf_field_label' ) ) {
 
         }
 
-        // Fallback: generic label name
-        return ucfirst( string: str_replace( search: '_', replace: ' ', subject: $field_name ) );
+        // Fallback: generic label name - remove field_ prefix if present
+        $clean_name = str_starts_with( haystack: $field_name_or_key, needle: 'field_' )
+            ? substr( string: $field_name_or_key, offset: 6 )
+            : $field_name_or_key;
+
+        return ucfirst( string: str_replace( search: '_', replace: ' ', subject: $clean_name ) );
     }
 
 }

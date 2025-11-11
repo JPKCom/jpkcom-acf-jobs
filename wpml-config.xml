@@ -8,6 +8,7 @@
     <taxonomy translate="1" display-as-translated="1">job-attribute</taxonomy>
   </taxonomies>
   <custom-fields>
+
     <!-- Job Details -->
     <custom-field action="translate">job_short_description</custom-field>
     <custom-field action="copy">job_type</custom-field>
@@ -37,7 +38,7 @@
     <custom-field action="copy-once">job_application_shortcode</custom-field>
 
     <!-- Flexible Content Layout - Using wildcards for dynamic rows -->
-    <!-- The % wildcard matches any row index (0, 1, 2, etc.) -->
+    <!-- The % wildcard matches any row index (0, 1, 2, etc.)       -->
     <custom-field action="copy-once">job_layout_content</custom-field>
 
     <!-- Layout 1: Text Left / Image Right -->
@@ -65,8 +66,8 @@
     <custom-field action="copy-once">job_company_jobs</custom-field>
 
     <!-- ============================================ -->
-    <!-- ACF Internal Fields - IGNORE THESE -->
-    <!-- These store field keys, not actual content -->
+    <!-- ACF Internal Fields - IGNORE THESE           -->
+    <!-- These store field keys, not actual content   -->
     <!-- ============================================ -->
     <custom-field action="ignore">_job_short_description</custom-field>
     <custom-field action="ignore">_job_type</custom-field>
@@ -104,5 +105,6 @@
     <custom-field action="ignore">_job_company_url</custom-field>
     <custom-field action="ignore">_job_company_logo</custom-field>
     <custom-field action="ignore">_job_company_jobs</custom-field>
+
   </custom-fields>
 </wpml-config>
