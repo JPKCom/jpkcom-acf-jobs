@@ -1109,7 +1109,7 @@ add_action( 'acf/include_fields', function(): void {
 			'key' => 'field_68dd0a4114356',
 			'label' => 'Inhalt',
 			'name' => 'job_layout_content',
-			'wpml_cf_preferences' => 3,
+			'wpml_cf_preferences' => 1,
 			'aria-label' => '',
 			'type' => 'flexible_content',
 			'instructions' => 'Erstelle Sie hier eine ausführliche Beschreibung des Stellenangebots, mittels eines kleinen Layout-Editors.',

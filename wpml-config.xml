@@ -39,7 +39,8 @@
 
     <!-- Flexible Content Layout - Using wildcards for dynamic rows -->
     <!-- The % wildcard matches any row index (0, 1, 2, etc.)       -->
-    <custom-field action="copy-once">job_layout_content</custom-field>
+    <!-- IMPORTANT: Flexible content main field must be "copy" not "copy-once" for WPML -->
+    <custom-field action="copy">job_layout_content</custom-field>
 
     <!-- Layout 1: Text Left / Image Right -->
     <custom-field action="translate">job_layout_content_%_text_left</custom-field>
@@ -89,13 +90,17 @@
     <custom-field action="ignore">_job_application_button</custom-field>
     <custom-field action="ignore">_job_application_show_shortcode</custom-field>
     <custom-field action="ignore">_job_application_shortcode</custom-field>
-    <custom-field action="ignore">_job_layout_content</custom-field>
-    <custom-field action="ignore">_job_layout_content_%_text_left</custom-field>
-    <custom-field action="ignore">_job_layout_content_%_img_right</custom-field>
-    <custom-field action="ignore">_job_layout_content_%_img_left</custom-field>
-    <custom-field action="ignore">_job_layout_content_%_text_right</custom-field>
-    <custom-field action="ignore">_job_layout_content_%_wysiwyg_full</custom-field>
-    <custom-field action="ignore">_job_layout_content_%_acf_fc_layout</custom-field>
+
+    <!-- EXCEPTION: Flexible Content system fields MUST be COPIED for WPML to work correctly -->
+    <!-- This is a known issue with ACF + WPML for PHP-registered flexible content fields    -->
+    <custom-field action="copy">_job_layout_content</custom-field>
+    <custom-field action="copy">_job_layout_content_%_text_left</custom-field>
+    <custom-field action="copy">_job_layout_content_%_img_right</custom-field>
+    <custom-field action="copy">_job_layout_content_%_img_left</custom-field>
+    <custom-field action="copy">_job_layout_content_%_text_right</custom-field>
+    <custom-field action="copy">_job_layout_content_%_wysiwyg_full</custom-field>
+    <custom-field action="copy">_job_layout_content_%_acf_fc_layout</custom-field>
+
     <custom-field action="ignore">_job_location_place</custom-field>
     <custom-field action="ignore">_job_location_zip</custom-field>
     <custom-field action="ignore">_job_location_street</custom-field>
