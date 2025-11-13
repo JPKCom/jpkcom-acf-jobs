@@ -1,9 +1,93 @@
+<h3 id="prerequisites">Prerequisites</h3>
+<p>Before installing this plugin, ensure you have: - WordPress 6.8 or
+higher - PHP 8.3 or higher - <a
+href="https://www.advancedcustomfields.com/">Advanced Custom Fields
+Pro</a> installed and activated - <a
+href="https://wordpress.org/plugins/acf-quickedit-fields/">ACF Quick
+Edit Fields</a> installed and activated</p>
+<h3 id="method-1-upload-via-wordpress-admin-recommended">Method 1:
+Upload via WordPress Admin (Recommended)</h3>
 <ol type="1">
-<li>In your admin panel, go to ‘Plugins’ &gt; and click the ‘Add New’
-button.</li>
-<li>Click Upload Plugin and ‘Choose File’, then select the Plugin’s .zip
-file. Click ‘Install Now’.</li>
-<li>Make sure the ‘Advanced Custom Fields’ and the ‘ACF QuickEdit
-Fields’ plugins are activated.</li>
-<li>Click ‘Activate’ to use the plugin right away.</li>
+<li>Download the latest release ZIP file from the <a
+href="https://github.com/JPKCom/jpkcom-acf-jobs/releases">GitHub
+Releases page</a></li>
+<li>In your WordPress admin panel, navigate to <strong>Plugins → Add
+New</strong></li>
+<li>Click the <strong>Upload Plugin</strong> button at the top of the
+page</li>
+<li>Click <strong>Choose File</strong> and select the downloaded
+<code>jpkcom-acf-jobs.zip</code> file</li>
+<li>Click <strong>Install Now</strong> and wait for the upload to
+complete</li>
+<li>Click <strong>Activate Plugin</strong> to enable the plugin
+immediately</li>
 </ol>
+<h3 id="method-2-manual-installation-via-ftpsftp">Method 2: Manual
+Installation via FTP/SFTP</h3>
+<ol type="1">
+<li>Download the latest release ZIP file from the <a
+href="https://github.com/JPKCom/jpkcom-acf-jobs/releases">GitHub
+Releases page</a></li>
+<li>Extract the ZIP file on your local computer</li>
+<li>Using an FTP/SFTP client, upload the extracted
+<code>jpkcom-acf-jobs</code> folder to
+<code>/wp-content/plugins/</code></li>
+<li>In your WordPress admin panel, navigate to
+<strong>Plugins</strong></li>
+<li>Find “JPKCom ACF Jobs” in the list and click
+<strong>Activate</strong></li>
+</ol>
+<h3 id="method-3-github-clone-for-developers">Method 3: GitHub Clone
+(For Developers)</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/wordpress/wp-content/plugins/</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/JPKCom/jpkcom-acf-jobs.git</span></code></pre></div>
+<p>Then activate the plugin in the WordPress admin panel.</p>
+<h3 id="post-installation-steps">Post-Installation Steps</h3>
+<ol type="1">
+<li><strong>Verify Dependencies</strong>: Go to <strong>Plugins</strong>
+and ensure ACF Pro and ACF Quick Edit Fields are active</li>
+<li><strong>Check Custom Post Types</strong>: You should now see
+<strong>Jobs</strong>, <strong>Locations</strong>, and
+<strong>Companies</strong> in your admin menu</li>
+<li><strong>Review Settings</strong>: Visit <strong>Jobs →
+Settings</strong> to configure default options (if available)</li>
+<li><strong>Create Test Content</strong>:
+<ul>
+<li>Create a location: <strong>Locations → Add New</strong></li>
+<li>Create a company: <strong>Companies → Add New</strong></li>
+<li>Create a job: <strong>Jobs → Add New</strong> (assign the location
+and company)</li>
+</ul></li>
+<li><strong>View Frontend</strong>: Visit <code>/jobs/</code> on your
+site to see the job archive</li>
+<li><strong>Add to Navigation</strong> (Optional): Add the job archive
+to your site menu via <strong>Appearance → Menus</strong></li>
+</ol>
+<h3 id="automatic-updates">Automatic Updates</h3>
+<p>Once installed, the plugin will automatically check for updates from
+GitHub. Update notifications will appear in: - <strong>Dashboard →
+Updates</strong> - <strong>Plugins</strong> page (update notice below
+plugin name)</p>
+<p>Simply click <strong>Update Now</strong> to install the latest
+version securely with SHA256 checksum verification.</p>
+<h3 id="multisite-installation">Multisite Installation</h3>
+<p>This plugin is <strong>network-compatible</strong>. To install on a
+multisite network:</p>
+<ol type="1">
+<li>Follow Method 1 or 2 above</li>
+<li>Go to <strong>Network Admin → Plugins</strong></li>
+<li>Click <strong>Network Activate</strong> to enable on all sites, or
+activate individually per site</li>
+</ol>
+<h3 id="troubleshooting-installation">Troubleshooting Installation</h3>
+<p><strong>Issue: Plugin fails to activate</strong> - Ensure PHP 8.3+
+and WordPress 6.8+ requirements are met - Check that ACF Pro is
+installed and activated first</p>
+<p><strong>Issue: No Jobs menu in admin</strong> - Verify the plugin is
+activated (not just installed) - Check for PHP errors in <strong>Tools →
+Site Health → Info → Server</strong></p>
+<p><strong>Issue: Templates not displaying correctly</strong> - Ensure
+your theme supports Bootstrap 5 markup, or customize the templates -
+Enable <code>WP_DEBUG</code> to load debug templates for
+troubleshooting</p>

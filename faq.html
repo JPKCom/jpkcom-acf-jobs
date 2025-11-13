@@ -1,30 +1,118 @@
+<h3 id="why-do-i-need-advanced-custom-fields-pro">Why do I need Advanced
+Custom Fields Pro?</h3>
+<p>This plugin relies on ACF Pro’s powerful field group system to
+provide flexible job data management. ACF Pro offers advanced field
+types (repeaters, flexible content, groups) that are essential for
+complex job listings with salary information, multiple locations, and
+rich content layouts.</p>
+<h3 id="how-do-i-create-my-first-job-posting">How do I create my first
+job posting?</h3>
+<ol type="1">
+<li>After activation, go to <strong>Jobs → Add New</strong> in your
+WordPress admin</li>
+<li>Enter the job title and description</li>
+<li>Fill in the ACF fields: job type, location, company, salary,
+etc.</li>
+<li>Add job attributes (benefits, requirements) using the taxonomy on
+the right</li>
+<li>Set an expiry date if the position is time-limited</li>
+<li>Publish the job</li>
+</ol>
+<p>The job will automatically appear in your job archive and be indexed
+by search engines with Schema.org markup.</p>
+<h3 id="how-do-i-display-jobs-on-my-website">How do I display jobs on my
+website?</h3>
+<p><strong>Option 1: Use the shortcode</strong></p>
+<pre><code>[jpkcom_acf_jobs_list limit=&quot;10&quot; sort=&quot;DSC&quot;]</code></pre>
+<p><strong>Option 2: Navigate to the archive</strong> Visit
+<code>/jobs/</code> on your site to see all published jobs.</p>
+<p><strong>Option 3: Create a custom template</strong> Use
+<code>WP_Query</code> with <code>post_type =&gt; 'job'</code> to build
+custom job displays.</p>
+<h3 id="how-does-the-schema.org-integration-work">How does the
+Schema.org integration work?</h3>
+<p>The plugin automatically generates JobPosting structured data
+(JSON-LD) for each job post. This markup is recognized by Google for
+Jobs and other search engines, improving visibility and displaying rich
+snippets in search results. No configuration needed - it works out of
+the box!</p>
+<h3 id="is-this-plugin-compatible-with-wpml">Is this plugin compatible
+with WPML?</h3>
+<p>Yes! The plugin includes full WPML support via
+<code>wpml-config.xml</code>. Jobs, locations, companies, and taxonomies
+can all be translated. Fields are configured with appropriate
+translation strategies (translate, copy, or copy-once) for optimal
+multilingual workflow.</p>
+<h3 id="how-do-i-customize-the-job-templates">How do I customize the job
+templates?</h3>
+<p>You have three options:</p>
+<p><strong>Option 1: Child Theme Override</strong> (Recommended) Copy
+templates from <code>plugins/jpkcom-acf-jobs/templates/</code> to
+<code>your-child-theme/jpkcom-acf-jobs/</code> and customize them.</p>
+<p><strong>Option 2: Parent Theme Override</strong> Copy templates to
+<code>your-theme/jpkcom-acf-jobs/</code> (works if no child theme is
+active).</p>
+<p><strong>Option 3: MU-Plugin Override</strong> Copy templates to
+<code>mu-plugins/jpkcom-acf-jobs-overrides/templates/</code> for
+site-wide customization.</p>
 <h3 id="how-to-overwrite-functional-libraries">How to overwrite
 functional libraries?</h3>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode php"><code class="sourceCode php"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add new path for overwrites of functional libraries</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acfjobs_file_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$filename</span> ) {</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-overrides/&#39;</span> <span class="op">.</span> <span class="va">$filename</span> )<span class="ot">;</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
-<h3 id="how-to-overwrite-template-paths">How to overwrite template
-paths?</h3>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode php"><code class="sourceCode php"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add a new path, for example from the child theme or custom directory</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add new path for overwrites of functional libraries</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_template_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$template_name</span> ) {</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-templates/jpkcom-acf-jobs/&#39;</span> <span class="op">.</span> <span class="va">$template_name</span> )<span class="ot">;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acfjobs_file_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$filename</span> ) {</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-overrides/&#39;</span> <span class="op">.</span> <span class="va">$filename</span> )<span class="ot">;</span></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
+<h3 id="how-to-overwrite-template-paths-programmatically">How to
+overwrite template paths programmatically?</h3>
 <div class="sourceCode" id="cb3"><pre
 class="sourceCode php"><code class="sourceCode php"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Last chance to dynamically overwrite template path</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add a new path, for example from the child theme or custom directory</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_final_template&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$template</span> ) {</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ( is_singular( <span class="st">&#39;job&#39;</span> ) ) {</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/special/single-job-custom.php&#39;</span><span class="ot">;</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$template</span><span class="ot">;</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>})<span class="ot">;</span></span></code></pre></div>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_template_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$template_name</span> ) {</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-templates/jpkcom-acf-jobs/&#39;</span> <span class="op">.</span> <span class="va">$template_name</span> )<span class="ot">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Last chance to dynamically overwrite template path</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_final_template&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$template</span> ) {</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ( is_singular( <span class="st">&#39;job&#39;</span> ) ) {</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/special/single-job-custom.php&#39;</span><span class="ot">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$template</span><span class="ot">;</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>})<span class="ot">;</span></span></code></pre></div>
+<h3 id="how-do-plugin-updates-work">How do plugin updates work?</h3>
+<p>The plugin uses a secure GitHub-based update system. When a new
+version is released:</p>
+<ol type="1">
+<li>WordPress checks
+<code>https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json</code>
+for updates</li>
+<li>Update notifications appear in your WordPress admin (Plugins page
+and Updates page)</li>
+<li>When you click “Update Now”, WordPress downloads the plugin ZIP from
+GitHub</li>
+<li>The download is verified using SHA256 checksum for security</li>
+<li>If the checksum matches, the update proceeds automatically</li>
+</ol>
+<p>You can also download releases manually from the <a
+href="https://github.com/JPKCom/jpkcom-acf-jobs/releases">GitHub
+repository</a>.</p>
+<h3 id="can-i-filter-jobs-by-location-or-company">Can I filter jobs by
+location or company?</h3>
+<p>Yes! Use the shortcode attributes:</p>
+<pre><code>[jpkcom_acf_jobs_list location=&quot;1,3,7&quot; company=&quot;6,8&quot; type=&quot;FULL_TIME&quot;]</code></pre>
+<p>Location and company values are post IDs. You can find them in the
+admin when editing locations or companies (look at the URL:
+<code>post=123</code>).</p>
+<h3 id="what-are-job-attributes">What are job attributes?</h3>
+<p>Job attributes are custom taxonomy terms (like tags) that you can
+assign to jobs. Use them for: - Benefits: “Health Insurance”, “Remote
+Work”, “Flexible Hours” - Requirements: “Driver’s License”, “Security
+Clearance” - Perks: “Company Car”, “Free Lunch”, “Gym Membership”</p>
+<p>Display them with the shortcode:</p>
+<pre><code>[jpkcom_acf_jobs_attributes]</code></pre>
