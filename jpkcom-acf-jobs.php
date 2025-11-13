@@ -22,8 +22,6 @@ Domain Path: /languages
 
 declare(strict_types=1);
 
-use JPKComAcfJobsGitUpdate\JPKComGitPluginUpdater;
-
 if ( ! defined( constant_name: 'WPINC' ) ) {
     die;
 }
