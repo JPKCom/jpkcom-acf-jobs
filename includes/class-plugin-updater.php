@@ -2,9 +2,29 @@
 /**
  * JPKCom Plugin Updater – GitHub Self-Hosted Updates
  *
+ * This class provides a secure, self-hosted update mechanism for WordPress plugins
+ * hosted on GitHub. It integrates with the WordPress plugin update system and provides
+ * comprehensive security features including:
+ *
+ * - SHA256 checksum verification of downloaded packages
+ * - URL validation and sanitization of all remote data
+ * - Race condition prevention for manifest fetching
+ * - Comprehensive error logging in WP_DEBUG mode
+ * - Transient caching with 24-hour TTL
+ * - Backward compatibility with manifests without checksums
+ *
+ * Security Features:
+ * - All URLs are validated using wp_http_validate_url() before use
+ * - All manifest data is sanitized before display
+ * - Download packages are verified against SHA256 checksum from manifest
+ * - Failed verifications prevent installation and log errors
+ *
  * Namespace: JPKComAcfJobsGitUpdate
  * PHP Version: 8.3+
  * WordPress Version: 6.8+
+ *
+ * @since 1.2.0 Added SHA256 checksum verification
+ * @since 1.0.0 Initial release with GitHub integration
  */
 
 declare(strict_types=1);
@@ -15,6 +35,13 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
 }
 
+/**
+ * Class JPKComGitPluginUpdater
+ *
+ * Handles plugin updates from a GitHub-hosted JSON manifest.
+ *
+ * @package JPKComHideLoginGitUpdate
+ */
 final class JPKComGitPluginUpdater {
 
     /** @var string Plugin slug (directory name) */
@@ -50,6 +77,18 @@ final class JPKComGitPluginUpdater {
             return;
         }
 
+        // Security: Validate and sanitize manifest URL
+        $manifest_url = esc_url_raw( $manifest_url );
+        if ( ! wp_http_validate_url( $manifest_url ) ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( sprintf(
+                    'JPKCom Plugin Updater: Invalid manifest URL provided: %s',
+                    $manifest_url
+                ) );
+            }
+            return; // Invalid URL, abort initialization
+        }
+
         $this->plugin_file     = $plugin_file;
         $this->plugin_slug     = dirname( path: plugin_basename( $plugin_file ) );
         $this->current_version = $current_version;
@@ -60,30 +99,74 @@ final class JPKComGitPluginUpdater {
         add_filter( 'plugins_api', [$this, 'plugin_info'], 20, 3 );
         add_filter( 'site_transient_update_plugins', [$this, 'check_update'] );
         add_action( 'upgrader_process_complete', [$this, 'clear_cache'], 10, 2 );
-        add_filter( 'plugins_api_result', [$this, 'plugin_info'], 20, 3 );
+        add_filter( 'upgrader_pre_download', [$this, 'verify_download_checksum'], 10, 3 );
+        // Note: 'plugins_api_result' filter is not a standard WordPress filter, keeping for backward compatibility
+        // add_filter( 'plugins_api_result', [$this, 'plugin_info'], 20, 3 );
 
     }
 
     /**
      * Fetch and decode the remote manifest file.
      *
+     * Uses a locking mechanism to prevent race conditions when multiple requests
+     * try to fetch the manifest simultaneously.
+     *
      * @return ?object Decoded manifest or null on failure.
      */
     private function get_remote_manifest(): ?object {
         $remote = get_transient( $this->cache_key );
 
-        if ( false === $remote || !$this->cache_enabled ) {
+        if ( false === $remote || ! $this->cache_enabled ) {
+            // Race condition prevention: Check if another request is already fetching
+            $lock_key = $this->cache_key . '_lock';
+            if ( get_transient( $lock_key ) ) {
+                // Another request is fetching, return null to avoid duplicate API calls
+                return null;
+            }
+
+            // Acquire lock for 30 seconds
+            set_transient( $lock_key, true, 30 );
+
             $response = wp_remote_get( $this->manifest_url, [
                 'timeout' => 15,
                 'headers' => ['Accept' => 'application/json'],
             ] );
 
-            if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            // Release lock
+            delete_transient( $lock_key );
+
+            // Error handling with logging
+            if ( is_wp_error( $response ) ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( sprintf(
+                        'JPKCom Plugin Updater: Failed to fetch manifest from %s - Error: %s',
+                        $this->manifest_url,
+                        $response->get_error_message()
+                    ) );
+                }
+                return null;
+            }
+
+            $response_code = wp_remote_retrieve_response_code( $response );
+            if ( $response_code !== 200 ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( sprintf(
+                        'JPKCom Plugin Updater: Invalid response code %d from %s',
+                        $response_code,
+                        $this->manifest_url
+                    ) );
+                }
                 return null;
             }
 
             $remote = json_decode( json: wp_remote_retrieve_body( $response ) );
-            if (json_last_error() !== JSON_ERROR_NONE) {
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( sprintf(
+                        'JPKCom Plugin Updater: JSON decode error: %s',
+                        json_last_error_msg()
+                    ) );
+                }
                 return null;
             }
 
@@ -123,12 +206,12 @@ final class JPKComGitPluginUpdater {
         }
 
         $info = new \stdClass();
-        $info->name             = $remote->name ?? '';
-        $info->display_name     = $remote->display_name ?? ($remote->name ?? '');
-        $info->slug             = $remote->slug ?? $this->plugin_slug;
-        $info->version          = $remote->version ?? $this->current_version;
-        $info->author           = $remote->author ?? '';
-        $info->author_profile   = $remote->author_profile ?? '';
+        $info->name             = sanitize_text_field( $remote->name ?? '' );
+        $info->display_name     = sanitize_text_field( $remote->display_name ?? ( $remote->name ?? '' ) );
+        $info->slug             = sanitize_title( $remote->slug ?? $this->plugin_slug );
+        $info->version          = sanitize_text_field( $remote->version ?? $this->current_version );
+        $info->author           = wp_kses_post( $remote->author ?? '' );
+        $info->author_profile   = esc_url_raw( $remote->author_profile ?? '' );
 
         $contributors = $remote->contributors ?? [];
 
@@ -156,32 +239,49 @@ final class JPKComGitPluginUpdater {
 
         $info->contributors     = $wp_contributors;
 
-        $info->homepage         = $remote->homepage ?? '';
-        $info->download_link    = $remote->download_url ?? '';
-        $info->requires         = $remote->requires ?? '6.8';
-        $info->tested           = $remote->tested ?? '6.9';
-        $info->requires_php     = $remote->requires_php ?? '8.3';
-        $info->license          = $remote->license ?? 'GPL-2.0+';
-        $info->license_uri      = $remote->license_uri ?? 'http://www.gnu.org/licenses/gpl-2.0.txt';
+        $info->homepage         = esc_url_raw( $remote->homepage ?? '' );
+        $info->download_link    = ( ! empty( $remote->download_url ) && wp_http_validate_url( $remote->download_url ) )
+            ? esc_url_raw( $remote->download_url )
+            : '';
+        $info->requires         = sanitize_text_field( $remote->requires ?? '6.8' );
+        $info->tested           = sanitize_text_field( $remote->tested ?? '6.9' );
+        $info->requires_php     = sanitize_text_field( $remote->requires_php ?? '8.3' );
+        $info->license          = sanitize_text_field( $remote->license ?? 'GPL-2.0+' );
+        $info->license_uri      = esc_url_raw( $remote->license_uri ?? 'http://www.gnu.org/licenses/gpl-2.0.txt' );
 
         $tags = $remote->tags ?? [];
         if ( ! is_array( value: $tags ) ) {
             $tags = [$tags];
         }
-        $info->tags             = array_map( callback: 'trim', array: $tags );
+        $info->tags             = array_map( callback: 'sanitize_text_field', array: array_map( callback: 'trim', array: $tags ) );
 
-        $info->network          = $remote->network ?? false;
-        $info->requires_plugins = $remote->requires_plugins ?? [];
-        $info->text_domain      = $remote->text_domain ?? '';
-        $info->domain_path      = $remote->domain_path ?? '';
-        $info->last_updated     = $remote->last_updated ?? '';
+        $info->network          = (bool) ( $remote->network ?? false );
+        $info->requires_plugins = is_array( $remote->requires_plugins ?? [] ) ? array_map( 'sanitize_text_field', $remote->requires_plugins ) : [];
+        $info->text_domain      = sanitize_text_field( $remote->text_domain ?? '' );
+        $info->domain_path      = sanitize_text_field( $remote->domain_path ?? '' );
+        $info->last_updated     = sanitize_text_field( $remote->last_updated ?? '' );
         $info->sections         = $sections;
-        $info->banners          = (array)($remote->banners ?? []);
 
+        // Sanitize banner URLs
+        $banners = (array) ( $remote->banners ?? [] );
+        $info->banners = [];
+        foreach ( $banners as $key => $url ) {
+            if ( wp_http_validate_url( $url ) ) {
+                $info->banners[ sanitize_key( $key ) ] = esc_url_raw( $url );
+            }
+        }
+
+        // Sanitize icon URLs
         if ( ! empty( $remote->icons ) ) {
-            $info->icons = (array) $remote->icons;
-        } elseif ( ! empty( $remote->icon ) ) {
-            $info->icons = [ 'default' => $remote->icon ];
+            $icons = (array) $remote->icons;
+            $info->icons = [];
+            foreach ( $icons as $key => $url ) {
+                if ( wp_http_validate_url( $url ) ) {
+                    $info->icons[ sanitize_key( $key ) ] = esc_url_raw( $url );
+                }
+            }
+        } elseif ( ! empty( $remote->icon ) && wp_http_validate_url( $remote->icon ) ) {
+            $info->icons = [ 'default' => esc_url_raw( $remote->icon ) ];
         }
 
         return $info;
@@ -214,30 +314,47 @@ final class JPKComGitPluginUpdater {
         if ( version_compare( version1: $this->current_version, version2: $remote->version, operator: '<' ) ) {
             $plugin_basename = plugin_basename( $this->plugin_file );
 
+            // Validate and sanitize download URL
+            $download_url = $remote->download_url ?? '';
+            if ( ! empty( $download_url ) && ! wp_http_validate_url( $download_url ) ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( sprintf(
+                        'JPKCom Plugin Updater: Invalid download URL in manifest: %s',
+                        $download_url
+                    ) );
+                }
+                return $transient; // Invalid download URL, skip update
+            }
+
             $update               = new \stdClass();
             $update->slug         = $this->plugin_slug;
-            $update->new_version  = $remote->version;
-            $update->package      = $remote->download_url ?? '';
-            $update->tested       = $remote->tested ?? '';
-            $update->requires_php = $remote->requires_php ?? '';
+            $update->new_version  = sanitize_text_field( $remote->version ?? '' );
+            $update->package      = esc_url_raw( $download_url );
+            $update->tested       = sanitize_text_field( $remote->tested ?? '' );
+            $update->requires_php = sanitize_text_field( $remote->requires_php ?? '' );
             $update->plugin       = $plugin_basename;
 
+            // Sanitize icon URL
+            $icon_url = $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg";
             $update->icons = [
-                'default' => $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg"
+                'default' => esc_url_raw( $icon_url )
             ];
 
-
-            $transient->response[$plugin_basename] = $update;
+            $transient->response[ $plugin_basename ] = $update;
         } else {
-        $plugin_basename = plugin_basename( $this->plugin_file );
-        $transient->no_update[ $plugin_basename ] = (object) [
-            'slug'   => $this->plugin_slug,
-            'plugin' => $plugin_basename,
-            'icons'  => [
-                'default' => $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg"
-            ]
-        ];
-    }
+            $plugin_basename = plugin_basename( $this->plugin_file );
+
+            // Sanitize icon URL for no_update entry
+            $icon_url = $remote->icons->default ?? $remote->icon ?? "https://s.w.org/plugins/geopattern-icon/{$this->plugin_slug}.svg";
+
+            $transient->no_update[ $plugin_basename ] = (object) [
+                'slug'   => $this->plugin_slug,
+                'plugin' => $plugin_basename,
+                'icons'  => [
+                    'default' => esc_url_raw( $icon_url )
+                ]
+            ];
+        }
 
         return $transient;
     }
@@ -249,8 +366,79 @@ final class JPKComGitPluginUpdater {
      * @param array        $options  Upgrade options.
      */
     public function clear_cache( \WP_Upgrader $upgrader, array $options ): void {
-        if ( $this->cache_enabled && $options['action'] === 'update' && $options['type'] === 'plugin' ) {
+        // Ensure array keys exist before accessing
+        if ( $this->cache_enabled
+             && isset( $options['action'], $options['type'] )
+             && $options['action'] === 'update'
+             && $options['type'] === 'plugin' ) {
             delete_transient( $this->cache_key );
         }
+    }
+
+    /**
+     * Verify download checksum before installation.
+     *
+     * This hook fires before WordPress downloads the plugin package, allowing us to
+     * verify the SHA256 checksum from the manifest matches the actual download.
+     *
+     * @param bool        $reply   Whether to bail without returning the package (default false).
+     * @param string      $package The package file name or URL.
+     * @param \WP_Upgrader $upgrader The WP_Upgrader instance.
+     * @return bool|\WP_Error True to proceed, WP_Error if verification fails.
+     */
+    public function verify_download_checksum( $reply, string $package, \WP_Upgrader $upgrader ) {
+        // Only verify downloads for this plugin
+        if ( strpos( $package, $this->plugin_slug ) === false ) {
+            return $reply;
+        }
+
+        $remote = $this->get_remote_manifest();
+        if ( ! $remote || empty( $remote->checksum_sha256 ) ) {
+            // No checksum in manifest, allow download (backward compatibility)
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'JPKCom Plugin Updater: No checksum found in manifest, skipping verification' );
+            }
+            return $reply;
+        }
+
+        // Download package temporarily
+        $temp_file = download_url( $package );
+        if ( is_wp_error( $temp_file ) ) {
+            return new \WP_Error(
+                'download_failed',
+                sprintf(
+                    __( 'Download failed: %s', 'jpkcom-hide-login' ),
+                    $temp_file->get_error_message()
+                )
+            );
+        }
+
+        // Calculate SHA256 hash
+        $calculated_hash = hash_file( 'sha256', $temp_file );
+
+        // Clean up temp file
+        @unlink( $temp_file );
+
+        // Verify checksum
+        $expected_hash = strtolower( trim( $remote->checksum_sha256 ) );
+        if ( $calculated_hash !== $expected_hash ) {
+            $error_msg = sprintf(
+                __( 'Security verification failed: Plugin checksum mismatch. Expected: %s, Got: %s', 'jpkcom-hide-login' ),
+                $expected_hash,
+                $calculated_hash
+            );
+
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'JPKCom Plugin Updater: ' . $error_msg );
+            }
+
+            return new \WP_Error( 'checksum_mismatch', $error_msg );
+        }
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( 'JPKCom Plugin Updater: Checksum verification successful' );
+        }
+
+        return $reply;
     }
 }
