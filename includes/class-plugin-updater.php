@@ -40,7 +40,7 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
  *
  * Handles plugin updates from a GitHub-hosted JSON manifest.
  *
- * @package JPKComHideLoginGitUpdate
+ * @package JPKComAcfJobsGitUpdate
  */
 final class JPKComGitPluginUpdater {
 
