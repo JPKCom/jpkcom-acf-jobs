@@ -1,7 +1,12 @@
 <?php
 /**
- * Helper functions
+ * Helper functions for ACF field rendering and formatting
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
@@ -11,9 +16,22 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
 if ( ! function_exists( function: 'jpkcom_render_acf_fields' ) ) {
 
     /**
-     * Renders all ACF fields of a post with Bootstrap 5 markup and smart icons.
+     * Renders all ACF fields of a post with Bootstrap 5 markup and smart icons
      *
-     * @param string $post_type Optional post type for field group query. If empty, current_post_type is used.
+     * Automatically detects field types and renders them with appropriate styling:
+     * - Images: Responsive with rounded corners
+     * - WYSIWYG/Textarea: Light background container
+     * - Relationships/Post Objects: Linked post titles
+     * - True/False: Badge indicators
+     * - Repeater: Responsive tables
+     * - Groups: Nested definition lists
+     *
+     * @since 1.0.0
+     *
+     * @global WP_Post $post Current post object.
+     *
+     * @param string $post_type Optional. Post type for field group query. Default empty (uses current post type).
+     * @return void
      */
     function jpkcom_render_acf_fields( string $post_type = '' ): void {
 
@@ -211,10 +229,15 @@ if ( ! function_exists( function: 'jpkcom_render_acf_fields' ) ) {
 
 if ( ! function_exists( function: 'acf_get_field_label' ) ) {
     /**
-     * Get ACF field label by field key or field name.
+     * Get ACF field label by field key or field name
      *
-     * @param string $field_key_or_name Field key or field name
-     * @return string Field label or formatted fallback
+     * Attempts to retrieve the field label from ACF. If not found,
+     * returns a formatted fallback based on the field name/key.
+     *
+     * @since 1.0.0
+     *
+     * @param string $field_key_or_name Field key (e.g., 'field_abc123') or field name (e.g., 'job_title').
+     * @return string Field label or formatted fallback string.
      */
     function acf_get_field_label( string $field_key_or_name ): string {
 
@@ -244,11 +267,19 @@ if ( ! function_exists( function: 'acf_get_field_label' ) ) {
 
 if ( ! function_exists( function: 'jpkcom_get_acf_field_label' ) ) {
     /**
-     * Returns the ACF field label based on the field name or field key.
+     * Get ACF field label with enhanced search capabilities
      *
-     * @param string $field_name_or_key Field name or field key
-     * @param string $post_type Optional - for better context
-     * @return string
+     * Searches for field labels in this order:
+     * 1. Direct field key lookup (if starts with 'field_')
+     * 2. Search through field groups by post type
+     * 3. Search through sub_fields (repeater/group fields)
+     * 4. Fallback to formatted field name
+     *
+     * @since 1.0.0
+     *
+     * @param string $field_name_or_key Field name (e.g., 'job_title') or field key (e.g., 'field_abc123').
+     * @param string $post_type         Optional. Post type for context-specific field group search. Default empty.
+     * @return string Field label or formatted fallback string.
      */
     function jpkcom_get_acf_field_label( string $field_name_or_key, string $post_type = '' ): string {
 
@@ -321,12 +352,24 @@ if ( ! function_exists( function: 'jpkcom_get_acf_field_label' ) ) {
 
 if ( ! function_exists( function: 'jpkcom_human_readable_relative_date' ) ) {
     /**
-     * Converts a timestamp into a human-readable relative date string
+     * Convert timestamp to human-readable relative date string
      *
-     * @param int $timestamp The timestamp to convert
-     * @return string The human-readable relative date string
+     * Converts Unix timestamps into relative date strings like:
+     * - "Published today"
+     * - "Published yesterday"
+     * - "Published 3 days ago"
+     * - "Published 2 weeks ago"
+     * - "Published 5 months ago"
+     * - "Published 2 years ago"
+     *
+     * All strings are translatable via the 'jpkcom-acf-jobs' text domain.
+     *
+     * @since 1.0.0
+     *
+     * @param int $timestamp Unix timestamp to convert.
+     * @return string Translated relative date string.
      */
-    function jpkcom_human_readable_relative_date( $timestamp ): mixed {
+    function jpkcom_human_readable_relative_date( int $timestamp ): string {
 
         $time_difference = current_time( 'U' ) - $timestamp;  // Calculate the time difference between now and the timestamp
         $seconds_in_a_day = 86400;  // Number of seconds in a day

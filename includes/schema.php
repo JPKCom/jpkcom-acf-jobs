@@ -1,7 +1,16 @@
 <?php
 /**
- * Schema.org functions
+ * Schema.org JobPosting generation functions
+ *
+ * Generates structured data (JSON-LD) for job postings according to
+ * Schema.org specifications for improved search engine visibility.
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
+ * @link      https://schema.org/JobPosting
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
@@ -9,10 +18,24 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
 
 
 /**
- * Generate schema.org JobPosting JSON-LD for a single job post.
+ * Generate Schema.org JobPosting JSON-LD for a single job post
  *
- * @param int|null $post_id
- * @return string JSON-LD (ready to echo in <script> tag)
+ * Creates a complete JobPosting schema including:
+ * - Basic job information (title, description, dates)
+ * - Employment type (FULL_TIME, PART_TIME, etc.)
+ * - Hiring organization details and logo
+ * - Job location(s) with postal addresses
+ * - Work type (on-site, remote/TELECOMMUTE)
+ * - Base salary information
+ * - Application contact/URL
+ * - Job benefits from taxonomy terms
+ *
+ * The schema can be filtered using the 'jpkcom_acf_jobs_schema_job_posting' hook.
+ *
+ * @since 1.0.0
+ *
+ * @param int|null $post_id Optional. Post ID of the job post. Default null (uses current post).
+ * @return string JSON-LD formatted string ready for output in <script> tag, or empty string on failure.
  */
 function jpkcom_acf_jobs_get_schema_job_posting( ?int $post_id = null ): string {
 
@@ -257,7 +280,15 @@ function jpkcom_acf_jobs_get_schema_job_posting( ?int $post_id = null ): string 
 
     }
 
+    /**
+     * Filter the JobPosting schema before output
+     *
+     * @since 1.0.0
+     *
+     * @param array $schema  The complete schema array.
+     * @param int   $post_id The job post ID.
+     */
     $schema = apply_filters( 'jpkcom_acf_jobs_schema_job_posting', $schema, $post_id );
 
-    return wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT );
+    return wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT ) ?: '';
 }

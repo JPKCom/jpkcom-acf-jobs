@@ -1,13 +1,33 @@
 <?php
 /**
- * Redirect functions
+ * Redirect and access control functions
+ *
+ * Handles three types of redirects:
+ * 1. Job URL redirects (external job application URLs)
+ * 2. Location/Company access control (non-editors can't view directly)
+ * 3. Expired job redirects (redirect to archive if job expired)
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
 }
 
 
+/**
+ * Redirect job posts to external URL if configured
+ *
+ * Checks for job_url ACF field and redirects to external application URL.
+ * Skips redirect for administrators and when WP_DEBUG is enabled.
+ * Uses 307 (Temporary Redirect) to preserve the request method.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 add_action( 'template_redirect', function(): void {
 
     if ( is_admin() ) {
@@ -61,6 +81,15 @@ add_action( 'template_redirect', function(): void {
 });
 
 
+/**
+ * Restrict direct access to job_location and job_company posts
+ *
+ * Redirects non-editors from directly viewing location/company posts
+ * to the main job archive. Uses 302 (Found) status code.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 add_action( 'template_redirect', function(): void {
 
     if ( is_singular( [ 'job_location', 'job_company' ] ) ) {
@@ -86,6 +115,15 @@ add_action( 'template_redirect', function(): void {
 });
 
 
+/**
+ * Redirect expired jobs to archive
+ *
+ * Checks job_expiry_date ACF field and redirects to job archive if expired.
+ * Editors can still view expired jobs. Uses 307 (Temporary Redirect) status.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 add_action( 'template_redirect', function(): void {
 
     if ( is_singular( 'job' ) ) {

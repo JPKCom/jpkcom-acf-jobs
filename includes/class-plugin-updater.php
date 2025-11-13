@@ -407,7 +407,7 @@ final class JPKComGitPluginUpdater {
             return new \WP_Error(
                 'download_failed',
                 sprintf(
-                    __( 'Download failed: %s', 'jpkcom-hide-login' ),
+                    __( 'Download failed: %s', 'jpkcom-acf-jobs' ),
                     $temp_file->get_error_message()
                 )
             );
@@ -423,7 +423,7 @@ final class JPKComGitPluginUpdater {
         $expected_hash = strtolower( trim( $remote->checksum_sha256 ) );
         if ( $calculated_hash !== $expected_hash ) {
             $error_msg = sprintf(
-                __( 'Security verification failed: Plugin checksum mismatch. Expected: %s, Got: %s', 'jpkcom-hide-login' ),
+                __( 'Security verification failed: Plugin checksum mismatch. Expected: %s, Got: %s', 'jpkcom-acf-jobs' ),
                 $expected_hash,
                 $calculated_hash
             );

@@ -1,12 +1,45 @@
 <?php
 /**
- * ACF Field Groups
+ * ACF field group registration
+ *
+ * Registers all Advanced Custom Fields field groups programmatically.
+ * Fields are registered using acf_add_local_field_group() for better
+ * version control and deployment consistency.
+ *
+ * Registered Field Groups:
+ * - Job Arbeitsort (Location details: place, street, zip, region, country)
+ * - Job Firma (Company details: URL, logo, relationships)
+ * - Job (Main job fields: type, location, company, salary, dates, attributes)
+ * - Job Layout (Flexible content layouts for job descriptions)
+ * - Job Bewerbung (Application settings: description, button, shortcode)
+ *
+ * Field Features:
+ * - ACF Quick Edit Fields integration (allow_quickedit, show_column)
+ * - WPML translation support (wpml_cf_preferences)
+ * - Backend search support (allow_backendsearch)
+ * - Conditional logic for dynamic forms
+ * - Field bindings for block editor
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
+ * @see       https://www.advancedcustomfields.com/resources/register-fields-via-php/
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'WPINC' ) ) {
     die;
 }
 
+/**
+ * Register ACF field groups programmatically
+ *
+ * Hooks into acf/include_fields to register all field groups.
+ * Field groups are defined as arrays matching ACF's export format.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 add_action( 'acf/include_fields', function(): void {
 	if ( ! function_exists( function: 'acf_add_local_field_group' ) ) {
 		return;

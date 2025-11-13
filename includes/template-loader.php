@@ -1,23 +1,36 @@
 <?php
 /**
- * Template Loader
+ * Template loader with override hierarchy
+ *
+ * Handles template loading for single and archive views with support for:
+ * - Theme overrides (child/parent)
+ * - MU plugin overrides
+ * - Debug templates (when WP_DEBUG is enabled)
+ * - Template partials loading
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
 }
 
 /**
- * Locate template file with override support.
+ * Locate template file with override support
  *
- * Load order (from highest to lowest priority):
+ * Searches for template files in this priority order:
  * 1. Child Theme: /wp-content/themes/your-child-theme/jpkcom-acf-jobs/
  * 2. Parent Theme: /wp-content/themes/your-theme/jpkcom-acf-jobs/
  * 3. MU plugin override: /wp-content/mu-plugins/jpkcom-acf-jobs-overrides/templates/
- * 4. Plugin itself: /wp-content/plugins/jpkcom-acf-jobs/templates/
+ * 4. Plugin itself: /wp-content/plugins/jpkcom-acf-jobs/templates/ (or debug-templates/ if WP_DEBUG)
  *
- * @param string $template_name
- * @return string|false
+ * @since 1.0.0
+ *
+ * @param string $template_name Template filename (e.g., 'single-job.php' or 'partials/job/company.php').
+ * @return string|false Full path to template file if found, false otherwise.
  */
 function jpkcom_acf_jobs_locate_template( string $template_name ): string|false {
 
@@ -27,7 +40,16 @@ function jpkcom_acf_jobs_locate_template( string $template_name ): string|false 
         trailingslashit( WPMU_PLUGIN_DIR ) . 'jpkcom-acf-jobs-overrides/templates/' . $template_name,
     ];
 
-    // Allow developers to add more search paths
+    /**
+     * Filter template search paths
+     *
+     * Allows developers to add custom template locations.
+     *
+     * @since 1.0.0
+     *
+     * @param string[] $search_paths  Array of paths to search.
+     * @param string   $template_name Template filename being searched.
+     */
     $search_paths = apply_filters( 'jpkcom_acf_jobs_template_paths', $search_paths, $template_name );
 
     // Search in Child/Parent-Theme or MU-Plugin
@@ -57,9 +79,17 @@ function jpkcom_acf_jobs_locate_template( string $template_name ): string|false 
 
 
 /**
- * Hook into WordPress locate_template() to include plugin templates when using get_template_part().
+ * Hook WordPress locate_template() to include plugin templates
+ *
+ * Allows plugin templates to be used with get_template_part() when theme doesn't provide them.
+ *
+ * @since 1.0.0
+ *
+ * @param string          $template       Located template path.
+ * @param string|string[] $template_names Template file names.
+ * @return string Located template path.
  */
-add_filter( 'locate_template', function( $template, $template_names ): mixed {
+add_filter( 'locate_template', function( $template, $template_names ): string {
 
     if ( empty( $template ) && ! empty( $template_names ) ) {
 
@@ -89,8 +119,13 @@ add_filter( 'locate_template', function( $template, $template_names ): mixed {
 /**
  * Template loader for singular and archive templates
  *
- * @param string $template
- * @return string
+ * Intercepts WordPress template_include filter and loads custom templates
+ * for job, job_company, and job_location post types (single and archive views).
+ *
+ * @since 1.0.0
+ *
+ * @param string $template Default template path from WordPress.
+ * @return string Template path to use (plugin template or default).
  */
 function jpkcom_acf_jobs_template_include( string $template ): string {
 
@@ -132,7 +167,15 @@ function jpkcom_acf_jobs_template_include( string $template ): string {
 
     }
 
-    // Allow external code to modify template path before fallback
+    /**
+     * Filter final template path before returning
+     *
+     * Last-chance filter to modify or override the template.
+     *
+     * @since 1.0.0
+     *
+     * @param string $template Template path to be used.
+     */
     $template = apply_filters( 'jpkcom_acf_jobs_final_template', $template );
 
     return $template;
@@ -143,10 +186,20 @@ add_filter( 'template_include', 'jpkcom_acf_jobs_template_include', 20 );
 
 if ( ! function_exists( function: 'jpkcom_acf_jobs_get_template_part' ) ) {
     /**
-     * Load partial templates with full override support.
+     * Load partial templates with full override support
      *
-     * @param string $slug Example: 'partials/job/company'
-     * @param string $name Optional. Example: 'alternative'
+     * Similar to WordPress get_template_part() but uses the plugin's
+     * template hierarchy system. Useful for loading reusable template partials.
+     *
+     * Example usage:
+     *   jpkcom_acf_jobs_get_template_part('partials/job/company');
+     *   jpkcom_acf_jobs_get_template_part('partials/job/company', 'detailed');
+     *
+     * @since 1.0.0
+     *
+     * @param string $slug Template slug (e.g., 'partials/job/company').
+     * @param string $name Optional. Template name/variation (e.g., 'alternative'). Default empty.
+     * @return void
      */
     function jpkcom_acf_jobs_get_template_part( string $slug, string $name = '' ): void {
 

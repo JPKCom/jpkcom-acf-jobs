@@ -1,7 +1,15 @@
 <?php
 /**
- * Breadcrumb functions
+ * Breadcrumb navigation functions
+ *
+ * Generates Bootstrap 5 styled breadcrumb navigation for job posts
+ * and archives with proper semantic markup and accessibility.
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
@@ -10,9 +18,21 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
 
 if ( ! function_exists( function: 'jpkcom_acf_jobs_breadcrumb' ) ) {
 
-/**
- * Custom Breadcrumb Output
- */
+    /**
+     * Output Bootstrap 5 breadcrumb navigation
+     *
+     * Generates breadcrumb navigation for:
+     * - Single job posts (Home > Jobs > Job Title)
+     * - Job archive (Home > Jobs)
+     * - Other pages (Home > Page Title)
+     *
+     * Includes proper ARIA labels and semantic HTML5 markup.
+     *
+     * @since 1.0.0
+     *
+     * @global WP_Post $post Current post object.
+     * @return void Outputs HTML directly.
+     */
     function jpkcom_acf_jobs_breadcrumb(): void {
 
         global $post;

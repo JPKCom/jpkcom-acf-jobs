@@ -1,12 +1,38 @@
 <?php
 /**
- * Custom Post Types
+ * Custom post type registration
+ *
+ * Registers three interconnected custom post types:
+ * - job: Main job postings (public, has archive)
+ * - job_location: Work locations (nested under jobs in admin)
+ * - job_company: Hiring companies (nested under jobs in admin)
+ *
+ * Post Type Features:
+ * - All support revisions
+ * - job_location and job_company are queryable but not public (no frontend URLs by default)
+ * - All are available in REST API for block editor
+ * - WPML translatable (see wpml-config.xml)
+ * - Nested menu structure for better organization
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'WPINC' ) ) {
     die;
 }
 
+/**
+ * Register custom post types for job management system
+ *
+ * Registers job_location, job_company, and job post types.
+ * Location and company types are nested under the job menu in admin.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 add_action( 'init', function(): void {
 	register_post_type( 'job_location', array(
 	'labels' => array(
@@ -153,7 +179,19 @@ add_action( 'init', function(): void {
 } );
 
 
-add_filter( 'enter_title_here', function( $default, $post ): mixed {
+/**
+ * Customize title placeholder text for custom post types
+ *
+ * Changes the default "Add title" placeholder in the post editor
+ * to context-specific placeholders for each post type.
+ *
+ * @since 1.0.0
+ *
+ * @param string  $default Default placeholder text.
+ * @param WP_Post $post    Current post object.
+ * @return string Modified placeholder text or original default.
+ */
+add_filter( 'enter_title_here', function( string $default, \WP_Post $post ): string {
 	switch ( $post->post_type ) {
 		case 'job_location':
 			return 'Standortname';

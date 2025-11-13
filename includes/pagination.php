@@ -1,7 +1,15 @@
 <?php
 /**
- * Pagination functions
+ * Pagination navigation functions
+ *
+ * Generates Bootstrap 5 styled pagination with accessible markup
+ * for job archives and other paginated content.
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
@@ -10,7 +18,29 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
 
 if ( ! function_exists( function: 'jpkcom_acf_jobs_pagination' ) ) {
 
-    function jpkcom_acf_jobs_pagination( $pages = '', $range = 2 ): void {
+    /**
+     * Output Bootstrap 5 pagination navigation
+     *
+     * Generates numbered pagination with first/last and prev/next controls.
+     * Includes proper ARIA labels and accessible markup.
+     *
+     * Features:
+     * - First/Last page links (« »)
+     * - Previous/Next page links (‹ ›)
+     * - Numbered page links with range control
+     * - Active page indicator
+     * - Disabled state for unavailable actions
+     *
+     * @since 1.0.0
+     *
+     * @global int       $paged    Current page number (set by WordPress).
+     * @global WP_Query  $wp_query WordPress query object.
+     *
+     * @param string|int $pages Optional. Total number of pages. Default empty (auto-detect from query).
+     * @param int        $range Optional. Number of page links to show on either side of current page. Default 2.
+     * @return void Outputs HTML directly.
+     */
+    function jpkcom_acf_jobs_pagination( string|int $pages = '', int $range = 2 ): void {
 
         $showitems = ( $range * 2 ) + 1;
         global $paged;

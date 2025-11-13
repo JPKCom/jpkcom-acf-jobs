@@ -1,7 +1,16 @@
 <?php
 /**
- * Shortcode functions
+ * Shortcode registration and template functions
+ *
+ * Registers and handles the following shortcodes:
+ * - [jpkcom_acf_jobs_list] - Filtered job listings
+ * - [jpkcom_acf_jobs_attributes] - Job attributes taxonomy display
+ *
+ * @package   JPKCom_ACF_Jobs
+ * @since     1.0.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( constant_name: 'ABSPATH' ) ) {
     exit;
@@ -9,8 +18,18 @@ if ( ! defined( constant_name: 'ABSPATH' ) ) {
 
 
 /**
- * Helper: locate template (uses your existing loader)
- * Returns full path or false.
+ * Locate shortcode template file with override support
+ *
+ * Searches for template files in this order:
+ * 1. Child theme: /wp-content/themes/child/jpkcom-acf-jobs/
+ * 2. Parent theme: /wp-content/themes/parent/jpkcom-acf-jobs/
+ * 3. MU plugin overrides: /wp-content/mu-plugins/jpkcom-acf-jobs-overrides/templates/
+ * 4. Plugin templates: /wp-content/plugins/jpkcom-acf-jobs/templates/
+ *
+ * @since 1.0.0
+ *
+ * @param string $template_name Template filename (e.g., 'shortcodes/list.php').
+ * @return string|false Full path to template file if found, false otherwise.
  */
 if ( ! function_exists( function: 'jpkcom_acf_jobs_locate_template' ) ) {
 
@@ -40,11 +59,36 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_locate_template' ) ) {
 }
 
 /**
- * Register shortcodes on init.
+ * Register shortcodes on WordPress init
+ *
+ * @since 1.0.0
+ * @return void
  */
 add_action( 'init', function(): void {
 
-    // [jpkcom_acf_jobs_list ...]
+    /**
+     * Shortcode: [jpkcom_acf_jobs_list]
+     *
+     * Displays a filtered list of job postings with optional filtering and sorting.
+     *
+     * Attributes:
+     * - type: CSV of job_type values (e.g., "FULL_TIME,PART_TIME")
+     * - company: CSV of company post IDs (e.g., "12,34,56")
+     * - location: CSV of location post IDs (e.g., "78,90")
+     * - limit: Number of jobs to display (0 = no limit, shows all)
+     * - sort: Sort order - "ASC" or "DSC" (default: "DSC")
+     * - style: Inline CSS styles for the container
+     * - class: CSS class(es) for the container
+     * - title: Optional section headline
+     *
+     * Example usage:
+     * [jpkcom_acf_jobs_list type="FULL_TIME" limit="5" class="my-jobs" title="Open Positions"]
+     *
+     * @since 1.0.0
+     *
+     * @param array|string $atts Shortcode attributes.
+     * @return string Rendered HTML output.
+     */
     add_shortcode( 'jpkcom_acf_jobs_list', function( $atts ): string {
 
         $defaults = [
@@ -190,7 +234,14 @@ add_action( 'init', function(): void {
 
         }
 
-        // Allow modification via filter
+        /**
+         * Filter job listing query arguments before execution
+         *
+         * @since 1.0.0
+         *
+         * @param array $query_args WP_Query arguments array.
+         * @param array $atts       Shortcode attributes.
+         */
         $query_args = apply_filters( 'jpkcom_acf_jobs_list_query_args', $query_args, $atts );
 
         $q = new WP_Query( $query_args );
@@ -327,7 +378,26 @@ add_action( 'init', function(): void {
 
     } );
 
-    // [jpkcom_acf_jobs_attributes ...]
+    /**
+     * Shortcode: [jpkcom_acf_jobs_attributes]
+     *
+     * Displays job attributes (taxonomy terms) as expandable <details> elements.
+     * Shows term name as summary and term description as content.
+     *
+     * Attributes:
+     * - id: CSV of term IDs to display (optional, shows all if omitted)
+     * - style: Inline CSS styles for the container
+     * - class: CSS class(es) for the container
+     * - title: Optional section headline
+     *
+     * Example usage:
+     * [jpkcom_acf_jobs_attributes id="1,2,3" class="benefits" title="Employee Benefits"]
+     *
+     * @since 1.0.0
+     *
+     * @param array|string $atts Shortcode attributes.
+     * @return string Rendered HTML output.
+     */
     add_shortcode( 'jpkcom_acf_jobs_attributes', function( $atts ): string {
 
         $defaults = [
