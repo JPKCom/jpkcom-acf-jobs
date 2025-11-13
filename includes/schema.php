@@ -228,14 +228,17 @@ function jpkcom_acf_jobs_get_schema_job_posting( ?int $post_id = null ): string 
         $currency = is_array( value: $currency_field ) ? ($currency_field['value'] ?? $currency_field['return_value'] ?? '') : $currency_field;
         $period   = is_array( value: $period_field ) ? ($period_field['value'] ?? $period_field['return_value'] ?? '') : $period_field;
 
-        if ( $amount && $currency ) {
+        // Convert amount to float and validate (ACF returns strings even for number fields)
+        $amount_float = is_numeric( $amount ) ? (float) $amount : 0.0;
+
+        if ( $amount_float > 0 && $currency ) {
 
             $schema['baseSalary'] = [
                 '@type' => 'MonetaryAmount',
                 'currency' => strtoupper( string: $currency ),
                 'value' => [
                     '@type' => 'QuantitativeValue',
-                    'value' => number_format( num: $amount, decimals: 2, decimal_separator: ',', thousands_separator: '.'),
+                    'value' => number_format( num: $amount_float, decimals: 2, decimal_separator: ',', thousands_separator: '.'),
                     'unitText' => $period ?: 'YEAR',
                 ],
             ];
