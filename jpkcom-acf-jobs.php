@@ -20,6 +20,8 @@ Text Domain: jpkcom-acf-jobs
 Domain Path: /languages
 */
 
+declare(strict_types=1);
+
 use JPKComAcfJobsGitUpdate\JPKComGitPluginUpdater;
 
 if ( ! defined( constant_name: 'WPINC' ) ) {
@@ -28,6 +30,8 @@ if ( ! defined( constant_name: 'WPINC' ) ) {
 
 /**
  * Plugin Constants
+ *
+ * @since 1.0.0
  */
 if ( ! defined( 'JPKCOM_ACFJOBS_VERSION' ) ) {
 	define( 'JPKCOM_ACFJOBS_VERSION', '1.2.0' );
@@ -48,6 +52,11 @@ if ( ! defined( 'JPKCOM_ACFJOBS_PLUGIN_URL' ) ) {
 
 /**
  * Initialize Plugin Updater
+ *
+ * Loads and initializes the GitHub-based plugin updater with SHA256 checksum verification.
+ *
+ * @since 1.2.0
+ * @return void
  */
 add_action( 'init', static function (): void {
 	$updater_file = JPKCOM_ACFJOBS_PLUGIN_PATH . 'includes/class-plugin-updater.php';
@@ -67,7 +76,12 @@ add_action( 'init', static function (): void {
 
 
 /**
- * Load language files
+ * Load plugin text domain for translations
+ *
+ * Loads translation files from the /languages directory.
+ *
+ * @since 1.0.0
+ * @return void
  */
 function jpkcom_acfjobs_textdomain(): void {
     load_plugin_textdomain(
@@ -81,7 +95,18 @@ add_action( 'plugins_loaded', 'jpkcom_acfjobs_textdomain' );
 
 
 /**
- * Load file with overwrite logic
+ * Locate file with override support
+ *
+ * Searches for a file in multiple locations with priority:
+ * 1. Child theme
+ * 2. Parent theme
+ * 3. MU plugin overrides
+ * 4. Plugin includes directory
+ *
+ * @since 1.0.0
+ *
+ * @param string $filename The filename to locate (without path).
+ * @return string|null Full path to the file if found, null otherwise.
  */
 function jpkcom_acfjobs_locate_file( string $filename ): ?string {
 
@@ -92,6 +117,14 @@ function jpkcom_acfjobs_locate_file( string $filename ): ?string {
         JPKCOM_ACFJOBS_PLUGIN_PATH . 'includes/' . $filename,
     ];
 
+    /**
+     * Filter the file search paths
+     *
+     * @since 1.0.0
+     *
+     * @param string[] $paths    Array of paths to search.
+     * @param string   $filename The filename being located.
+     */
     $paths = apply_filters( 'jpkcom_acfjobs_file_paths', $paths, $filename );
 
     foreach ( $paths as $path ) {
@@ -110,7 +143,9 @@ function jpkcom_acfjobs_locate_file( string $filename ): ?string {
 
 
 /**
- * Media functions
+ * Load media functions
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobMedia = jpkcom_acfjobs_locate_file( filename: 'media.php' );
 
@@ -122,7 +157,9 @@ if ( $jpkcomAcfJobMedia ) {
 
 
 /**
- * Archive functions
+ * Load archive functions
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobArchive = jpkcom_acfjobs_locate_file( filename: 'archive.php' );
 
@@ -134,7 +171,9 @@ if ( $jpkcomAcfJobArchive ) {
 
 
 /**
- * Breadcrumb functions
+ * Load breadcrumb functions
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobBreadcrumb = jpkcom_acfjobs_locate_file( filename: 'breadcrumb.php' );
 
@@ -146,7 +185,9 @@ if ( $jpkcomAcfJobBreadcrumb ) {
 
 
 /**
- * Pagination functions
+ * Load pagination functions
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobPagination = jpkcom_acfjobs_locate_file( filename: 'pagination.php' );
 
@@ -158,7 +199,9 @@ if ( $jpkcomAcfJobPagination ) {
 
 
 /**
- * Redirect functions
+ * Load redirect functions
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobRedirect = jpkcom_acfjobs_locate_file( filename: 'redirects.php' );
 
@@ -170,7 +213,9 @@ if ( $jpkcomAcfJobRedirect ) {
 
 
 /**
- * Helper functions
+ * Load helper functions
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobHelpers = jpkcom_acfjobs_locate_file( filename: 'helpers.php' );
 
@@ -182,7 +227,13 @@ if ( $jpkcomAcfJobHelpers ) {
 
 
 /**
- * Custom Post Types & Taxonomies
+ * Register Custom Post Types & Taxonomies
+ *
+ * Loads and registers job, job_location, job_company post types
+ * and job-attribute taxonomy.
+ *
+ * @since 1.0.0
+ * @return void
  */
 add_action( 'init', function(): void {
 
@@ -206,7 +257,13 @@ add_action( 'init', function(): void {
 
 
 /**
- * ACF Field Groups
+ * Register ACF Field Groups
+ *
+ * Loads programmatically registered ACF field groups for jobs,
+ * locations, and companies.
+ *
+ * @since 1.0.0
+ * @return void
  */
 add_action( 'plugins_loaded', function(): void {
 
@@ -222,7 +279,11 @@ add_action( 'plugins_loaded', function(): void {
 
 
 /**
- * Template Loader
+ * Load template loader
+ *
+ * Handles template hierarchy and override system for job templates.
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobTemplateLoader = jpkcom_acfjobs_locate_file( filename: 'template-loader.php' );
 
@@ -234,7 +295,11 @@ if ( $jpkcomAcfJobTemplateLoader ) {
 
 
 /**
- * Schema.org functions
+ * Load Schema.org functions
+ *
+ * Generates JobPosting JSON-LD structured data.
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobSchema = jpkcom_acfjobs_locate_file( filename: 'schema.php' );
 
@@ -246,7 +311,11 @@ if ( $jpkcomAcfJobSchema ) {
 
 
 /**
- * Shortcode functions
+ * Load shortcode functions
+ *
+ * Registers [jpkcom_acf_jobs_list] and [jpkcom_acf_jobs_attributes] shortcodes.
+ *
+ * @since 1.0.0
  */
 $jpkcomAcfJobShortcodes = jpkcom_acfjobs_locate_file( filename: 'shortcodes.php' );
 
