@@ -3,7 +3,7 @@
 Plugin Name: JPKCom ACF Jobs
 Plugin URI: https://github.com/JPKCom/jpkcom-acf-jobs
 Description: Job application plugin for ACF
-Version: 1.1.12
+Version: 1.2.0
 Author: Jean Pierre Kolb <jpk@jpkc.com>
 Author URI: https://www.jpkc.com/
 Contributors: JPKCom
@@ -13,7 +13,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.3
 Network: true
-Stable tag: 1.1.12
+Stable tag: 1.2.0
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 Text Domain: jpkcom-acf-jobs
@@ -26,21 +26,44 @@ if ( ! defined( constant_name: 'WPINC' ) ) {
     die;
 }
 
-define( constant_name: 'JPKCOM_ACFJOBS_BASENAME', value: plugin_basename( __FILE__ ) );
-define( constant_name: 'JPKCOM_ACFJOBS_PLUGIN_PATH', value: plugin_dir_path( __FILE__ ) );
-define( constant_name: 'JPKCOM_ACFJOBS_PLUGIN_URL', value: plugin_dir_url( __FILE__ ) );
+/**
+ * Plugin Constants
+ */
+if ( ! defined( 'JPKCOM_ACFJOBS_VERSION' ) ) {
+	define( 'JPKCOM_ACFJOBS_VERSION', '1.2.0' );
+}
+
+if ( ! defined( 'JPKCOM_ACFJOBS_BASENAME' ) ) {
+	define( 'JPKCOM_ACFJOBS_BASENAME', plugin_basename( __FILE__ ) );
+}
+
+if ( ! defined( 'JPKCOM_ACFJOBS_PLUGIN_PATH' ) ) {
+	define( 'JPKCOM_ACFJOBS_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
+}
+
+if ( ! defined( 'JPKCOM_ACFJOBS_PLUGIN_URL' ) ) {
+	define( 'JPKCOM_ACFJOBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+}
 
 
-// Initialize updater
-add_action( 'init', function(): void {
-	require_once plugin_dir_path( __FILE__ ) . 'includes/class-plugin-updater.php';
+/**
+ * Initialize Plugin Updater
+ */
+add_action( 'init', static function (): void {
+	$updater_file = JPKCOM_ACFJOBS_PLUGIN_PATH . 'includes/class-plugin-updater.php';
 
-	new JPKComGitPluginUpdater(
-		plugin_file: __FILE__,
-		current_version: '1.1.12',
-		manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json'
-	);
-});
+	if ( file_exists( $updater_file ) ) {
+		require_once $updater_file;
+
+		if ( class_exists( 'JPKComAcfJobsGitUpdate\\JPKComGitPluginUpdater' ) ) {
+			new \JPKComAcfJobsGitUpdate\JPKComGitPluginUpdater(
+				plugin_file: __FILE__,
+				current_version: JPKCOM_ACFJOBS_VERSION,
+				manifest_url: 'https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json'
+			);
+		}
+	}
+}, 5 );
 
 
 /**
