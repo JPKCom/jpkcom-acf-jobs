@@ -16,7 +16,12 @@ defined( constant_name: 'ABSPATH' ) || exit;
             $total = count( value: $types );
             $i = 0;
             foreach ( $types as $type ) {
-                echo $type['label'];
+                // Handle both array format and string format for backwards compatibility
+                if ( is_array( value: $type ) && isset( $type['label'] ) ) {
+                    echo $type['label'];
+                } elseif ( is_string( value: $type ) ) {
+                    echo $type;
+                }
                 $i++;
                 if ( $i < $total ) {
                     echo ',<br>';

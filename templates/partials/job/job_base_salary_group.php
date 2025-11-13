@@ -17,8 +17,12 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
         $job_salary = $job_base_salary_group['job_salary'];
 
-        $job_salary_currency = $job_base_salary_group['job_salary_currency']['label'];
-        $job_salary_period = $job_base_salary_group['job_salary_period']['label'];
+        // Handle both array format and string format for backwards compatibility
+        $currency_data = $job_base_salary_group['job_salary_currency'];
+        $job_salary_currency = is_array( value: $currency_data ) && isset( $currency_data['label'] ) ? $currency_data['label'] : $currency_data;
+
+        $period_data = $job_base_salary_group['job_salary_period'];
+        $job_salary_period = is_array( value: $period_data ) && isset( $period_data['label'] ) ? $period_data['label'] : $period_data;
 
         echo '<p>';
         echo number_format( num: $job_salary, decimals: 2, decimal_separator: ',', thousands_separator: '.') . ' ' . $job_salary_currency . ' ' . $job_salary_period;

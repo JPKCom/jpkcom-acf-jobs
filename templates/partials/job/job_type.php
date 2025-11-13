@@ -23,7 +23,13 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
         foreach ( $types as $type ) {
 
-            echo $type['label'];
+            // Handle both array format and string format for backwards compatibility
+            if ( is_array( value: $type ) && isset( $type['label'] ) ) {
+                echo $type['label'];
+            } elseif ( is_string( value: $type ) ) {
+                // Fallback: use the value itself if it's a string
+                echo $type;
+            }
             $i++;
 
             if ( $i < $total ) {
@@ -43,11 +49,14 @@ defined( constant_name: 'ABSPATH' ) || exit;
         $job_work_type = get_field( 'job_work_type' );
         $job_work_type_label = '';
 
-        if ( $job_work_type['value'] === 'homeoffice' ) {
+        // Handle both array format and string format for backwards compatibility
+        $work_type_value = is_array( value: $job_work_type ) && isset( $job_work_type['value'] ) ? $job_work_type['value'] : $job_work_type;
+
+        if ( $work_type_value === 'homeoffice' ) {
 
             $job_work_type_label = __( 'Home office', 'jpkcom-acf-jobs' );
 
-        } elseif ( $job_work_type['value'] === 'onsitework' ) {
+        } elseif ( $work_type_value === 'onsitework' ) {
 
             $job_work_type_label = __( 'Onsite work', 'jpkcom-acf-jobs' );
 
