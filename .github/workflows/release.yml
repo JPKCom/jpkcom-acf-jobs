@@ -92,11 +92,22 @@ jobs:
         run: |
           zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '.gitignore' -x '*.github*' -x '*.DS_Store*' -x '*.py' -x 'CLAUDE.md' -x 'gh-pages-*/*'
 
-      # 7. Upload ZIP to GitHub release
-      - name: Upload ZIP to GitHub release
+      # 6.1. Generate SHA256 checksum for security verification
+      - name: Generate SHA256 checksum
+        run: |
+          SHA256_HASH=$(sha256sum "${{ env.ZIP_FILE }}" | awk '{print $1}')
+          echo "SHA256_HASH=$SHA256_HASH" >> $GITHUB_ENV
+          echo "SHA256 Hash: $SHA256_HASH"
+          # Create checksum file for reference
+          echo "$SHA256_HASH  ${{ env.ZIP_FILE }}" > ${{ env.ZIP_FILE }}.sha256
+
+      # 7. Upload ZIP and checksum to GitHub release
+      - name: Upload ZIP and checksum to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP_FILE }}
+          files: |
+            ${{ env.ZIP_FILE }}
+            ${{ env.ZIP_FILE }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -141,6 +152,7 @@ jobs:
               "slug": os.environ.get("PLUGIN_SLUG"),
               "version": clean_meta_value(meta.get("Version", os.environ.get("TAG_NAME"))),
               "download_url": os.environ.get("DOWNLOAD_URL"),
+              "checksum_sha256": os.environ.get("SHA256_HASH", ""),
               "requires": clean_meta_value(meta.get("Requiresatleast", "6.8")),
               "tested": clean_meta_value(meta.get("Testedupto", "6.9")),
               "requires_php": clean_meta_value(meta.get("RequiresPHP", "8.3")),
