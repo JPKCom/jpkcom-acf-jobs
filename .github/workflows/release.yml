@@ -90,7 +90,7 @@ jobs:
       # 6. Create plugin ZIP
       - name: Create plugin ZIP
         run: |
-          zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '.gitignore' -x '*.github*' -x '*.DS_Store*' -x '*.py' -x 'update-acf-json.php' -x 'CLAUDE.md' -x '.claude/*' -x 'gh-pages-*/*'
+          zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '.gitignore' -x '*.github*' -x '*.DS_Store*' -x '*.py' -x 'test-wpml-fields.php' -x 'update-acf-json.php' -x 'CLAUDE.md' -x '.claude/*' -x 'gh-pages-*/*'
 
       # 6.1. Generate SHA256 checksum for security verification
       - name: Generate SHA256 checksum
