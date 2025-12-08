@@ -64,6 +64,7 @@ add_action( 'init', function(): void {
 	'show_in_menu' => true,
 	'show_in_rest' => true,
 	'show_tagcloud' => false,
+	'show_admin_column' => true,
 	'meta_box_cb' => false,
 	'rewrite' => array(
 		'with_front' => false,

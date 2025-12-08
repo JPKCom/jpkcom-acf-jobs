@@ -194,23 +194,31 @@ Multilingual configuration in `wpml-config.xml` provides comprehensive WPML inte
 
 **ACF Field Translation Strategy:**
 
+**CRITICAL:** The `wpml_cf_preferences` values in ACF field definitions MUST match the actions in `wpml-config.xml`:
+
+- `wpml_cf_preferences => 0` = `action="ignore"` (ACF internal fields only)
+- `wpml_cf_preferences => 1` = `action="copy-once"` (copied once, then independent)
+- `wpml_cf_preferences => 2` = `action="translate"` (content differs per language)
+- `wpml_cf_preferences => 3` = `action="copy"` (kept in sync across translations)
+
 Three action types control how fields are handled across languages:
 
-1. **`action="translate"`** - Content differs per language:
+1. **`action="translate"`** (`wpml_cf_preferences => 2`) - Content differs per language:
    - `job_short_description`
    - `job_application_description`
    - `job_application_button`
    - All flexible content text fields (e.g., `job_layout_content_%_text_left`)
 
-2. **`action="copy-once"`** - Copied once, then independent:
+2. **`action="copy-once"`** (`wpml_cf_preferences => 1`) - Copied once, then independent:
    - `job_url`, `job_location`, `job_company`
    - All salary fields (`job_base_salary_group_*`)
    - All metadata (`job_closed`, `job_featured`, `job_expiry_date`)
    - All location/company detail fields
+   - All image fields in flexible content (`img_left`, `img_right`)
 
-3. **`action="copy"`** - Kept in sync across translations:
-   - `job_type`, `job_work_type`
-   - `job_layout_content` (main flexible content field)
+3. **`action="copy"`** (`wpml_cf_preferences => 3`) - Kept in sync across translations:
+   - `job_type`, `job_work_type` (must return consistent values across languages)
+   - `job_layout_content` (main flexible content field structure)
 
 **ACF Internal Fields (Prefixed with `_`):**
 
@@ -233,6 +241,11 @@ Matches: `job_layout_content_0_text_left`, `job_layout_content_1_text_left`, etc
 - Located in `languages/` directory
 - Format: `.l10n.php` (WordPress 6.8+ format)
 - Text domain: `jpkcom-acf-jobs`
+
+**Important Notes:**
+- **Bidirectional Post Object Fields**: Fields like `job_location` and `job_company` use `wpml_cf_preferences => 1` (copy-once). This ensures the relationship is copied during translation but remains independent afterward, preventing cross-contamination between language versions.
+- **Checkbox Fields with Labels**: Fields like `job_type` use `wpml_cf_preferences => 3` (copy) to ensure the VALUES remain synchronized across translations. The human-readable LABELS are translated via WordPress translation files, not WPML field translation.
+- **Python Script**: The `add-wpml-preferences.py` script automatically applies the correct `wpml_cf_preferences` values based on `wpml-config.xml`. It has been corrected to use the proper mapping (copy-once=1, copy=3).
 
 ## Common Patterns
 

@@ -30,7 +30,8 @@
                 "allow_in_bindings": 1,
                 "placeholder": "Ort",
                 "prepend": "",
-                "append": ""
+                "append": "",
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": 1,
@@ -60,7 +61,8 @@
                 "placeholder": "PLZ",
                 "step": "",
                 "prepend": "",
-                "append": ""
+                "append": "",
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": 1,
@@ -88,7 +90,8 @@
                 "allow_in_bindings": 1,
                 "placeholder": "Straße und Hausnummer",
                 "prepend": "",
-                "append": ""
+                "append": "",
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": 0,
@@ -99,7 +102,7 @@
                 "show_column_weight": 1000,
                 "show_column_sortable": false,
                 "key": "field_68de70b4be3b7",
-                "label": "Region\/Bundesland",
+                "label": "Region/Bundesland",
                 "name": "job_location_region",
                 "aria-label": "",
                 "type": "text",
@@ -116,7 +119,8 @@
                 "allow_in_bindings": 1,
                 "placeholder": "Region oder Bundesland",
                 "prepend": "",
-                "append": ""
+                "append": "",
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": 1,
@@ -144,7 +148,8 @@
                 "allow_in_bindings": 1,
                 "placeholder": "Land",
                 "prepend": "",
-                "append": ""
+                "append": "",
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -180,7 +185,8 @@
                 "bidirectional_target": [
                     "field_68dcf29cdcfbf"
                 ],
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             }
         ],
         "location": [
@@ -215,7 +221,8 @@
         "active": true,
         "description": "",
         "show_in_rest": 0,
-        "display_title": ""
+        "display_title": "",
+        "acfml_field_group_mode": "translation"
     },
     {
         "qef_simple_location_rules": 0,
@@ -249,7 +256,8 @@
                 "allow_in_bindings": 1,
                 "rows": 7,
                 "placeholder": "Kleine Stellenbeschreibung…",
-                "new_lines": "br"
+                "new_lines": "br",
+                "wpml_cf_preferences": 2
             },
             {
                 "allow_backendsearch": false,
@@ -291,7 +299,8 @@
                 "layout": "horizontal",
                 "toggle": 1,
                 "save_custom": 0,
-                "custom_choice_button_text": "Eine neue Auswahlmöglichkeit hinzufügen"
+                "custom_choice_button_text": "Eine neue Auswahlmöglichkeit hinzufügen",
+                "wpml_cf_preferences": 3
             },
             {
                 "allow_backendsearch": false,
@@ -315,7 +324,8 @@
                     "id": ""
                 },
                 "return_format": "array",
-                "allow_in_bindings": 1
+                "allow_in_bindings": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -326,7 +336,7 @@
                 "show_column_weight": 1000,
                 "show_column_sortable": false,
                 "key": "field_68de45a779674",
-                "label": "Homeoffice und\/oder Präsenzarbeit",
+                "label": "Homeoffice und/oder Präsenzarbeit",
                 "name": "job_work_type",
                 "aria-label": "",
                 "type": "button_group",
@@ -347,7 +357,8 @@
                 "return_format": "array",
                 "allow_null": 1,
                 "allow_in_bindings": 1,
-                "layout": "horizontal"
+                "layout": "horizontal",
+                "wpml_cf_preferences": 3
             },
             {
                 "allow_backendsearch": false,
@@ -383,7 +394,8 @@
                 "bidirectional_target": [
                     "field_68de308b46c75"
                 ],
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -419,7 +431,8 @@
                 "bidirectional_target": [
                     "field_68de31fde1264"
                 ],
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -472,7 +485,8 @@
                         "placeholder": 1234,
                         "step": "",
                         "prepend": "",
-                        "append": ""
+                        "append": "",
+                        "wpml_cf_preferences": 1
                     },
                     {
                         "allow_backendsearch": false,
@@ -508,7 +522,8 @@
                         "ajax": 0,
                         "placeholder": "",
                         "create_options": 0,
-                        "save_options": 0
+                        "save_options": 0,
+                        "wpml_cf_preferences": 1
                     },
                     {
                         "allow_backendsearch": false,
@@ -547,9 +562,11 @@
                         "ajax": 0,
                         "placeholder": "",
                         "create_options": 0,
-                        "save_options": 0
+                        "save_options": 0,
+                        "wpml_cf_preferences": 1
                     }
-                ]
+                ],
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -582,7 +599,8 @@
                 "allow_in_bindings": 1,
                 "bidirectional": 0,
                 "multiple": 0,
-                "bidirectional_target": []
+                "bidirectional_target": [],
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -610,7 +628,8 @@
                 "allow_in_bindings": 1,
                 "ui_on_text": "Ja",
                 "ui_off_text": "Nein",
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -638,7 +657,8 @@
                 "allow_in_bindings": 1,
                 "ui_on_text": "Ja",
                 "ui_off_text": "Nein",
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -665,7 +685,8 @@
                 "return_format": "Y-m-d",
                 "first_day": 1,
                 "default_to_current_date": 0,
-                "allow_in_bindings": 1
+                "allow_in_bindings": 1,
+                "wpml_cf_preferences": 1
             }
         ],
         "location": [
@@ -692,7 +713,8 @@
         "active": true,
         "description": "",
         "show_in_rest": 0,
-        "display_title": ""
+        "display_title": "",
+        "acfml_field_group_mode": "translation"
     },
     {
         "qef_simple_location_rules": 0,
@@ -712,7 +734,7 @@
                 "name": "job_company_url",
                 "aria-label": "",
                 "type": "link",
-                "instructions": "Geben Sie hier eine Verlinkung\/URL zur Firmenwebseite an.",
+                "instructions": "Geben Sie hier eine Verlinkung/URL zur Firmenwebseite an.",
                 "required": 0,
                 "conditional_logic": 0,
                 "wrapper": {
@@ -721,7 +743,8 @@
                     "id": ""
                 },
                 "return_format": "array",
-                "allow_in_bindings": 1
+                "allow_in_bindings": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -756,7 +779,8 @@
                 "max_size": "",
                 "mime_types": "",
                 "allow_in_bindings": 1,
-                "preview_size": "thumbnail"
+                "preview_size": "thumbnail",
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -792,7 +816,8 @@
                 "bidirectional_target": [
                     "field_68dcfa03be81e"
                 ],
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             }
         ],
         "location": [
@@ -827,7 +852,8 @@
         "active": true,
         "description": "",
         "show_in_rest": 0,
-        "display_title": ""
+        "display_title": "",
+        "acfml_field_group_mode": "translation"
     },
     {
         "qef_simple_location_rules": 0,
@@ -843,7 +869,7 @@
                 "show_column_weight": 1000,
                 "show_column_sortable": false,
                 "key": "field_68dd33fe405cd",
-                "label": "Beschreibung\/Details zu Bewerbungsmöglichkeiten anzeigen?",
+                "label": "Beschreibung/Details zu Bewerbungsmöglichkeiten anzeigen?",
                 "name": "job_application_show_description",
                 "aria-label": "",
                 "type": "true_false",
@@ -860,7 +886,8 @@
                 "allow_in_bindings": 1,
                 "ui_on_text": "Ja",
                 "ui_off_text": "Nein",
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": 1,
@@ -896,7 +923,8 @@
                 "tabs": "all",
                 "toolbar": "full",
                 "media_upload": 1,
-                "delay": 0
+                "delay": 0,
+                "wpml_cf_preferences": 2
             },
             {
                 "allow_backendsearch": false,
@@ -924,7 +952,8 @@
                 "allow_in_bindings": 1,
                 "ui_on_text": "Ja",
                 "ui_off_text": "Nein",
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -939,7 +968,7 @@
                 "name": "job_application_button",
                 "aria-label": "",
                 "type": "link",
-                "instructions": "Wählen Sie hier die Beschriftung und die Verlinkung\/URL des Buttons.",
+                "instructions": "Wählen Sie hier die Beschriftung und die Verlinkung/URL des Buttons.",
                 "required": 0,
                 "conditional_logic": [
                     [
@@ -956,7 +985,8 @@
                     "id": ""
                 },
                 "return_format": "array",
-                "allow_in_bindings": 1
+                "allow_in_bindings": 1,
+                "wpml_cf_preferences": 2
             },
             {
                 "allow_backendsearch": false,
@@ -984,7 +1014,8 @@
                 "allow_in_bindings": 1,
                 "ui_on_text": "Ja",
                 "ui_off_text": "Nein",
-                "ui": 1
+                "ui": 1,
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": 0,
@@ -1020,7 +1051,8 @@
                 "allow_in_bindings": 1,
                 "placeholder": "[shortcode ...]",
                 "prepend": "",
-                "append": ""
+                "append": "",
+                "wpml_cf_preferences": 1
             }
         ],
         "location": [
@@ -1047,12 +1079,13 @@
         "active": true,
         "description": "",
         "show_in_rest": 0,
-        "display_title": ""
+        "display_title": "",
+        "acfml_field_group_mode": "translation"
     },
     {
         "qef_simple_location_rules": 0,
         "key": "group_68dd0a3f945a5",
-        "title": "Job Layout\/Inhalt",
+        "title": "Job Layout/Inhalt",
         "fields": [
             {
                 "allow_backendsearch": false,
@@ -1079,7 +1112,7 @@
                     "layout_68dd0a565b15c": {
                         "key": "layout_68dd0a565b15c",
                         "name": "layout_2_col_text_img",
-                        "label": "2-spaltiges Layout (Text links \/ Bild rechts)",
+                        "label": "2-spaltiges Layout (Text links / Bild rechts)",
                         "display": "block",
                         "sub_fields": [
                             {
@@ -1108,7 +1141,8 @@
                                 "tabs": "all",
                                 "toolbar": "full",
                                 "media_upload": 1,
-                                "delay": 0
+                                "delay": 0,
+                                "wpml_cf_preferences": 2
                             },
                             {
                                 "allow_backendsearch": false,
@@ -1143,7 +1177,8 @@
                                 "max_size": "",
                                 "mime_types": "",
                                 "allow_in_bindings": 1,
-                                "preview_size": "medium"
+                                "preview_size": "medium",
+                                "wpml_cf_preferences": 1
                             }
                         ],
                         "min": "",
@@ -1152,7 +1187,7 @@
                     "layout_68dd0c3fc62c9": {
                         "key": "layout_68dd0c3fc62c9",
                         "name": "layout_2_col_img_text",
-                        "label": "2-spaltiges Layout (Bild links \/ Text rechts)",
+                        "label": "2-spaltiges Layout (Bild links / Text rechts)",
                         "display": "block",
                         "sub_fields": [
                             {
@@ -1188,7 +1223,8 @@
                                 "max_size": "",
                                 "mime_types": "",
                                 "allow_in_bindings": 1,
-                                "preview_size": "medium"
+                                "preview_size": "medium",
+                                "wpml_cf_preferences": 1
                             },
                             {
                                 "allow_backendsearch": 0,
@@ -1216,7 +1252,8 @@
                                 "tabs": "all",
                                 "toolbar": "full",
                                 "media_upload": 1,
-                                "delay": 0
+                                "delay": 0,
+                                "wpml_cf_preferences": 2
                             }
                         ],
                         "min": "",
@@ -1254,7 +1291,8 @@
                                 "tabs": "all",
                                 "toolbar": "full",
                                 "media_upload": 1,
-                                "delay": 0
+                                "delay": 0,
+                                "wpml_cf_preferences": 2
                             }
                         ],
                         "min": "",
@@ -1263,7 +1301,8 @@
                 },
                 "min": "",
                 "max": "",
-                "button_label": "Eintrag hinzufügen"
+                "button_label": "Eintrag hinzufügen",
+                "wpml_cf_preferences": 3
             }
         ],
         "location": [
@@ -1290,7 +1329,8 @@
         "active": true,
         "description": "",
         "show_in_rest": 0,
-        "display_title": ""
+        "display_title": "",
+        "acfml_field_group_mode": "translation"
     },
     {
         "key": "taxonomy_68de485305d59",
@@ -1346,7 +1386,7 @@
         "show_in_nav_menus": 0,
         "show_in_rest": 1,
         "rest_base": "job-attribute",
-        "rest_namespace": "wp\/v2",
+        "rest_namespace": "wp/v2",
         "rest_controller_class": "WP_REST_Terms_Controller",
         "show_tagcloud": 0,
         "show_in_quick_edit": 1,
@@ -1364,7 +1404,8 @@
         "sort": 1,
         "meta_box": "disabled",
         "meta_box_cb": "",
-        "meta_box_sanitize_cb": ""
+        "meta_box_sanitize_cb": "",
+        "acfml_field_group_mode": "translation"
     },
     {
         "key": "post_type_68dcefa2209d6",
@@ -1422,7 +1463,7 @@
         "show_in_nav_menus": false,
         "show_in_rest": true,
         "rest_base": "job_location",
-        "rest_namespace": "wp\/v2",
+        "rest_namespace": "wp/v2",
         "rest_controller_class": "WP_REST_Posts_Controller",
         "menu_position": "",
         "menu_icon": "",
@@ -1447,7 +1488,8 @@
         "can_export": true,
         "delete_with_user": false,
         "register_meta_box_cb": "",
-        "enter_title_here": "Standortname"
+        "enter_title_here": "Standortname",
+        "acfml_field_group_mode": "translation"
     },
     {
         "key": "post_type_68dcf6d00a103",
@@ -1505,7 +1547,7 @@
         "show_in_nav_menus": false,
         "show_in_rest": true,
         "rest_base": "job_company",
-        "rest_namespace": "wp\/v2",
+        "rest_namespace": "wp/v2",
         "rest_controller_class": "WP_REST_Posts_Controller",
         "menu_position": "",
         "menu_icon": "",
@@ -1530,7 +1572,8 @@
         "can_export": true,
         "delete_with_user": false,
         "register_meta_box_cb": "",
-        "enter_title_here": "Firmenname"
+        "enter_title_here": "Firmenname",
+        "acfml_field_group_mode": "translation"
     },
     {
         "key": "post_type_68dbca222ad4e",
@@ -1588,7 +1631,7 @@
         "show_in_nav_menus": true,
         "show_in_rest": true,
         "rest_base": "jobs",
-        "rest_namespace": "wp\/v2",
+        "rest_namespace": "wp/v2",
         "rest_controller_class": "WP_REST_Posts_Controller",
         "menu_position": "",
         "menu_icon": {
@@ -1620,6 +1663,7 @@
         "can_export": true,
         "delete_with_user": false,
         "register_meta_box_cb": "",
-        "enter_title_here": "Position"
+        "enter_title_here": "Position",
+        "acfml_field_group_mode": "translation"
     }
 ]

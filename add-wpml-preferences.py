@@ -11,21 +11,22 @@ tree = ET.parse('wpml-config.xml')
 root = tree.getroot()
 
 # Create mapping: field_name => wpml_cf_preference value
-# 0 = ignore, 1 = copy, 2 = translate, 3 = copy-once
+# CORRECT MAPPING (verified with WPML/ACF documentation):
+# 0 = ignore, 1 = copy-once, 2 = translate, 3 = copy
 mapping = {}
 
 for field in root.findall('.//custom-field'):
     action = field.get('action')
     field_name = field.text
 
-    # Map action to numeric value
+    # Map action to numeric value (CORRECTED MAPPING)
     if action == 'ignore':
         value = 0
-    elif action == 'copy':
+    elif action == 'copy-once':
         value = 1
     elif action == 'translate':
         value = 2
-    elif action == 'copy-once':
+    elif action == 'copy':
         value = 3
     else:
         continue
@@ -39,7 +40,7 @@ for field in root.findall('.//custom-field'):
 
 print("=== WPML Field Mapping ===")
 for field, value in sorted(mapping.items()):
-    action_name = ['ignore', 'copy', 'translate', 'copy-once'][value]
+    action_name = ['ignore', 'copy-once', 'translate', 'copy'][value]
     print(f"{field}: {value} ({action_name})")
 
 print(f"\nTotal fields mapped: {len(mapping)}")
