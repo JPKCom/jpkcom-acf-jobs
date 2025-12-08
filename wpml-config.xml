@@ -19,8 +19,8 @@
 
     <!-- Salary Group (should be copied, not translated) -->
     <custom-field action="copy-once">job_base_salary_group_job_salary</custom-field>
-    <custom-field action="copy-once">job_base_salary_group_job_salary_currency</custom-field>
-    <custom-field action="copy-once">job_base_salary_group_job_salary_period</custom-field>
+    <custom-field action="copy-once" encoding="base64">job_base_salary_group_job_salary_currency</custom-field>
+    <custom-field action="copy-once" encoding="base64">job_base_salary_group_job_salary_period</custom-field>
     <custom-field action="copy-once">job_base_salary_group</custom-field>
 
     <!-- Attributes and Meta -->
@@ -77,8 +77,8 @@
     <custom-field action="copy-once">_job_location</custom-field>
     <custom-field action="copy-once">_job_company</custom-field>
     <custom-field action="ignore">_job_base_salary_group_job_salary</custom-field>
-    <custom-field action="ignore">_job_base_salary_group_job_salary_currency</custom-field>
-    <custom-field action="ignore">_job_base_salary_group_job_salary_period</custom-field>
+    <custom-field action="copy-once">_job_base_salary_group_job_salary_currency</custom-field>
+    <custom-field action="copy-once">_job_base_salary_group_job_salary_period</custom-field>
     <custom-field action="ignore">_job_base_salary_group</custom-field>
     <custom-field action="ignore">_job_attribute</custom-field>
     <custom-field action="ignore">_job_closed</custom-field>
