@@ -199,7 +199,7 @@ Multilingual configuration in `wpml-config.xml` provides comprehensive WPML inte
 - `wpml_cf_preferences => 0` = `action="ignore"` (ACF internal fields only)
 - `wpml_cf_preferences => 1` = `action="copy-once"` (copied once, then independent)
 - `wpml_cf_preferences => 2` = `action="translate"` (content differs per language)
-- `wpml_cf_preferences => 3` = `action="copy"` (kept in sync across translations)
+- `wpml_cf_preferences => 3` = `action="copy"` (kept in sync across translations - RARELY USED)
 
 Three action types control how fields are handled across languages:
 
@@ -210,15 +210,18 @@ Three action types control how fields are handled across languages:
    - All flexible content text fields (e.g., `job_layout_content_%_text_left`)
 
 2. **`action="copy-once"`** (`wpml_cf_preferences => 1`) - Copied once, then independent:
-   - `job_url`, `job_location`, `job_company`
+   - **IMPORTANT:** This is the default for most fields!
+   - `job_type`, `job_work_type` (with `encoding="base64"` for serialized arrays)
+   - `job_url`
+   - `job_location`, `job_company` (with `translate_link_target="1"` for auto Post-ID translation)
+   - `job_layout_content` (flexible content structure)
    - All salary fields (`job_base_salary_group_*`)
    - All metadata (`job_closed`, `job_featured`, `job_expiry_date`)
    - All location/company detail fields
    - All image fields in flexible content (`img_left`, `img_right`)
 
 3. **`action="copy"`** (`wpml_cf_preferences => 3`) - Kept in sync across translations:
-   - `job_type`, `job_work_type` (must return consistent values across languages)
-   - `job_layout_content` (main flexible content field structure)
+   - **NOT USED** in this plugin (causes issues with arrays and objects)
 
 **ACF Internal Fields (Prefixed with `_`):**
 
@@ -243,9 +246,28 @@ Matches: `job_layout_content_0_text_left`, `job_layout_content_1_text_left`, etc
 - Text domain: `jpkcom-acf-jobs`
 
 **Important Notes:**
-- **Bidirectional Post Object Fields**: Fields like `job_location` and `job_company` use `wpml_cf_preferences => 1` (copy-once). This ensures the relationship is copied during translation but remains independent afterward, preventing cross-contamination between language versions.
-- **Checkbox Fields with Labels**: Fields like `job_type` use `wpml_cf_preferences => 3` (copy) to ensure the VALUES remain synchronized across translations. The human-readable LABELS are translated via WordPress translation files, not WPML field translation.
-- **Python Script**: The `add-wpml-preferences.py` script automatically applies the correct `wpml_cf_preferences` values based on `wpml-config.xml`. It has been corrected to use the proper mapping (copy-once=1, copy=3).
+
+**Bidirectional Post Object Fields:**
+- Fields like `job_location` and `job_company` use `wpml_cf_preferences => 1` (copy-once) with `translate_link_target="1"` in wpml-config.xml
+- The `translate_link_target="1"` attribute is **CRITICAL** - it tells WPML to automatically translate Post IDs to their translated versions
+- Without this, the field would show the wrong post (e.g., showing the Job title instead of Location title)
+
+**Checkbox & Array Fields:**
+- Fields like `job_type` and `job_work_type` are stored as serialized PHP arrays
+- Use `wpml_cf_preferences => 1` (copy-once) with `encoding="base64"` in wpml-config.xml
+- The `encoding="base64"` prevents WPML from corrupting the serialized array data
+- Labels are translated via WordPress translation files (`languages/*.l10n.php`), not WPML field translation
+
+**Flexible Content:**
+- Main field `job_layout_content` uses `wpml_cf_preferences => 1` (copy-once)
+- This copies the layout structure once, then allows independent editing per language
+- Sub-fields use `translate` (for text) or `copy-once` (for images)
+- Internal ACF fields (`_job_layout_content*`) also use copy-once
+
+**Python Scripts:**
+- `add-wpml-preferences.py` - Auto-applies wpml_cf_preferences based on wpml-config.xml
+- `update-json-from-wpml.py` - Syncs ACF JSON export with wpml-config.xml
+- Both use the corrected mapping: ignore=0, copy-once=1, translate=2, copy=3
 
 ## Common Patterns
 

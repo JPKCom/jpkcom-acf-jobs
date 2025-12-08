@@ -11,11 +11,11 @@
 
     <!-- Job Details -->
     <custom-field action="translate">job_short_description</custom-field>
-    <custom-field action="copy">job_type</custom-field>
+    <custom-field action="copy-once" encoding="base64">job_type</custom-field>
     <custom-field action="copy-once">job_url</custom-field>
-    <custom-field action="copy">job_work_type</custom-field>
-    <custom-field action="copy-once">job_location</custom-field>
-    <custom-field action="copy-once">job_company</custom-field>
+    <custom-field action="copy-once" encoding="base64">job_work_type</custom-field>
+    <custom-field action="copy-once" translate_link_target="1">job_location</custom-field>
+    <custom-field action="copy-once" translate_link_target="1">job_company</custom-field>
 
     <!-- Salary Group (should be copied, not translated) -->
     <custom-field action="copy-once">job_base_salary_group_job_salary</custom-field>
@@ -39,8 +39,8 @@
 
     <!-- Flexible Content Layout - Using wildcards for dynamic rows -->
     <!-- The % wildcard matches any row index (0, 1, 2, etc.)       -->
-    <!-- IMPORTANT: Flexible content main field must be "copy" not "copy-once" for WPML -->
-    <custom-field action="copy">job_layout_content</custom-field>
+    <!-- IMPORTANT: Use copy-once so structure is copied once, then editable independently -->
+    <custom-field action="copy-once">job_layout_content</custom-field>
 
     <!-- Layout 1: Text Left / Image Right -->
     <custom-field action="translate">job_layout_content_%_text_left</custom-field>
@@ -59,23 +59,23 @@
     <custom-field action="copy-once">job_location_street</custom-field>
     <custom-field action="copy-once">job_location_region</custom-field>
     <custom-field action="copy-once">job_location_country</custom-field>
-    <custom-field action="copy-once">job_location_jobs</custom-field>
+    <custom-field action="copy-once" translate_link_target="1">job_location_jobs</custom-field>
 
     <!-- Company Fields -->
     <custom-field action="copy-once">job_company_url</custom-field>
     <custom-field action="copy-once">job_company_logo</custom-field>
-    <custom-field action="copy-once">job_company_jobs</custom-field>
+    <custom-field action="copy-once" translate_link_target="1">job_company_jobs</custom-field>
 
     <!-- ============================================ -->
     <!-- ACF Internal Fields - IGNORE THESE           -->
     <!-- These store field keys, not actual content   -->
     <!-- ============================================ -->
     <custom-field action="ignore">_job_short_description</custom-field>
-    <custom-field action="ignore">_job_type</custom-field>
+    <custom-field action="copy-once">_job_type</custom-field>
     <custom-field action="ignore">_job_url</custom-field>
-    <custom-field action="ignore">_job_work_type</custom-field>
-    <custom-field action="ignore">_job_location</custom-field>
-    <custom-field action="ignore">_job_company</custom-field>
+    <custom-field action="copy-once">_job_work_type</custom-field>
+    <custom-field action="copy-once">_job_location</custom-field>
+    <custom-field action="copy-once">_job_company</custom-field>
     <custom-field action="ignore">_job_base_salary_group_job_salary</custom-field>
     <custom-field action="ignore">_job_base_salary_group_job_salary_currency</custom-field>
     <custom-field action="ignore">_job_base_salary_group_job_salary_period</custom-field>
@@ -91,25 +91,25 @@
     <custom-field action="ignore">_job_application_show_shortcode</custom-field>
     <custom-field action="ignore">_job_application_shortcode</custom-field>
 
-    <!-- EXCEPTION: Flexible Content system fields MUST be COPIED for WPML to work correctly -->
-    <!-- This is a known issue with ACF + WPML for PHP-registered flexible content fields    -->
-    <custom-field action="copy">_job_layout_content</custom-field>
-    <custom-field action="copy">_job_layout_content_%_text_left</custom-field>
-    <custom-field action="copy">_job_layout_content_%_img_right</custom-field>
-    <custom-field action="copy">_job_layout_content_%_img_left</custom-field>
-    <custom-field action="copy">_job_layout_content_%_text_right</custom-field>
-    <custom-field action="copy">_job_layout_content_%_wysiwyg_full</custom-field>
-    <custom-field action="copy">_job_layout_content_%_acf_fc_layout</custom-field>
+    <!-- EXCEPTION: Flexible Content system fields use copy-once to maintain structure -->
+    <!-- This ensures the layout structure is copied once, then independent per language -->
+    <custom-field action="copy-once">_job_layout_content</custom-field>
+    <custom-field action="copy-once">_job_layout_content_%_text_left</custom-field>
+    <custom-field action="copy-once">_job_layout_content_%_img_right</custom-field>
+    <custom-field action="copy-once">_job_layout_content_%_img_left</custom-field>
+    <custom-field action="copy-once">_job_layout_content_%_text_right</custom-field>
+    <custom-field action="copy-once">_job_layout_content_%_wysiwyg_full</custom-field>
+    <custom-field action="copy-once">_job_layout_content_%_acf_fc_layout</custom-field>
 
     <custom-field action="ignore">_job_location_place</custom-field>
     <custom-field action="ignore">_job_location_zip</custom-field>
     <custom-field action="ignore">_job_location_street</custom-field>
     <custom-field action="ignore">_job_location_region</custom-field>
     <custom-field action="ignore">_job_location_country</custom-field>
-    <custom-field action="ignore">_job_location_jobs</custom-field>
+    <custom-field action="copy-once">_job_location_jobs</custom-field>
     <custom-field action="ignore">_job_company_url</custom-field>
     <custom-field action="ignore">_job_company_logo</custom-field>
-    <custom-field action="ignore">_job_company_jobs</custom-field>
+    <custom-field action="copy-once">_job_company_jobs</custom-field>
 
   </custom-fields>
 </wpml-config>

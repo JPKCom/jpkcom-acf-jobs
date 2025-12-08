@@ -300,7 +300,7 @@
                 "toggle": 1,
                 "save_custom": 0,
                 "custom_choice_button_text": "Eine neue Auswahlmöglichkeit hinzufügen",
-                "wpml_cf_preferences": 3
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -358,7 +358,7 @@
                 "allow_null": 1,
                 "allow_in_bindings": 1,
                 "layout": "horizontal",
-                "wpml_cf_preferences": 3
+                "wpml_cf_preferences": 1
             },
             {
                 "allow_backendsearch": false,
@@ -1302,7 +1302,7 @@
                 "min": "",
                 "max": "",
                 "button_label": "Eintrag hinzufügen",
-                "wpml_cf_preferences": 3
+                "wpml_cf_preferences": 1
             }
         ],
         "location": [
