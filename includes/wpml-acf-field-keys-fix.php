@@ -15,6 +15,11 @@ if ( ! defined( constant_name: 'WPINC' ) ) {
 	die;
 }
 
+// Only load if WPML is active
+if ( ! class_exists( 'SitePress' ) ) {
+	return;
+}
+
 /**
  * Copy ACF field keys to WPML translation
  *
