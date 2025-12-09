@@ -39,11 +39,11 @@ jobs:
         with:
           python-version: "3.x"
 
-      # 5. Install Pandoc
-      - name: Install Pandoc
+      # 5. Install Pandoc and GraphViz
+      - name: Install Pandoc and GraphViz
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc jq
+          sudo apt-get install -y pandoc jq graphviz
 
       # 6. Extract metadata and generate HTML
       - name: Extract metadata and generate HTML
