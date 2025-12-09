@@ -301,6 +301,9 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 ## Changelog
 
+### 1.2.3
+* Added check for "SitePress" class
+
 ### 1.2.2
 * Fix for incorrect database content caused by WPML
 
