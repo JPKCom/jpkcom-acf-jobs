@@ -279,6 +279,14 @@ Matches: `job_layout_content_0_text_left`, `job_layout_content_1_text_left`, etc
 - Located in `languages/` directory
 - Format: `.l10n.php` (WordPress 6.8+ format)
 - Text domain: `jpkcom-acf-jobs`
+- Available languages:
+  - German (`de_DE`) - German (Standard)
+  - German Formal (`de_DE_formal`) - German (Formal)
+  - French (`fr_FR`) - Français
+  - Italian (`it_IT`) - Italiano
+  - Spanish (`es_ES`) - Español
+  - Hungarian (`hu_HU`) - Magyar
+  - Polish (`pl_PL`) - Polski
 
 **Important Notes:**
 
