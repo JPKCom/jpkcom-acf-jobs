@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.2.2  
+**Version:** 1.2.3  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 6.9  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.2.2  
+**Stable tag:** 1.2.3  
 **License:** GPL-2.0+  
 **License URI:** http://www.gnu.org/licenses/gpl-2.0.txt  
 **Text Domain:** jpkcom-acf-jobs  
@@ -58,6 +58,13 @@ The following plugins are **required** for this plugin to work:
 - **Schema.org** (`includes/schema.php`) - Automatic JobPosting JSON-LD structured data generation
 - **Shortcodes** (`includes/shortcodes.php`) - Display filtered job lists and attribute taxonomies anywhere
 - **Helper Functions** (`includes/helpers.php`) - Utility functions for rendering fields and formatting dates
+
+### Documentation
+
+**API Documentation:** Complete PHPDoc-generated API documentation is available at:
+[https://jpkcom.github.io/jpkcom-acf-jobs/docs/](https://jpkcom.github.io/jpkcom-acf-jobs/docs/)
+
+The documentation includes detailed information about all functions, classes, hooks, and filters available in the plugin.
 
 ### Get Template Parts
 
