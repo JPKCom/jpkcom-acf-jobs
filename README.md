@@ -59,6 +59,13 @@ The following plugins are **required** for this plugin to work:
 - **Shortcodes** (`includes/shortcodes.php`) - Display filtered job lists and attribute taxonomies anywhere
 - **Helper Functions** (`includes/helpers.php`) - Utility functions for rendering fields and formatting dates
 
+### Documentation
+
+**API Documentation:** Complete PHPDoc-generated API documentation is available at:
+[https://jpkcom.github.io/jpkcom-acf-jobs/docs/](https://jpkcom.github.io/jpkcom-acf-jobs/docs/)
+
+The documentation includes detailed information about all functions, classes, hooks, and filters available in the plugin.
+
 ### Get Template Parts
 
 ```php
