@@ -5,18 +5,18 @@
     xmlns="https://www.phpdoc.org"
     xsi:noNamespaceSchemaLocation="https://docs.phpdoc.org/latest/phpdoc.xsd"
 >
-    <title>JPKCom ACF Jobs - API Documentation</title>
+    <title>JPKCom ACF Jobs</title>
     <paths>
-        <output>/home/jpk/wp/jpkcom-acf-jobs/docs</output>
+        <output>docs</output>
     </paths>
     <version number="1.0.0">
-        <folder>/home/jpk/wp/jpkcom-acf-jobs/docs</folder>
+        <folder>docs</folder>
         <api>
-            <source dsn="/home/jpk/wp/jpkcom-acf-jobs">
+            <source dsn=".">
                 <path>jpkcom-acf-jobs.php</path>
                 <path>includes</path>
             </source>
-            <output>/home/jpk/wp/jpkcom-acf-jobs/docs</output>
+            <output>docs</output>
             <ignore hidden="true" symlinks="true">
                 <path>vendor/*</path>
                 <path>templates/*</path>
