@@ -138,6 +138,34 @@ Enable `WP_DEBUG` in wp-config.php to load templates from `debug-templates/` ins
 define('WP_DEBUG', true);
 ```
 
+### API Documentation
+
+The plugin includes comprehensive PHPDoc documentation for all functions, classes, and hooks.
+
+**Configuration:** `phpdoc.xml` in the plugin root directory configures phpDocumentor to:
+- Document files: `jpkcom-acf-jobs.php` and `includes/*.php`
+- Output to: `docs/` directory (excluded from git via `.gitignore`)
+- Exclude: templates, assets, languages, and build artifacts
+
+**Local Documentation Generation:**
+```bash
+# Download phpDocumentor (if not already available)
+wget https://phpdoc.org/phpDocumentor.phar -O phpDocumentor.phar
+chmod +x phpDocumentor.phar
+
+# Generate documentation
+./phpDocumentor.phar run --config=phpdoc.xml
+```
+
+**Published Documentation:**
+API documentation is automatically generated during the release process and published to:
+`https://jpkcom.github.io/jpkcom-acf-jobs/docs/`
+
+**Git Exclusions (.gitignore):**
+- `.phpdoc/` - phpDocumentor cache directory
+- `docs/` - Generated documentation (rebuilt on each release)
+- `phpDocumentor.phar` - PHAR executable (downloaded in CI/CD)
+
 ### Version Management
 
 Version number appears in THREE locations and must be kept in sync:
@@ -152,8 +180,9 @@ Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
 1. Create a new Git tag: `git tag v1.x.x && git push --tags`
 2. Create GitHub release from the tag on GitHub
 3. Workflow automatically (triggered by `release: [published]` event):
+   - **Sets up PHP 8.3** for phpDocumentor execution
    - **Extracts metadata** from `README.md` using Pandoc and bash
-   - **Builds plugin ZIP** excluding git files, CLAUDE.md, and workflow files
+   - **Builds plugin ZIP** excluding git files, CLAUDE.md, docs/, test files, and workflow files
    - **Generates SHA256 checksum** of the ZIP file (via `sha256sum`)
    - **Creates `.sha256` file** for manual verification
    - **Uploads both ZIP and `.sha256`** to the GitHub release
@@ -162,16 +191,22 @@ Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
      - `download_url` pointing to GitHub release ZIP
      - `checksum_sha256` field containing the SHA256 hash
      - HTML sections (description, installation, changelog, FAQ) converted from Markdown
-   - **Deploys to gh-pages** branch (manifest, HTML docs, assets)
+   - **Generates PHPDoc API documentation** using phpDocumentor
+   - **Deploys to gh-pages** branch (manifest, HTML docs, API documentation, assets)
 
 **Key Workflow Steps:**
-- Step 6: `Create plugin ZIP` (line 91-93)
-- Step 6.1: `Generate SHA256 checksum` (line 95-102) - Creates hash for security verification
-- Step 7: `Upload ZIP and checksum` (line 104-112) - Attaches files to release
-- Step 8: `Generate plugin manifest JSON` (line 114-189) - Python script builds manifest with checksum
-- Step 10: `Deploy to gh-pages` (line 201-208) - Publishes manifest and docs
+- Step 3: `Setup PHP` - Installs PHP 8.3 with composer
+- Step 7: `Create plugin ZIP` - Builds release archive (excludes docs/, phpdoc.xml, phpDocumentor.phar)
+- Step 7.1: `Generate SHA256 checksum` - Creates hash for security verification
+- Step 8: `Upload ZIP and checksum` - Attaches files to release
+- Step 9: `Generate plugin manifest JSON` - Python script builds manifest with checksum
+- Step 10: `Generate PHPDoc API documentation` - Downloads phpDocumentor.phar and generates docs/
+- Step 11: `Prepare gh-pages deployment` - Copies docs/ to deployment directory
+- Step 12: `Deploy to gh-pages` - Publishes manifest, HTML docs, and API documentation
 
 **Important:** The SHA256 checksum in the manifest is automatically verified during plugin updates via `includes/class-plugin-updater.php`
+
+**Documentation Publishing:** API documentation is automatically published to `https://jpkcom.github.io/jpkcom-acf-jobs/docs/` with each release.
 
 ### Adding Custom Filters
 
