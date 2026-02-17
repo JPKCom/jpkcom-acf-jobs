@@ -1,6 +1,21 @@
 Search.appendIndex(
     [
                 {
+            "fqsen": "\\jpkcom_acf_jobs_disable_archive_field\u0028\u0029",
+            "name": "jpkcom_acf_jobs_disable_archive_field",
+            "summary": "Render\u0020disable\u0020archive\u0020checkbox\u0020field",
+            "url": "namespaces/default.html#function_jpkcom_acf_jobs_disable_archive_field"
+        },                {
+            "fqsen": "\\jpkcom_acf_jobs_redirect_url_field\u0028\u0029",
+            "name": "jpkcom_acf_jobs_redirect_url_field",
+            "summary": "Render\u0020archive\u0020redirect\u0020URL\u0020field",
+            "url": "namespaces/default.html#function_jpkcom_acf_jobs_redirect_url_field"
+        },                {
+            "fqsen": "\\jpkcom_acf_jobs_options_page\u0028\u0029",
+            "name": "jpkcom_acf_jobs_options_page",
+            "summary": "Render\u0020Options\u0020admin\u0020page",
+            "url": "namespaces/default.html#function_jpkcom_acf_jobs_options_page"
+        },                {
             "fqsen": "\\jpkcom_acf_jobs_breadcrumb\u0028\u0029",
             "name": "jpkcom_acf_jobs_breadcrumb",
             "summary": "Output\u0020Bootstrap\u00205\u0020breadcrumb\u0020navigation",

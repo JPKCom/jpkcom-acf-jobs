@@ -116,3 +116,20 @@ Work”, “Flexible Hours” - Requirements: “Driver’s License”, “Secur
 Clearance” - Perks: “Company Car”, “Free Lunch”, “Gym Membership”</p>
 <p>Display them with the shortcode:</p>
 <pre><code>[jpkcom_acf_jobs_attributes]</code></pre>
+<h3 id="how-do-i-disable-the-job-archive-page">How do I disable the job
+archive page?</h3>
+<p>If you want to prevent visitors from accessing the job archive page
+(<code>/jobs/</code>), you can disable it:</p>
+<ol type="1">
+<li>Go to <strong>Jobs → Options</strong> in your WordPress admin</li>
+<li>Check the box <strong>“Disable Job Archive”</strong></li>
+<li>Optionally, specify a custom redirect URL (e.g.,
+<code>/careers/</code> or <code>/contact/</code>)</li>
+<li>Click <strong>Save Changes</strong></li>
+</ol>
+<p>When enabled: - Visitors accessing <code>/jobs/</code> will be
+redirected to your specified URL (or homepage if empty) - Individual job
+pages (<code>/jobs/job-title/</code>) remain fully accessible - The
+redirect uses HTTP 307 (Temporary Redirect) status</p>
+<p>This is useful when you want to use shortcodes to display jobs on
+custom pages instead of the default archive.</p>
