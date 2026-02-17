@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.2.5  
+**Version:** 1.3.0  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 6.9  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.2.5  
+**Stable tag:** 1.3.0  
 **License:** GPL-2.0+  
 **License URI:** http://www.gnu.org/licenses/gpl-2.0.txt  
 **Text Domain:** jpkcom-acf-jobs  
@@ -31,6 +31,7 @@ A plugin to provide a job application tool for ACF Pro.
 - **Three Custom Post Types**: Jobs, Locations, and Companies with hierarchical organization
 - **Flexible Job Listings**: Full-time, part-time, contract, temporary, and internship positions
 - **Advanced Filtering**: Filter jobs by type, location, company, and custom attributes
+- **Archive Control**: Disable or redirect the job archive page to any custom URL
 - **Schema.org Integration**: Built-in JobPosting structured data for improved SEO and visibility in Google for Jobs
 - **Multilingual Ready**: Full WPML support with translation-aware field configuration
 - **Template Override System**: Customize any template via child theme, parent theme, or mu-plugins
@@ -220,6 +221,22 @@ Display them with the shortcode:
 [jpkcom_acf_jobs_attributes]
 ```
 
+### How do I disable the job archive page?
+
+If you want to prevent visitors from accessing the job archive page (`/jobs/`), you can disable it:
+
+1. Go to **Jobs → Options** in your WordPress admin
+2. Check the box **"Disable Job Archive"**
+3. Optionally, specify a custom redirect URL (e.g., `/careers/` or `/contact/`)
+4. Click **Save Changes**
+
+When enabled:
+- Visitors accessing `/jobs/` will be redirected to your specified URL (or homepage if empty)
+- Individual job pages (`/jobs/job-title/`) remain fully accessible
+- The redirect uses HTTP 307 (Temporary Redirect) status
+
+This is useful when you want to use shortcodes to display jobs on custom pages instead of the default archive.
+
 ## Installation
 
 ### Prerequisites
@@ -260,7 +277,7 @@ Then activate the plugin in the WordPress admin panel.
 
 1. **Verify Dependencies**: Go to **Plugins** and ensure ACF Pro and ACF Quick Edit Fields are active
 2. **Check Custom Post Types**: You should now see **Jobs**, **Locations**, and **Companies** in your admin menu
-3. **Review Settings**: Visit **Jobs → Settings** to configure default options (if available)
+3. **Review Settings**: Visit **Jobs → Options** to configure archive settings and other options
 4. **Create Test Content**:
    - Create a location: **Locations → Add New**
    - Create a company: **Companies → Add New**
@@ -300,6 +317,9 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.0
+* Added archiv redirect options
 
 ### 1.2.5
 * Added translation for "job_type"

@@ -2,10 +2,11 @@
 /**
  * Redirect and access control functions
  *
- * Handles three types of redirects:
+ * Handles four types of redirects:
  * 1. Job URL redirects (external job application URLs)
  * 2. Location/Company access control (non-editors can't view directly)
  * 3. Expired job redirects (redirect to archive if job expired)
+ * 4. Job archive redirects (redirect archive to custom URL if disabled)
  *
  * @package   JPKCom_ACF_Jobs
  * @since     1.0.0
@@ -164,3 +165,41 @@ add_action( 'template_redirect', function(): void {
     }
 
 });
+
+
+/**
+ * Redirect job archive if disabled
+ *
+ * Redirects all access to the job archive page when disabled in plugin options.
+ * Redirects to custom URL or homepage. Uses 307 (Temporary Redirect) status.
+ *
+ * @since 1.3.0
+ * @return void
+ */
+add_action( 'template_redirect', function(): void {
+
+    // Only proceed if we're on the job archive page
+    if ( ! is_post_type_archive( 'job' ) ) {
+        return;
+    }
+
+    // Check if archive is disabled
+    $disable_archive = get_option( 'jpkcom_acf_job_disable_archive', false );
+    if ( ! $disable_archive ) {
+        return;
+    }
+
+    // Get custom redirect URL or use homepage
+    $redirect_url = get_option( 'jpkcom_acf_job_archive_redirect_url', '' );
+    if ( empty( $redirect_url ) ) {
+        $redirect_url = home_url( '/' );
+    }
+
+    // Validate URL before redirecting
+    $redirect_url = esc_url_raw( $redirect_url );
+    if ( ! empty( $redirect_url ) ) {
+        wp_redirect( $redirect_url, 307 );
+        exit;
+    }
+
+}, 10 );
