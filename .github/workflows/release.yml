@@ -98,7 +98,11 @@ jobs:
       # 7. Create plugin ZIP
       - name: Create plugin ZIP
         run: |
-          zip -r "${{ env.ZIP_FILE }}" . -x '*.git*' -x '.gitignore' -x '*.github*' -x '*.DS_Store*' -x '*.py' -x 'test-wpml-fields.php' -x 'update-acf-json.php' -x 'CLAUDE.md' -x '.claude/*' -x 'gh-pages-*/*' -x 'docs/*' -x 'phpdoc/*' -x 'phpdoc.xml' -x 'phpDocumentor.phar'
+          STAGING_DIR="${{ env.PLUGIN_SLUG }}"
+          mkdir -p "$STAGING_DIR"
+          rsync -a --exclude='.git' --exclude='.gitignore' --exclude='.github' --exclude='.DS_Store' --exclude='*.py' --exclude='test-wpml-fields.php' --exclude='update-acf-json.php' --exclude='CLAUDE.md' --exclude='.claude' --exclude='gh-pages-*' --exclude='docs' --exclude='phpdoc' --exclude='phpdoc.xml' --exclude='phpDocumentor.phar' . "$STAGING_DIR/"
+          zip -r "${{ env.ZIP_FILE }}" "$STAGING_DIR"
+          rm -rf "$STAGING_DIR"
 
       # 7.1. Generate SHA256 checksum for security verification
       - name: Generate SHA256 checksum
