@@ -9,7 +9,7 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
 <?php if ( get_field( 'job_company' ) ) { ?>
 
-    <h3 class="fs-4"><?php echo __( 'Company', 'jpkcom-acf-jobs' ); ?></h3>
+    <h3 class="fs-4"><?php echo esc_html__( 'Company', 'jpkcom-acf-jobs' ); ?></h3>
     <?php
 
     $companies = get_field( 'job_company' );
@@ -68,7 +68,7 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
             echo '</div>';
             echo '<div class="col-10">';
-            echo '<p class="fs-5"><strong>' . $job_company_url_HTML_Before . $job_company_url . $job_company_url_HTML_After . get_the_title( $company->ID ) . $job_company_url_HTML_Closing . '</strong></p>';
+            echo '<p class="fs-5"><strong>' . $job_company_url_HTML_Before . $job_company_url . $job_company_url_HTML_After . esc_html( get_the_title( $company->ID ) ) . $job_company_url_HTML_Closing . '</strong></p>';
             echo '</div>';
             echo '</div>';
 

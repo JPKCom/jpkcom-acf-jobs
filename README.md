@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.1  
+**Version:** 1.3.2  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 6.9  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.1  
+**Stable tag:** 1.3.2  
 **License:** GPL-2.0+  
 **License URI:** http://www.gnu.org/licenses/gpl-2.0.txt  
 **Text Domain:** jpkcom-acf-jobs  
@@ -317,6 +317,13 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.2
+* Fixed missing output escaping across all templates and debug templates (`esc_html__()`, `esc_html()`, `esc_url()`, `esc_attr()`)
+* Fixed pagination template: added `flex-wrap` with `row-gap-2` for responsive wrapping on small screens
+* Fixed pagination template: empty `<li>` elements no longer rendered when no previous/next post exists
+* Fixed pagination template: previous/next links now use proper `page-link` class for consistent Bootstrap styling
+* Fixed pagination template: archive URL now escaped with `esc_url()`
 
 ### 1.3.1
 * Fixed updater checksum verification failing on manual ZIP uploads (local file path instead of URL)

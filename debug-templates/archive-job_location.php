@@ -16,7 +16,7 @@ get_header();
 
             <!-- Header -->
             <div class="p-5 text-center bg-body-tertiary rounded mb-4">
-                <h1 class="entry-title display-4 mb-4"><?php echo __( 'Locations overview', 'jpkcom-acf-jobs' ); ?></h1>
+                <h1 class="entry-title display-4 mb-4"><?php echo esc_html__('Locations overview', 'jpkcom-acf-jobs' ); ?></h1>
             </div>
 
             <!-- Locations List -->
@@ -48,7 +48,7 @@ get_header();
 
                             <footer class="card-footer text-end">
 
-                                <a href="<?php the_permalink(); ?>" class="btn btn-primary stretched-link"><?php echo __( 'View details…', 'jpkcom-acf-jobs' ); ?></a>
+                                <a href="<?php the_permalink(); ?>" class="btn btn-primary stretched-link"><?php echo esc_html__('View details…', 'jpkcom-acf-jobs' ); ?></a>
 
                             </footer>
 
@@ -64,7 +64,7 @@ get_header();
 
             <?php else : ?>
                 <div class="alert alert-info" role="alert">
-                    <p><?php echo __( 'There are currently no locations available.', 'jpkcom-acf-jobs' ); ?></p>
+                    <p><?php echo esc_html__('There are currently no locations available.', 'jpkcom-acf-jobs' ); ?></p>
                 </div>
             <?php endif; ?>
 

@@ -62,12 +62,12 @@ foreach ( $required_fields as $field ) {
     <?php if ( ! empty( $missing_fields ) ) : ?>
 
         <p class="text-danger fw-bold">
-            <?php echo __( 'Missing mandatory fields', 'jpkcom-acf-jobs' ); ?>: <?php echo esc_html( implode( separator: ', ', array: $missing_fields ) ); ?>
+            <?php echo esc_html__( 'Missing mandatory fields', 'jpkcom-acf-jobs' ); ?>: <?php echo esc_html( implode( separator: ', ', array: $missing_fields ) ); ?>
         </p>
 
     <?php else : ?>
 
-        <p class="text-success fw-bold"><?php echo __( 'All required fields present', 'jpkcom-acf-jobs' ); ?> ✅</p>
+        <p class="text-success fw-bold"><?php echo esc_html__( 'All required fields present', 'jpkcom-acf-jobs' ); ?> ✅</p>
 
     <?php endif; ?>
 

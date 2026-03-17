@@ -9,7 +9,7 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
 <?php if ( get_field( 'job_location' ) ) { ?>
 
-    <h3 class="fs-4"><?php echo __( 'Location', 'jpkcom-acf-jobs' ); ?></h3>
+    <h3 class="fs-4"><?php echo esc_html__( 'Location', 'jpkcom-acf-jobs' ); ?></h3>
     <?php
 
     $locations = get_field( 'job_location' );
@@ -22,26 +22,26 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
         foreach ( $locations as $location ) {
 
-            echo '<strong>' . get_the_title( $location->ID ) . '</strong><br>';
+            echo '<strong>' . esc_html( get_the_title( $location->ID ) ) . '</strong><br>';
 
             if ( get_field( 'job_location_street', $location->ID ) ) {
-                echo get_field( 'job_location_street', $location->ID ) . '<br>';
+                echo esc_html( get_field( 'job_location_street', $location->ID ) ) . '<br>';
             }
 
             if ( get_field( 'job_location_zip', $location->ID ) && get_field( 'job_location_place', $location->ID ) ) {
-                echo get_field( 'job_location_zip', $location->ID ) . ' ';
+                echo esc_html( get_field( 'job_location_zip', $location->ID ) ) . ' ';
             }
 
             if ( get_field( 'job_location_place', $location->ID ) ) {
-                echo get_field( 'job_location_place', $location->ID ) . '<br>';
+                echo esc_html( get_field( 'job_location_place', $location->ID ) ) . '<br>';
             }
 
             if ( get_field( 'job_location_region', $location->ID ) ) {
-                echo get_field( 'job_location_region', $location->ID ) . '<br>';
+                echo esc_html( get_field( 'job_location_region', $location->ID ) ) . '<br>';
             }
 
             if ( get_field( 'job_location_country', $location->ID ) ) {
-                echo get_field( 'job_location_country', $location->ID ) . '<br>';
+                echo esc_html( get_field( 'job_location_country', $location->ID ) ) . '<br>';
             }
 
             $i++;

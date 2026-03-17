@@ -9,7 +9,7 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
 <?php if ( get_field( 'job_type' ) ) { ?>
     <li class="d-block">
-        <strong><?php echo __( 'Type', 'jpkcom-acf-jobs' ); ?>:</strong><br>
+        <strong><?php echo esc_html__( 'Type', 'jpkcom-acf-jobs' ); ?>:</strong><br>
         <?php
         $types = get_field( 'job_type' );
         if ( $types && is_array( value: $types ) ) {
@@ -18,9 +18,9 @@ defined( constant_name: 'ABSPATH' ) || exit;
             foreach ( $types as $type ) {
                 // Handle both array format and string format for backwards compatibility
                 if ( is_array( value: $type ) && isset( $type['label'] ) ) {
-                    echo $type['label'];
+                    echo esc_html( $type['label'] );
                 } elseif ( is_string( value: $type ) ) {
-                    echo $type;
+                    echo esc_html( $type );
                 }
                 $i++;
                 if ( $i < $total ) {
