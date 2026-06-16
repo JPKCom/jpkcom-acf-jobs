@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.2  
+**Version:** 1.3.3  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 6.9  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.2  
+**Stable tag:** 1.3.3  
 **License:** GPL-2.0+  
 **License URI:** http://www.gnu.org/licenses/gpl-2.0.txt  
 **Text Domain:** jpkcom-acf-jobs  
@@ -317,6 +317,14 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.3
+* Security: prevent JSON-LD script-tag breakout (stored XSS) in JobPosting schema output (`JSON_HEX_TAG | JSON_HEX_AMP`, plus output-point hardening in `single-job.php`)
+* Security: updater prefers exact match against manifest `download_url` over the slug heuristic, so a tampered manifest can no longer bypass the checksum gate
+* Security: updater checksum comparison is now timing-safe (`hash_equals()`) with an `is_string()` guard against `hash_file()` failures
+* Security: manifest fetch uses `wp_safe_remote_get()` (SSRF defense-in-depth)
+* Fixed PHP warning + missing contributor names in the plugin detail popup (`display_name` now provided)
+* Fixed PHP warning/deprecation on `wp plugin list` by completing the `no_update` transient entry (`new_version`, `package`, `tested`, `requires_php`)
 
 ### 1.3.2
 * Fixed missing output escaping across all templates and debug templates (`esc_html__()`, `esc_html()`, `esc_url()`, `esc_attr()`)
