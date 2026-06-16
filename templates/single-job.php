@@ -120,7 +120,7 @@ get_header();
 
                 if ( $schema_json ) {
 
-                    echo '<script type="application/ld+json">' . $schema_json . '</script>';
+                    echo '<script type="application/ld+json">' . str_replace( search: '</', replace: '<\/', subject: $schema_json ) . '</script>';
 
                 }
 

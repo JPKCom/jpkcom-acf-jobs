@@ -293,5 +293,8 @@ function jpkcom_acf_jobs_get_schema_job_posting( ?int $post_id = null ): string 
      */
     $schema = apply_filters( 'jpkcom_acf_jobs_schema_job_posting', $schema, $post_id );
 
-    return wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT ) ?: '';
+    return wp_json_encode(
+        $schema,
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
+    ) ?: '';
 }
