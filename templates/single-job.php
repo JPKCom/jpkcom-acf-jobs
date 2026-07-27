@@ -14,35 +14,35 @@ get_header();
 
         <?php jpkcom_acf_jobs_breadcrumb(); ?>
 
-        <main id="main" class="site-main<?php if ( get_field('job_featured') ) { echo ' jpkcom-acf-job--item-featured'; } ?><?php if ( get_field('job_closed') ) { echo ' jpkcom-acf-job--item-closed'; } ?>"></main>
+        <main id="main" class="site-main<?php if ( get_field('job_featured') ) { echo ' jpkcom-acf-job--item-featured'; } ?><?php if ( get_field('job_closed') ) { echo ' jpkcom-acf-job--item-closed'; } ?>">
 
-        <div class="row mb-3">
+            <div class="row mb-3">
 
-            <div class="col">
+                <div class="col">
 
-                <div class="entry-header">
+                    <div class="entry-header">
 
-                    <?php the_post(); ?>
+                        <?php the_post(); ?>
 
-                    <div class="d-flex justify-content-start gap-3">
+                        <div class="d-flex justify-content-start gap-3">
 
-                        <?php if ( get_field('job_featured') ) { ?>
-                            <p class="sticky-badge fs-2"><span class="badge text-bg-danger"><i class="fa-solid fa-star"></i></span></p>
-                        <?php } ?>
+                            <?php if ( get_field('job_featured') ) { ?>
+                                <p class="sticky-badge fs-2"><span class="badge text-bg-danger"><i class="fa-solid fa-star"></i></span></p>
+                            <?php } ?>
 
-                        <?php the_title('<h1 class="job-title">', '</h1>'); ?>
+                            <?php the_title('<h1 class="job-title">', '</h1>'); ?>
+
+                        </div>
+
+                        <?php jpkcom_acf_jobs_get_template_part( slug: 'partials/layout/meta' ); ?>
+
+                        <?php jpkcom_acf_jobs_get_template_part( slug: 'partials/job/job_closed' ); ?>
 
                     </div>
-
-                    <?php jpkcom_acf_jobs_get_template_part( slug: 'partials/layout/meta' ); ?>
-
-                    <?php jpkcom_acf_jobs_get_template_part( slug: 'partials/job/job_closed' ); ?>
 
                 </div>
 
             </div>
-
-        </div>
 
             <div class="row gx-md-4">
 
