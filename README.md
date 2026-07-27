@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.4  
+**Version:** 1.3.5  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.0  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.4  
+**Stable tag:** 1.3.5  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -317,6 +317,10 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.5
+* Fixed broken `<main>` element in the single job template: it was closed immediately after opening, leaving the entire job content outside of it and producing an unmatched closing tag at the end of the template
+* Fixed a leftover duplicate logo call in the job company partial that passed the ACF field array where an attachment ID is expected, which could render an unrelated image before every company logo
 
 ### 1.3.4
 * Raised the minimum WordPress version to 6.9 and "Tested up to" to WordPress 7.0
