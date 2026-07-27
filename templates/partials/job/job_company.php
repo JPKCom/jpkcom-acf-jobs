@@ -45,22 +45,21 @@ defined( constant_name: 'ABSPATH' ) || exit;
                 $size = 'jpkcom-acf-job-logo';
 
                 echo $job_company_url_HTML_Before . $job_company_url . $job_company_url_HTML_After;
-                echo wp_get_attachment_image( $job_company_logo, $size );
 
-                    if ( is_array( value: $job_company_logo ) && isset( $job_company_logo['ID'] ) ) {
+                if ( is_array( value: $job_company_logo ) && isset( $job_company_logo['ID'] ) ) {
 
-                        echo wp_get_attachment_image( $job_company_logo['ID'], $size, false, [
-                            'class' => 'img-fluid rounded shadow-sm',
-                            'alt'   => esc_attr( $job_company_logo['alt'] ?? get_the_title( $company->ID ) ),
-                        ] );
+                    echo wp_get_attachment_image( $job_company_logo['ID'], $size, false, [
+                        'class' => 'img-fluid rounded shadow-sm',
+                        'alt'   => esc_attr( $job_company_logo['alt'] ?? get_the_title( $company->ID ) ),
+                    ] );
 
-                    } elseif ( is_numeric( value: $job_company_logo ) ) {
+                } elseif ( is_numeric( value: $job_company_logo ) ) {
 
-                        echo wp_get_attachment_image( $job_company_logo, $size, false, [
-                            'class' => 'img-fluid rounded shadow-sm',
-                        ] );
+                    echo wp_get_attachment_image( $job_company_logo, $size, false, [
+                        'class' => 'img-fluid rounded shadow-sm',
+                    ] );
 
-                    }
+                }
 
                 echo $job_company_url_HTML_Closing;
 
