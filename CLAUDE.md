@@ -103,7 +103,9 @@ Custom GitHub-based updater in `includes/class-plugin-updater.php` (namespace: `
 - URL validation and sanitization using `wp_http_validate_url()`
 - Race condition prevention with transient locking mechanism
 - Comprehensive error logging in `WP_DEBUG` mode
-- Backward compatibility with manifests without checksums
+- **Checksum is mandatory (fail closed):** a manifest without `checksum_sha256`, or one that cannot be fetched, aborts the update instead of installing unverified code. There is deliberately no "skip verification" fallback — that would let anyone who can alter the manifest disable the integrity check by dropping one field.
+- The verified temp file is returned from `upgrader_pre_download`, so WordPress installs exactly the bytes that were hashed (previously the package was fetched a second time and *those* bytes were installed)
+- Failed manifest fetches are negatively cached for 1 h, so an unreachable host cannot stall admin requests once per plugin
 
 **Update Flow:**
 1. Fetches manifest from: `https://jpkcom.github.io/jpkcom-acf-jobs/plugin_jpkcom-acf-jobs.json`
@@ -174,6 +176,20 @@ Version number appears in THREE locations and must be kept in sync:
 3. `README.md` - Multiple locations in header metadata
 
 ### Release Process
+
+**Supply-chain: GitHub Actions sind auf Commit-SHAs gepinnt.** Alle `uses:`-Zeilen in `.github/workflows/` referenzieren einen 40-stelligen Commit-SHA statt eines Tags (`@v4`), mit der Version als Kommentar dahinter. Grund: ein Tag ist ein beweglicher Zeiger und lässt sich umhängen, ein SHA nicht. Da dieser Workflow die Plugin-ZIP **und** die SHA256-Summe erzeugt, der der Auto-Updater vertraut, würde eine kompromittierte Action ein manipuliertes ZIP samt passender Prüfsumme ausliefern — die Prüfsumme sichert den Transportweg, das Pinning den Build. `.github/dependabot.yml` hält die Pins wöchentlich aktuell (ein gesammelter PR). Beim Aktualisieren immer SHA *und* Versionskommentar zusammen ändern.
+
+**CI & Dependabot-Auto-Merge.** Zwei zusätzliche Workflows:
+
+- `.github/workflows/ci.yml` — läuft auf jedem `pull_request`. Prüft: `php -l` über alle PHP-Dateien; ungültige benannte Argumente an internen PHP-Funktionen (fängt die Klasse `sprintf(format:, values:)` → `ArgumentCountError`, die `php -l` nicht sieht); YAML-Validität aller `.github`-Dateien; und dass jede Action auf einem 40-stelligen Commit-SHA gepinnt ist (beide YAML-Formen, `uses:` und `- uses:`).
+- `.github/workflows/dependabot-auto-merge.yml` — merged Dependabot-PRs automatisch, aber nur `semver-patch` und `semver-minor`. Major-Updates bekommen stattdessen einen Kommentar und bleiben manuell. Greift nur bei PRs von `dependabot[bot]` aus diesem Repo, nie aus Forks.
+
+> **Zwei Repo-Einstellungen sind Voraussetzung, sonst ist der Auto-Merge wirkungslos oder gefährlich:**
+> 1. **„Allow auto-merge"** muss in den Repo-Settings aktiv sein.
+> 2. Der Branch-Schutz muss den CI-Job als **Required status check** führen (`CI / Lint & Guards`). Fehlt das, merged `gh pr merge --auto` **sofort** — es gibt dann nichts, worauf es warten müsste, und die CI wäre reine Dekoration.
+
+Zusammen mit `cooldown: default-days: 7` in der `dependabot.yml` heißt das: kein Action-Release wird in seiner ersten Woche übernommen, patch/minor laufen danach automatisch durch (sofern CI grün), major bleibt eine bewusste Entscheidung.
+
 
 Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
 
