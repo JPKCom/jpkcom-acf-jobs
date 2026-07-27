@@ -328,6 +328,42 @@ Matches: `job_layout_content_0_text_left`, `job_layout_content_1_text_left`, etc
 - `update-json-from-wpml.py` - Syncs ACF JSON export with wpml-config.xml
 - Both use the corrected mapping: ignore=0, copy-once=1, translate=2, copy=3
 
+## Security & Correctness
+
+This section was missing until 1.3.7 — it was the only JPKCom plugin without one.
+
+### Rules with a guard behind them
+
+Both of these are enforced by `tests/test-conventions.php`, which CI runs on every pull request:
+
+- **Dates:** use `current_time( 'Y-m-d' )`, never a bare `date( 'Y-m-d' )`. WordPress sets the PHP timezone to UTC in `wp-settings.php`, so `date()` returns the *UTC* date and expiry checks lag the site timezone by its offset — expired job listings stayed visible for 1–2 hours after local midnight in Europe/Berlin.
+  **Exception, deliberately not flagged:** `schema.php` formats a *stored* date with `date( 'Y-m-d', strtotime( $expiry ) )`. That is a pure round-trip of a date-only string with no reference to "now", so it is correct. The guard's pattern only matches the single-argument form.
+- **Capabilities:** never pass a role name to `current_user_can()`. It works only because the role is a key in the capability array, which bypasses `map_meta_cap` and misses differently named roles holding the same rights. Check a capability (`manage_options`, `edit_post`).
+
+### Verified as sound (do not "fix")
+
+- **JSON-LD output** (`schema.php:296`) uses `JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`. That combination is deliberate: `JSON_HEX_TAG` escapes `<` to `<` so a `</script>` in any field cannot break out, while unescaped slashes keep schema URLs readable. `single-job.php:123` adds a redundant `str_replace( '</', '<\/' )` on top — harmless, and a no-op given the hex escaping.
+- **External redirects** in `redirects.php` use `wp_redirect()` rather than `wp_safe_redirect()` on purpose: a job may point at an external application URL, and the archive-disabled redirect target is an admin-set option sanitised with `esc_url_raw()`.
+- Template partials that `echo` a `*_url_HTML_*` variable are safe — the URL itself went through `esc_url()` before concatenation and the surrounding fragments are literals.
+
+### By design, worth knowing
+
+Anyone who can edit a job can point `job_url` at any external target, and the single-job redirect 307s there. That is the feature, but it does mean a non-admin editor can use the site's own domain as a redirector.
+
+### Filtering: meta LIKE vs. tax_query
+
+The list shortcode filters via `meta_query` with `LIKE '%"5"%'` over serialised ACF values — three such clauses, each an unindexable scan because of the leading wildcard. `job_attribute` is configured with `save_terms => 1`, so indexed term relationships exist and `tax_query` would be cheaper; `tax_query` is currently used nowhere.
+
+**Do not switch blindly.** Identical results require meta and term assignments to agree for every existing post, and they drift when an import, a direct DB write or a WPML duplication skips ACF's save routine. Run the read-only checker first:
+
+```bash
+wp eval-file wp-content/plugins/jpkcom-acf-jobs/tools/check-term-sync.php
+```
+
+Exit 0 means both stores agree and the switch is safe; exit 1 lists the diverging posts with edit links. `job_company` and `job_location` are post-object fields, not taxonomies, and stay meta-based either way.
+
+---
+
 ## Common Patterns
 
 ### Adding a New Template Partial

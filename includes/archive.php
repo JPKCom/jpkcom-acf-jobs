@@ -50,7 +50,8 @@ add_action( 'pre_get_posts', function( $query ): void {
                 'relation' => 'OR',
                 [
                     'key'     => 'job_expiry_date',
-                    'value'   => date( format: 'Y-m-d' ),
+                    // Site timezone, not UTC - see shortcodes.php for the rationale.
+                    'value'   => current_time( 'Y-m-d' ),
                     'compare' => '>=',
                     'type'    => 'DATE',
                 ],

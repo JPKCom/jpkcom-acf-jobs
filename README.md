@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.6  
+**Version:** 1.3.7  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.0  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.6  
+**Stable tag:** 1.3.7  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -317,6 +317,13 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.7
+* **Fixed:** job expiry was compared against the UTC date. WordPress sets the PHP timezone to UTC, so `date( 'Y-m-d' )` returns the UTC day and expired listings stayed visible for the length of the site's UTC offset after local midnight (1–2 hours for Europe/Berlin). `shortcodes.php`, `archive.php` and `redirects.php` now use `current_time( 'Y-m-d' )`. The `date()` call in `schema.php` is deliberately unchanged — it round-trips a stored date string and never refers to "now"
+* **Fixed:** the single-job redirect checked `current_user_can( 'administrator' )`, passing a role name where a capability belongs. That works only because the role is a key in the capability array, bypassing `map_meta_cap` and missing differently named roles with the same rights. Now checks `manage_options`
+* **Added:** `tools/check-term-sync.php` — a read-only checker reporting whether the serialised `job_attribute` meta values and the real `job-attribute` term assignments agree. Groundwork for moving the shortcode filters from unindexed `meta_query` + `LIKE` to indexed `tax_query`
+* **Added:** `tests/test-conventions.php` — regression guards for both fixes above, precise enough to leave the legitimate `schema.php` date call alone. Run in CI on every pull request
+* **Docs:** `CLAUDE.md` gained the Security & Correctness section it was missing — the only JPKCom plugin without one
 
 ### 1.3.6
 * Security: update packages are now verified *before* installation — the verified file is handed to WordPress instead of being downloaded a second time, so the bytes that were checked are the bytes that get installed

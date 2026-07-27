@@ -47,7 +47,11 @@ add_action( 'template_redirect', function(): void {
 
         }
 
-        if ( current_user_can( 'administrator' ) ) {
+        // A capability, not a role name: current_user_can() happens to accept a
+        // role because the role is a key in the capability array, but that path
+        // bypasses map_meta_cap and misses any differently named role that holds
+        // admin rights. The sibling handlers in this file already check caps.
+        if ( current_user_can( 'manage_options' ) ) {
 
             return;
 
@@ -151,7 +155,9 @@ add_action( 'template_redirect', function(): void {
 
         }
 
-        $today = date( format: 'Y-m-d' );
+        // Site timezone, not UTC: date() returns the UTC date because WordPress
+        // sets the PHP timezone to UTC, which delays expiry by the offset.
+        $today = current_time( 'Y-m-d' );
         $is_expired = ( $expiry_date < $today );
 
         if ( $is_expired ) {
