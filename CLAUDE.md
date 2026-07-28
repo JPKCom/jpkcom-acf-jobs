@@ -373,6 +373,36 @@ rewrite.
 `job_attribute => job-attribute` and would guard the switch if a filter on that
 attribute is ever added.
 
+### The `job_attribute` slug fix, measured (2026-07-28)
+
+Verified on a DDEV instance with 6 seeded jobs and three `job-attribute` terms.
+
+`templates/partials/job/job_attribute.php` branches on the value type: numeric →
+`get_term()`, `WP_Term` → used directly, string → `get_term_by( 'name', … )`.
+That last branch passed **`job_attribute`**, the field name, where the
+**`job-attribute`** taxonomy slug belongs.
+
+| Probe | Result |
+|---|---|
+| `get_term_by( 'name', 'Firmenwagen', 'job_attribute' )` | `false` — for all three terms |
+| `get_term_by( 'name', 'Firmenwagen', 'job-attribute' )` | term ID |
+| `get_taxonomies()` | registers `job-attribute` only |
+
+**Which branch actually runs:** with the shipped configuration
+(`return_format => 'id'`) `get_field()` returns integers, so the numeric branch
+handles everything and the bug never shows. Rendering a job page confirms it —
+attributes appear, no PHP diagnostics.
+
+**What the fix buys:** forcing the string branch (an `acf/format_value/type=taxonomy`
+filter returning term names, after resetting ACF's value store) makes the
+difference visible immediately — the corrected slug renders
+`Parkplatz | Firmenwagen`, the old one renders **nothing at all**, with no error
+and no log entry. So the fix is preventive under the current configuration and
+load-bearing the moment anything hands that partial strings: a changed
+`return_format`, a `format_value` filter, or legacy data. `tests/test-conventions.php`
+now compares every literal taxonomy argument against the slugs actually passed
+to `register_taxonomy()`.
+
 ```bash
 wp eval-file wp-content/plugins/jpkcom-acf-jobs/tools/check-term-sync.php
 ```
