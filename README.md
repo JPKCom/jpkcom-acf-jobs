@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.8  
+**Version:** 1.3.9  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.0  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.8  
+**Stable tag:** 1.3.9  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -317,6 +317,9 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.9
+* Changed: the plugin banners (`assets/banner-1544x500.avif`, `assets/banner-772x250.avif`) are now a plain `#3c4955` surface with no lettering
 
 ### 1.3.8
 * Fixed: the attributes partial looked terms up under `job_attribute`, the field name, instead of `job-attribute`, the registered taxonomy. `get_term_by()` returned false for every string value and the attribute was dropped from the output with no error anywhere. Not reached with the shipped `return_format => 'id'`, but immediate the moment anything hands that partial strings
