@@ -1,4 +1,27 @@
-<h3 id="section">1.3.7</h3>
+<h3 id="section">1.3.8</h3>
+<ul>
+<li>Fixed: the attributes partial looked terms up under
+<code>job_attribute</code>, the field name, instead of
+<code>job-attribute</code>, the registered taxonomy.
+<code>get_term_by()</code> returned false for every string value and the
+attribute was dropped from the output with no error anywhere. Not
+reached with the shipped <code>return_format =&gt; 'id'</code>, but
+immediate the moment anything hands that partial strings</li>
+<li>Fixed: <code>tools/check-term-sync.php</code> could not run at all —
+a <code>declare(strict_types=1)</code> halfway down the file made the
+documented <code>wp eval-file</code> invocation a fatal error</li>
+<li>Fixed: the same script reported every translated post as drifted,
+because it compared raw meta against <code>wp_get_object_terms()</code>,
+which WPML rewrites to the current language</li>
+<li>Added: <code>tests/test-conventions.php</code> compares every
+literal taxonomy argument against the slugs actually passed to
+<code>register_taxonomy()</code></li>
+<li>Docs: corrected the section on <code>tax_query</code>. None of the
+three fields the list shortcode filters is taxonomy-backed, so the
+switch made in <code>jpkcom-acf-references</code> does not apply
+here</li>
+</ul>
+<h3 id="section-1">1.3.7</h3>
 <ul>
 <li><strong>Fixed:</strong> job expiry was compared against the UTC
 date. WordPress sets the PHP timezone to UTC, so
@@ -29,7 +52,7 @@ pull request</li>
 &amp; Correctness section it was missing — the only JPKCom plugin
 without one</li>
 </ul>
-<h3 id="section-1">1.3.6</h3>
+<h3 id="section-2">1.3.6</h3>
 <ul>
 <li>Security: update packages are now verified <em>before</em>
 installation — the verified file is handed to WordPress instead of being
@@ -54,7 +77,7 @@ instead of being retried on every admin request</li>
 <li>Added: CI workflow on every pull request (PHP lint, named-argument
 check, YAML validation, action-pinning guard)</li>
 </ul>
-<h3 id="section-2">1.3.5</h3>
+<h3 id="section-3">1.3.5</h3>
 <ul>
 <li>Fixed broken <code>&lt;main&gt;</code> element in the single job
 template: it was closed immediately after opening, leaving the entire
@@ -64,14 +87,14 @@ end of the template</li>
 passed the ACF field array where an attachment ID is expected, which
 could render an unrelated image before every company logo</li>
 </ul>
-<h3 id="section-3">1.3.4</h3>
+<h3 id="section-4">1.3.4</h3>
 <ul>
 <li>Raised the minimum WordPress version to 6.9 and “Tested up to” to
 WordPress 7.0</li>
 <li>Switched license metadata to the SPDX identifier
 <code>GPL-2.0-or-later</code> with the HTTPS license URI</li>
 </ul>
-<h3 id="section-4">1.3.3</h3>
+<h3 id="section-5">1.3.3</h3>
 <ul>
 <li>Security: prevent JSON-LD script-tag breakout (stored XSS) in
 JobPosting schema output (<code>JSON_HEX_TAG | JSON_HEX_AMP</code>, plus
@@ -91,7 +114,7 @@ completing the <code>no_update</code> transient entry
 (<code>new_version</code>, <code>package</code>, <code>tested</code>,
 <code>requires_php</code>)</li>
 </ul>
-<h3 id="section-5">1.3.2</h3>
+<h3 id="section-6">1.3.2</h3>
 <ul>
 <li>Fixed missing output escaping across all templates and debug
 templates (<code>esc_html__()</code>, <code>esc_html()</code>,
@@ -105,135 +128,135 @@ longer rendered when no previous/next post exists</li>
 <li>Fixed pagination template: archive URL now escaped with
 <code>esc_url()</code></li>
 </ul>
-<h3 id="section-6">1.3.1</h3>
+<h3 id="section-7">1.3.1</h3>
 <ul>
 <li>Fixed updater checksum verification failing on manual ZIP uploads
 (local file path instead of URL)</li>
 <li>Fixed release ZIP missing top-level directory, causing WordPress to
 not recognize the update</li>
 </ul>
-<h3 id="section-7">1.3.0</h3>
+<h3 id="section-8">1.3.0</h3>
 <ul>
 <li>Added archiv redirect options</li>
 </ul>
-<h3 id="section-8">1.2.5</h3>
+<h3 id="section-9">1.2.5</h3>
 <ul>
 <li>Added translation for “job_type”</li>
 </ul>
-<h3 id="section-9">1.2.4</h3>
+<h3 id="section-10">1.2.4</h3>
 <ul>
 <li>Added translations for ES, FR, HU, IT and PL</li>
 </ul>
-<h3 id="section-10">1.2.3</h3>
+<h3 id="section-11">1.2.3</h3>
 <ul>
 <li>Added check for “SitePress” class</li>
 </ul>
-<h3 id="section-11">1.2.2</h3>
+<h3 id="section-12">1.2.2</h3>
 <ul>
 <li>Fix for incorrect database content caused by WPML</li>
 </ul>
-<h3 id="section-12">1.2.1</h3>
+<h3 id="section-13">1.2.1</h3>
 <ul>
 <li>Fix for incorrect database content caused by WPML</li>
 </ul>
-<h3 id="section-13">1.2.0</h3>
+<h3 id="section-14">1.2.0</h3>
 <ul>
 <li>Security enhancement</li>
 <li>AI support</li>
 </ul>
-<h3 id="section-14">1.1.12</h3>
+<h3 id="section-15">1.1.12</h3>
 <ul>
 <li>Added WPML support</li>
 </ul>
-<h3 id="section-15">1.1.11</h3>
+<h3 id="section-16">1.1.11</h3>
 <ul>
 <li>Improvements to jpkcom_acfjobs_textdomain()</li>
 </ul>
-<h3 id="section-16">1.1.10</h3>
+<h3 id="section-17">1.1.10</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-17">1.1.9</h3>
+<h3 id="section-18">1.1.9</h3>
 <ul>
 <li>“display_name” for update-core.php</li>
 </ul>
-<h3 id="section-18">1.1.8</h3>
+<h3 id="section-19">1.1.8</h3>
 <ul>
 <li>“display_name” for plugin-install.php</li>
 </ul>
-<h3 id="section-19">1.1.7</h3>
+<h3 id="section-20">1.1.7</h3>
 <ul>
 <li>New namespace for updater</li>
 </ul>
-<h3 id="section-20">1.1.6</h3>
+<h3 id="section-21">1.1.6</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-21">1.1.5</h3>
+<h3 id="section-22">1.1.5</h3>
 <ul>
 <li>Plugin icon support</li>
 </ul>
-<h3 id="section-22">1.1.4</h3>
+<h3 id="section-23">1.1.4</h3>
 <ul>
 <li>Plugin details</li>
 </ul>
-<h3 id="section-23">1.1.3</h3>
+<h3 id="section-24">1.1.3</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-24">1.1.2</h3>
+<h3 id="section-25">1.1.2</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-25">1.1.1</h3>
+<h3 id="section-26">1.1.1</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-26">1.1.0</h3>
+<h3 id="section-27">1.1.0</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-27">1.0.9</h3>
+<h3 id="section-28">1.0.9</h3>
 <ul>
 <li>Removed plugin dependency</li>
 </ul>
-<h3 id="section-28">1.0.8</h3>
+<h3 id="section-29">1.0.8</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 <li>Improvements to plugin JSON</li>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-29">1.0.7</h3>
+<h3 id="section-30">1.0.7</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 <li>Bugfix plugin JSON</li>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-30">1.0.6</h3>
+<h3 id="section-31">1.0.6</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-31">1.0.5</h3>
+<h3 id="section-32">1.0.5</h3>
 <ul>
 <li>Bugfix plugin JSON</li>
 </ul>
-<h3 id="section-32">1.0.4</h3>
+<h3 id="section-33">1.0.4</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-33">1.0.3</h3>
+<h3 id="section-34">1.0.3</h3>
 <ul>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-34">1.0.2</h3>
+<h3 id="section-35">1.0.2</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-35">1.0.1</h3>
+<h3 id="section-36">1.0.1</h3>
 <ul>
 <li>GitHub workflow</li>
 </ul>
-<h3 id="section-36">1.0.0</h3>
+<h3 id="section-37">1.0.0</h3>
 <ul>
 <li>Initial Release</li>
 </ul>

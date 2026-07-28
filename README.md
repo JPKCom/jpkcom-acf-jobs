@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.7  
+**Version:** 1.3.8  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.0  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.7  
+**Stable tag:** 1.3.8  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -317,6 +317,13 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.8
+* Fixed: the attributes partial looked terms up under `job_attribute`, the field name, instead of `job-attribute`, the registered taxonomy. `get_term_by()` returned false for every string value and the attribute was dropped from the output with no error anywhere. Not reached with the shipped `return_format => 'id'`, but immediate the moment anything hands that partial strings
+* Fixed: `tools/check-term-sync.php` could not run at all — a `declare(strict_types=1)` halfway down the file made the documented `wp eval-file` invocation a fatal error
+* Fixed: the same script reported every translated post as drifted, because it compared raw meta against `wp_get_object_terms()`, which WPML rewrites to the current language
+* Added: `tests/test-conventions.php` compares every literal taxonomy argument against the slugs actually passed to `register_taxonomy()`
+* Docs: corrected the section on `tax_query`. None of the three fields the list shortcode filters is taxonomy-backed, so the switch made in `jpkcom-acf-references` does not apply here
 
 ### 1.3.7
 * **Fixed:** job expiry was compared against the UTC date. WordPress sets the PHP timezone to UTC, so `date( 'Y-m-d' )` returns the UTC day and expired listings stayed visible for the length of the site's UTC offset after local midnight (1–2 hours for Europe/Berlin). `shortcodes.php`, `archive.php` and `redirects.php` now use `current_time( 'Y-m-d' )`. The `date()` call in `schema.php` is deliberately unchanged — it round-trips a stored date string and never refers to "now"
