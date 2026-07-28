@@ -30,7 +30,11 @@ defined( constant_name: 'ABSPATH' ) || exit;
 
             } elseif ( is_string( value: $attr ) ) {
 
-                $term = get_term_by( 'name', $attr, 'job_attribute' );
+                // The taxonomy is registered as 'job-attribute' with a hyphen
+                // (includes/acf-taxonomies.php). Passing the field name here
+                // instead made get_term_by() return false for every string
+                // value, silently dropping the attribute from the output.
+                $term = get_term_by( 'name', $attr, 'job-attribute' );
 
             } else {
 

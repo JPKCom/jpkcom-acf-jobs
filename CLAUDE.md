@@ -350,17 +350,35 @@ Both of these are enforced by `tests/test-conventions.php`, which CI runs on eve
 
 Anyone who can edit a job can point `job_url` at any external target, and the single-job redirect 307s there. That is the feature, but it does mean a non-admin editor can use the site's own domain as a redirector.
 
-### Filtering: meta LIKE vs. tax_query
+### Filtering: why tax_query does *not* apply here
 
-The list shortcode filters via `meta_query` with `LIKE '%"5"%'` over serialised ACF values — three such clauses, each an unindexable scan because of the leading wildcard. `job_attribute` is configured with `save_terms => 1`, so indexed term relationships exist and `tax_query` would be cheaper; `tax_query` is currently used nowhere.
+An earlier note in this file implied the list shortcode's three `LIKE '%"5"%'`
+clauses could move to `tax_query`, the way `jpkcom-acf-references` did. **They
+cannot** — none of the three filtered fields is taxonomy-backed:
 
-**Do not switch blindly.** Identical results require meta and term assignments to agree for every existing post, and they drift when an import, a direct DB write or a WPML duplication skips ACF's save routine. Run the read-only checker first:
+| Shortcode attribute | Meta field | ACF field type | Can it use `tax_query`? |
+|---|---|---|---|
+| `type` | `job_type` | `checkbox` with string choices (`FULL_TIME`, …) | No — there is no taxonomy behind it |
+| `company` | `job_company` | post object | No — post relation, not a term relation |
+| `location` | `job_location` | post object | No — same |
+
+The only taxonomy-backed field in this plugin is `job_attribute`
+(`type => 'taxonomy'`, `taxonomy => 'job-attribute'`, `save_terms => 1`,
+`includes/acf-field_groups.php`), and **the list shortcode does not filter by it
+at all**. So the three unindexable meta scans stay for now; removing them would
+mean giving `job_type` a real taxonomy, which is a data migration, not a query
+rewrite.
+
+`tools/check-term-sync.php` is still correct and worth keeping: it maps
+`job_attribute => job-attribute` and would guard the switch if a filter on that
+attribute is ever added.
 
 ```bash
 wp eval-file wp-content/plugins/jpkcom-acf-jobs/tools/check-term-sync.php
 ```
 
-Exit 0 means both stores agree and the switch is safe; exit 1 lists the diverging posts with edit links. `job_company` and `job_location` are post-object fields, not taxonomies, and stay meta-based either way.
+Exit 0 means meta and term assignments agree; exit 1 lists the diverging posts
+with edit links.
 
 ---
 

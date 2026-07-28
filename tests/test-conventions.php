@@ -96,6 +96,100 @@ forbid(
 	. 'roles holding the same rights. Check a capability such as manage_options.'
 );
 
+echo "\nTaxonomy slugs\n";
+
+/**
+ * Assert that every literal taxonomy argument names a registered taxonomy.
+ *
+ * The field is named `job_attribute`, the taxonomy `job-attribute`. Passing the
+ * former where the latter belongs makes the WordPress term functions return
+ * false or an empty array — no error, no warning, the output is just silently
+ * missing. A regex cannot catch that; comparing against the slugs actually
+ * passed to register_taxonomy() can.
+ *
+ * @param string $label Human-readable check name.
+ * @param array  $dirs  Directories to scan.
+ */
+function taxonomy_slugs_exist( string $label, array $dirs ): void {
+	global $pass, $fail;
+
+	$root = dirname( __DIR__ );
+
+	preg_match_all(
+		'/register_taxonomy\(\s*[\'"]([^\'"]+)[\'"]/',
+		(string) file_get_contents( $root . '/includes/acf-taxonomies.php' ),
+		$m
+	);
+
+	$registered = $m[1];
+
+	if ( empty( $registered ) ) {
+		$fail++;
+		echo "  FAIL  {$label}\n        Found no register_taxonomy() call to compare against.\n";
+		return;
+	}
+
+	// Third argument of get_term_by(), second of wp_get_object_terms().
+	$patterns = [
+		'/get_term_by\(\s*[^,]+,\s*[^,]+,\s*[\'"]([^\'"]+)[\'"]/',
+		'/wp_get_object_terms\(\s*[^,]+,\s*[\'"]([^\'"]+)[\'"]/',
+	];
+
+	$hits = [];
+
+	foreach ( $dirs as $dir ) {
+		$it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir ) );
+
+		foreach ( $it as $file ) {
+			$path = $file->getPathname();
+
+			if ( ! str_ends_with( $path, '.php' ) ) {
+				continue;
+			}
+
+			foreach ( explode( "\n", (string) file_get_contents( $path ) ) as $no => $line ) {
+				$trimmed = ltrim( $line );
+
+				if ( str_starts_with( $trimmed, '//' ) || str_starts_with( $trimmed, '*' ) || str_starts_with( $trimmed, '/*' ) ) {
+					continue;
+				}
+
+				foreach ( $patterns as $pattern ) {
+					if ( preg_match( $pattern, $line, $found ) && ! in_array( $found[1], $registered, true ) ) {
+						$hits[] = sprintf(
+							'%s:%d  "%s" is not registered (registered: %s)',
+							basename( $path ),
+							$no + 1,
+							$found[1],
+							implode( ', ', $registered )
+						);
+					}
+				}
+			}
+		}
+	}
+
+	if ( empty( $hits ) ) {
+		$pass++;
+		echo "  PASS  {$label}\n";
+		return;
+	}
+
+	$fail++;
+	echo "  FAIL  {$label}\n";
+	echo "        WordPress term functions return false for an unknown taxonomy — the\n";
+	echo "        value is dropped from the output with no error anywhere.\n";
+
+	foreach ( $hits as $hit ) {
+		echo "        {$hit}\n";
+	}
+}
+
+taxonomy_slugs_exist(
+	'term lookups use registered taxonomy slugs',
+	[ $includes, $root . '/templates' ]
+);
+
 printf( "\n  %d passed, %d failed\n", $pass, $fail );
 
 exit( $fail > 0 ? 1 : 0 );
