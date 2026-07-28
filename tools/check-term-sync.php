@@ -23,6 +23,9 @@
  * -----
  *     wp eval-file wp-content/plugins/jpkcom-acf-jobs/tools/check-term-sync.php
  *
+ * Note: on an empty site an exit code of 0 means only that nothing contradicts
+ * itself — with no posts it is trivially true. Run it against real data.
+ *
  * Optional: append `--` style arguments are not parsed; set the constants below
  * by editing them if you need a different batch size.
  *
@@ -35,7 +38,10 @@
  * @since 1.3.7
  */
 
-declare(strict_types=1);
+// Bewusst KEIN declare(strict_types=1): `wp eval-file` fuehrt den Inhalt ueber
+// eval() aus, und dort muss eine strict_types-Deklaration die allererste
+// Anweisung sein - sie ist es nie. Das Ergebnis war ein Fatal Error direkt
+// beim dokumentierten Aufruf, das Skript war also nie ausfuehrbar.
 
 if ( ! defined( 'ABSPATH' ) ) {
 	fwrite( STDERR, "This script must run inside WordPress, e.g. via:\n  wp eval-file " . __FILE__ . "\n" );
