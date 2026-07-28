@@ -350,17 +350,65 @@ Both of these are enforced by `tests/test-conventions.php`, which CI runs on eve
 
 Anyone who can edit a job can point `job_url` at any external target, and the single-job redirect 307s there. That is the feature, but it does mean a non-admin editor can use the site's own domain as a redirector.
 
-### Filtering: meta LIKE vs. tax_query
+### Filtering: why tax_query does *not* apply here
 
-The list shortcode filters via `meta_query` with `LIKE '%"5"%'` over serialised ACF values — three such clauses, each an unindexable scan because of the leading wildcard. `job_attribute` is configured with `save_terms => 1`, so indexed term relationships exist and `tax_query` would be cheaper; `tax_query` is currently used nowhere.
+An earlier note in this file implied the list shortcode's three `LIKE '%"5"%'`
+clauses could move to `tax_query`, the way `jpkcom-acf-references` did. **They
+cannot** — none of the three filtered fields is taxonomy-backed:
 
-**Do not switch blindly.** Identical results require meta and term assignments to agree for every existing post, and they drift when an import, a direct DB write or a WPML duplication skips ACF's save routine. Run the read-only checker first:
+| Shortcode attribute | Meta field | ACF field type | Can it use `tax_query`? |
+|---|---|---|---|
+| `type` | `job_type` | `checkbox` with string choices (`FULL_TIME`, …) | No — there is no taxonomy behind it |
+| `company` | `job_company` | post object | No — post relation, not a term relation |
+| `location` | `job_location` | post object | No — same |
+
+The only taxonomy-backed field in this plugin is `job_attribute`
+(`type => 'taxonomy'`, `taxonomy => 'job-attribute'`, `save_terms => 1`,
+`includes/acf-field_groups.php`), and **the list shortcode does not filter by it
+at all**. So the three unindexable meta scans stay for now; removing them would
+mean giving `job_type` a real taxonomy, which is a data migration, not a query
+rewrite.
+
+`tools/check-term-sync.php` is still correct and worth keeping: it maps
+`job_attribute => job-attribute` and would guard the switch if a filter on that
+attribute is ever added.
+
+### The `job_attribute` slug fix, measured (2026-07-28)
+
+Verified on a DDEV instance with 6 seeded jobs and three `job-attribute` terms.
+
+`templates/partials/job/job_attribute.php` branches on the value type: numeric →
+`get_term()`, `WP_Term` → used directly, string → `get_term_by( 'name', … )`.
+That last branch passed **`job_attribute`**, the field name, where the
+**`job-attribute`** taxonomy slug belongs.
+
+| Probe | Result |
+|---|---|
+| `get_term_by( 'name', 'Firmenwagen', 'job_attribute' )` | `false` — for all three terms |
+| `get_term_by( 'name', 'Firmenwagen', 'job-attribute' )` | term ID |
+| `get_taxonomies()` | registers `job-attribute` only |
+
+**Which branch actually runs:** with the shipped configuration
+(`return_format => 'id'`) `get_field()` returns integers, so the numeric branch
+handles everything and the bug never shows. Rendering a job page confirms it —
+attributes appear, no PHP diagnostics.
+
+**What the fix buys:** forcing the string branch (an `acf/format_value/type=taxonomy`
+filter returning term names, after resetting ACF's value store) makes the
+difference visible immediately — the corrected slug renders
+`Parkplatz | Firmenwagen`, the old one renders **nothing at all**, with no error
+and no log entry. So the fix is preventive under the current configuration and
+load-bearing the moment anything hands that partial strings: a changed
+`return_format`, a `format_value` filter, or legacy data. `tests/test-conventions.php`
+now compares every literal taxonomy argument against the slugs actually passed
+to `register_taxonomy()`.
 
 ```bash
 wp eval-file wp-content/plugins/jpkcom-acf-jobs/tools/check-term-sync.php
 ```
 
-Exit 0 means both stores agree and the switch is safe; exit 1 lists the diverging posts with edit links. `job_company` and `job_location` are post-object fields, not taxonomies, and stay meta-based either way.
+Exit 0 means meta and term assignments agree; exit 1 lists the diverging posts
+with edit links.
 
 ---
 

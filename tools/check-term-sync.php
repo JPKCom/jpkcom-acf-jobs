@@ -23,6 +23,9 @@
  * -----
  *     wp eval-file wp-content/plugins/jpkcom-acf-jobs/tools/check-term-sync.php
  *
+ * Note: on an empty site an exit code of 0 means only that nothing contradicts
+ * itself — with no posts it is trivially true. Run it against real data.
+ *
  * Optional: append `--` style arguments are not parsed; set the constants below
  * by editing them if you need a different batch size.
  *
@@ -35,7 +38,10 @@
  * @since 1.3.7
  */
 
-declare(strict_types=1);
+// Bewusst KEIN declare(strict_types=1): `wp eval-file` fuehrt den Inhalt ueber
+// eval() aus, und dort muss eine strict_types-Deklaration die allererste
+// Anweisung sein - sie ist es nie. Das Ergebnis war ein Fatal Error direkt
+// beim dokumentierten Aufruf, das Skript war also nie ausfuehrbar.
 
 if ( ! defined( 'ABSPATH' ) ) {
 	fwrite( STDERR, "This script must run inside WordPress, e.g. via:\n  wp eval-file " . __FILE__ . "\n" );
@@ -86,6 +92,45 @@ function jpkcom_acfjobs_meta_to_term_ids( mixed $raw ): array {
 	return $ids;
 }
 
+/**
+ * Term IDs assigned to a post, read in that post's own language.
+ *
+ * WPML rewrites term IDs to the *current* language. This script runs in the
+ * site's default language, so a translated post whose relation genuinely points
+ * at its own translated term comes back carrying the default-language term —
+ * while the meta value, which WPML does not touch, still holds the translated
+ * ID. Without this, every translated post is reported as drifted and the check
+ * is unusable on exactly the multilingual sites where it matters most.
+ *
+ * Verified on a real installation in the sibling plugin: raw relation [43],
+ * meta ["43"], wp_get_object_terms() [22] in the default language and [43] in
+ * the post's own. On a monolingual site this is a no-op.
+ *
+ * @param int    $post_id  Post to inspect.
+ * @param string $taxonomy Taxonomy slug.
+ * @return int[] Term IDs, in the post's language.
+ */
+function jpkcom_acfjobs_object_term_ids( $post_id, $taxonomy ) {
+
+	$details = apply_filters( 'wpml_post_language_details', null, $post_id );
+	$lang    = is_array( $details ) ? ( $details['language_code'] ?? '' ) : '';
+
+	$previous = apply_filters( 'wpml_current_language', null );
+
+	if ( $lang && $previous && $lang !== $previous ) {
+		do_action( 'wpml_switch_language', $lang );
+	}
+
+	$term_ids = wp_get_object_terms( $post_id, $taxonomy, [ 'fields' => 'ids' ] );
+	$term_ids = is_wp_error( $term_ids ) ? [] : array_map( 'intval', $term_ids );
+
+	if ( $lang && $previous && $lang !== $previous ) {
+		do_action( 'wpml_switch_language', $previous );
+	}
+
+	return $term_ids;
+}
+
 // ---------------------------------------------------------------------------
 
 $post_ids = get_posts( [
@@ -119,8 +164,7 @@ foreach ( array_chunk( $post_ids, JPKCOM_ACFJOBS_BATCH ) as $chunk ) {
 
 			$meta_ids = jpkcom_acfjobs_meta_to_term_ids( get_post_meta( $post_id, $field, true ) );
 
-			$term_ids = wp_get_object_terms( $post_id, $taxonomy, [ 'fields' => 'ids' ] );
-			$term_ids = is_wp_error( $term_ids ) ? [] : array_map( 'intval', $term_ids );
+			$term_ids = jpkcom_acfjobs_object_term_ids( $post_id, $taxonomy );
 			sort( $term_ids );
 
 			$only_meta = array_diff( $meta_ids, $term_ids );
