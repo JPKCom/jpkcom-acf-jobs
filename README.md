@@ -3,17 +3,17 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.9  
+**Version:** 1.3.10  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
 **Tags:** ACF, Fields, CPT, CTT, Taxonomy, Forms  
 **Requires Plugins:** advanced-custom-fields-pro, acf-quickedit-fields  
 **Requires at least:** 6.9  
-**Tested up to:** 7.0  
+**Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.9  
+**Stable tag:** 1.3.10  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -242,7 +242,7 @@ This is useful when you want to use shortcodes to display jobs on custom pages i
 ### Prerequisites
 
 Before installing this plugin, ensure you have:
-- WordPress 6.8 or higher
+- WordPress 6.9 or higher
 - PHP 8.3 or higher
 - [Advanced Custom Fields Pro](https://www.advancedcustomfields.com/) installed and activated
 - [ACF Quick Edit Fields](https://wordpress.org/plugins/acf-quickedit-fields/) installed and activated
@@ -304,7 +304,7 @@ This plugin is **network-compatible**. To install on a multisite network:
 ### Troubleshooting Installation
 
 **Issue: Plugin fails to activate**
-- Ensure PHP 8.3+ and WordPress 6.8+ requirements are met
+- Ensure PHP 8.3+ and WordPress 6.9+ requirements are met
 - Check that ACF Pro is installed and activated first
 
 **Issue: No Jobs menu in admin**
@@ -317,6 +317,12 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.3.10
+* Changed: `Tested up to` raised to WordPress 7.1
+* Changed: the bundled updater's runtime floor now matches the plugin's own minimum. It bailed out below WordPress 6.8 while the plugin header has required 6.9 for several releases, so the check could never fire on a supported installation
+* Docs: the remaining "WordPress 6.8" requirement statements now say 6.9, matching the plugin header
+* CI: the release manifest's fallback values for `requires` and `tested` now say 6.9 and 7.1. They only apply when the README metadata cannot be read, but a stale fallback would have published a minimum the plugin no longer supports
 
 ### 1.3.9
 * Changed: the plugin banners (`assets/banner-1544x500.avif`, `assets/banner-772x250.avif`) are now a plain `#3c4955` surface with no lettering

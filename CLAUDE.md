@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a WordPress plugin called **JPKCom ACF Jobs** - a job application system built on Advanced Custom Fields Pro. It provides custom post types (jobs, locations, companies), custom taxonomies, and a complete template system for displaying job listings with Schema.org markup.
 
 **Requirements:**
-- WordPress 6.8+
+- WordPress 6.9+
 - PHP 8.3+
 - Advanced Custom Fields Pro (required dependency)
 - ACF Quick Edit Fields (required dependency)
