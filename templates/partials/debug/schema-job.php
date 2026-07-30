@@ -40,7 +40,7 @@ $schema_array = json_decode( json: $schema_json, associative: true );
 
 if ( json_last_error() !== JSON_ERROR_NONE ) {
 
-    echo '<p class="text-danger fw-bold">' . __( 'Error parsing JSON-LD schema!', 'jpkcom-acf-jobs' ) . 'Fehler beim Parsen des JSON-LD Schemas!</p>';
+    echo '<p class="text-danger fw-bold">' . esc_html__( 'Error parsing JSON-LD schema!', 'jpkcom-acf-jobs' ) . '</p>';
 
     $schema_array = [];
 

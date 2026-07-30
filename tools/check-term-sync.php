@@ -38,10 +38,10 @@
  * @since 1.3.7
  */
 
-// Bewusst KEIN declare(strict_types=1): `wp eval-file` fuehrt den Inhalt ueber
-// eval() aus, und dort muss eine strict_types-Deklaration die allererste
-// Anweisung sein - sie ist es nie. Das Ergebnis war ein Fatal Error direkt
-// beim dokumentierten Aufruf, das Skript war also nie ausfuehrbar.
+// Deliberately NO declare(strict_types=1): `wp eval-file` runs the contents
+// through eval(), where a strict_types declaration would have to be the very
+// first statement - which it never is. The result was a fatal error on the
+// documented invocation, so the script was never executable at all.
 
 if ( ! defined( 'ABSPATH' ) ) {
 	fwrite( STDERR, "This script must run inside WordPress, e.g. via:\n  wp eval-file " . __FILE__ . "\n" );
