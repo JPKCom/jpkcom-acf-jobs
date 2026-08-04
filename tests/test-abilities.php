@@ -1027,6 +1027,409 @@ chk(
 
 unset( $GLOBALS['jpkcom_test_options']['jpkcom_acf_job_disable_archive'] );
 
+echo "\nThe detail-page rule\n";
+
+chk(
+	'the detail-page predicate exists',
+	function_exists( 'jpkcom_acf_jobs_detail_page_renders' ),
+	'get-job needs one named place that answers "would this job\'s page render for a visitor", '
+	. 'because that is the only question the detail block is allowed to depend on.'
+);
+
+if ( function_exists( 'jpkcom_acf_jobs_detail_page_renders' ) ) {
+
+	$GLOBALS['jpkcom_test_fields'][184] = [];
+
+	chk(
+		'a published job with nothing set has a detail page',
+		true === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'Without this the three false cases below would all pass against a predicate that '
+		. 'always says no, and get-job would answer every job without its detail block.'
+	);
+
+	$GLOBALS['jpkcom_test_fields'][184]['job_url'] = [ 'url' => 'https://ats.example.test/apply/1' ];
+
+	chk(
+		'a job carrying a job_url has none',
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'includes/redirects.php:32-86 307s every caller without manage_options to that target '
+		. 'before single-job.php runs, so the address, the salary and the application data of '
+		. 'such a job were never published to anyone.'
+	);
+
+	$GLOBALS['jpkcom_test_fields'][184]['job_url'] = [ 'url' => "\t \n" ];
+
+	chk(
+		'a whitespace-only job_url redirects just as effectively',
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'redirects.php tests ! empty() on the RAW value, and "\t \n" is not empty: the visitor '
+		. 'is sent away and no page renders. Trimming first — which is what the reader does for '
+		. 'its own url field — answers the opposite for the same job.'
+	);
+
+	unset( $GLOBALS['jpkcom_test_fields'][184]['job_url'] );
+
+	$GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] = '2025-11-30';
+
+	chk(
+		'an expired job has none',
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'includes/redirects.php:132-173 307s every caller without edit_post to the archive.'
+	);
+
+	// current_time() is stubbed to 2026-01-15, and the site lists a job through its
+	// last day: the visibility rule compares the stored date >= today.
+	$GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] = '2026-01-15';
+
+	chk(
+		'a job expiring today still has one',
+		true === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'An off-by-one here withholds the detail data of every job on its last day, which is '
+		. 'the day it is most likely to be asked about.'
+	);
+
+	// ACF hands out Ymd whenever the field's key reference row is missing, which is
+	// the state includes/wpml-acf-field-keys-fix.php exists to repair.
+	$GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] = '20251130';
+
+	chk(
+		'an expiry stored as Ymd is read as a date, not compared as a string',
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'redirects.php compares the raw value against a Y-m-d today, so "20251130" < "2026-01-15" '
+		. 'holds only by accident of both starting with the same two digits. This goes through '
+		. 'jpkcom_acf_jobs_normalise_date() instead.'
+	);
+
+	unset( $GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] );
+
+	chk(
+		'a password-protected job has none',
+		false === jpkcom_acf_jobs_detail_page_renders( 701 ),
+		'get_the_title() prepends the protected-title format while ACF hands out the salary and '
+		. 'the address in full, so such a record contradicts itself.'
+	);
+	chk( 'a draft job has none', false === jpkcom_acf_jobs_detail_page_renders( 5 ) );
+	chk( 'a post of another type has none', false === jpkcom_acf_jobs_detail_page_renders( 700 ) );
+	chk( 'an id no post carries has none', false === jpkcom_acf_jobs_detail_page_renders( 999999 ) );
+
+	// Same trap as the reader's own gate: real get_post( 0 ) treats 0 as empty and
+	// falls back to the current global post.
+	$GLOBALS['post'] = new WP_Post( 900, 'Leftover Global Job', 'publish', 'job' );
+
+	chk(
+		'id 0 has none either',
+		false === jpkcom_acf_jobs_detail_page_renders( 0 ),
+		'get_post( 0 ) falls back to $GLOBALS[\'post\'] in real WordPress, so without the '
+		. '$post_id < 1 guard this reports on whatever post the surrounding request left there.'
+	);
+
+	unset( $GLOBALS['post'] );
+}
+
+echo "\nget-job\n";
+
+$GLOBALS['jpkcom_test_fields'][184]    = [];
+$GLOBALS['jpkcom_test_meta_rows'][184] = [ 'job_featured' ];
+
+// One layout row with an image and one without, because detail.layout[].image is
+// declared [string,null] and no seeded job has ever had a row at all: the null
+// half of that declaration has never been produced by anything.
+$GLOBALS['jpkcom_test_rows'][184] = [
+	'job_layout_content' => [
+		[
+			'acf_fc_layout' => 'text_image',
+			'text_left'     => 'Wir suchen Verstärkung. [gallery ids="1,2"] https://example.com/stelle',
+			'img_right'     => 55,
+		],
+		[
+			'acf_fc_layout' => 'wysiwyg',
+			'wysiwyg_full'  => '<p>Zweite Zeile</p>',
+		],
+	],
+];
+
+$GLOBALS['jpkcom_test_attachments'][55] = 'https://example.test/wp-content/uploads/row.jpg';
+
+$job = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'get-job answers with a record rather than the 501 placeholder',
+	is_array( $job ),
+	'The registration and the whole output schema were complete from Task 5 on; the callback '
+	. 'answered 501 for every input.'
+);
+chk( 'it answers for the requested job', is_array( $job ) && 184 === ( $job['id'] ?? null ) );
+chk(
+	'it reports the resolved language',
+	is_array( $job ) && 'en_US' === ( $job['language'] ?? null ),
+	'The output schema declares it and the other two abilities return it. Without it a caller '
+	. 'cannot tell which language the answer is in, and core answers ability_invalid_output '
+	. 'for nothing at all.'
+);
+chk(
+	'it carries the detail block query-jobs never returns',
+	is_array( $job ) && is_array( $job['detail'] ?? null )
+	&& is_array( $job['detail']['locations'] ?? null )
+	&& array_key_exists( 'salary', $job['detail'] ?? [] )
+	&& is_array( $job['detail']['application'] ?? null ),
+	'This is the half of the reader that no ability reached until now: get-job has to call it '
+	. 'with $full = true, or the postal address, the salary and the application data are absent '
+	. 'from the only ability that exists to return them.'
+);
+chk(
+	'the detail block carries the page content rows',
+	is_array( $job )
+	&& [ 'text_image', 'wysiwyg' ] === array_column( $job['detail']['layout'] ?? [], 'layout' )
+	&& false === ( $job['detail']['layout_rows_truncated'] ?? null )
+);
+// Not ?? on the second row: the value under test IS null, and ?? cannot tell a
+// present null from a missing key.
+$rowless_row = $job['detail']['layout'][1] ?? [];
+
+chk(
+	'a content row with an image reports its URL and one without reports null',
+	is_array( $job )
+	&& 'https://example.test/wp-content/uploads/row.jpg' === ( $job['detail']['layout'][0]['image'] ?? null )
+	&& array_key_exists( 'image', $rowless_row ) && null === $rowless_row['image'],
+	'Both halves of the [string,null] declaration in one record. Until a job had a layout row '
+	. 'at all, neither half of it had ever been produced by anything.'
+);
+chk(
+	'a shortcode in a content row is returned as literal text and never executed',
+	is_array( $job ) && str_contains( (string) ( $job['detail']['layout'][0]['text'] ?? '' ), '[gallery ids="1,2"]' ),
+	'get_sub_field()\'s formatted mode pipes a wysiwyg value through acf_the_content, which '
+	. 'carries do_shortcode at priority 11 and WP_Embed::autoembed at 8. A shortcode that echoes '
+	. 'would put its bytes before the JSON body, and the bare URL on that same row would be '
+	. 'fetched and written to the database as an oembed_cache post.'
+);
+chk(
+	'a job with a job_featured row is listed and gives no reason',
+	is_array( $job ) && true === ( $job['listed'] ?? null ) && ! array_key_exists( 'listed_reason', $job ),
+	'A reason next to listed:true would be a contradiction in the same record.'
+);
+chk(
+	'url is the permalink while no application URL is set',
+	is_array( $job ) && 'https://example.test/job/184/' === ( $job['url'] ?? null )
+	&& false === ( $job['redirects_externally'] ?? null )
+);
+
+$full_job_violations = schema_type_violations( $job, $defs['jpkcom-acf-jobs/get-job']['output_schema'], 'get-job' );
+
+chk(
+	'the whole get-job response satisfies its own output schema',
+	// is_array() first: a WP_Error is an object, the schema root is an object, and
+	// schema_type_violations() would happily report no violations for it.
+	is_array( $job ) && [] === $full_job_violations,
+	'Core validates every ability result against output_schema and answers ability_invalid_output '
+	. 'in its place, so a type the reader can produce but the schema does not declare is a total '
+	. 'outage of this ability rather than a documentation defect. '
+	. implode( '; ', $full_job_violations )
+);
+
+$GLOBALS['jpkcom_test_meta_rows'][184] = [];
+
+$unlisted = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'a job with no job_featured ROW is still resolvable, and says why it is unlisted',
+	is_array( $unlisted ) && false === ( $unlisted['listed'] ?? null )
+	&& 'missing_job_featured' === ( $unlisted['listed_reason'] ?? null ),
+	'Two independent causes keep such a job out of every listing and nothing on the site reports '
+	. 'either. get-job deliberately does not apply the visibility rule as an existence test, '
+	. 'because "why does job 42 appear in no list" is the question it exists to answer.'
+);
+chk(
+	'and being unlisted does not withhold its detail block',
+	is_array( $unlisted ) && is_array( $unlisted['detail'] ?? null ),
+	'Listed and "has a detail page" are different questions: this job\'s page renders for any '
+	. 'visitor who has the link.'
+);
+
+$GLOBALS['jpkcom_test_meta_rows'][184]              = [ 'job_featured' ];
+$GLOBALS['jpkcom_test_fields'][184]['job_featured'] = false;
+
+$stored_zero = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'a job_featured row storing 0 is listed all the same',
+	is_array( $stored_zero ) && true === ( $stored_zero['listed'] ?? null )
+	&& false === ( $stored_zero['is_featured'] ?? null ),
+	'listed is an EXISTS test on the meta ROW, not on its value, and get_field() cannot tell a '
+	. 'missing row from a stored zero. Reading the value instead reports every unfeatured job as '
+	. 'unlisted.'
+);
+
+echo "\nNo detail page, no detail data\n";
+
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => [ 'url' => 'https://ats.example.test/apply/1' ] ];
+
+$redirected = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'url is the effective destination when one is set',
+	is_array( $redirected ) && 'https://ats.example.test/apply/1' === ( $redirected['url'] ?? null )
+	&& true === ( $redirected['redirects_externally'] ?? null ),
+	'job_url is \'\' or false when unset, never null, so ?? does not catch it and a permalink '
+	. 'would be reported for a page that answers 307 to somewhere else entirely.'
+);
+chk(
+	'a job that 307s every visitor away carries no detail block',
+	is_array( $redirected ) && ! array_key_exists( 'detail', $redirected ),
+	'Salary, postal address, attributes and application data are public only as a side effect of '
+	. 'a detail page rendering. For this job no such page exists, so emitting them to any '
+	. 'logged-in subscriber publishes data the site has deliberately never shown.'
+);
+chk( 'and says why', is_array( $redirected ) && 'redirects_externally' === ( $redirected['detail_omitted_reason'] ?? null ) );
+chk(
+	'while the compact record is answered in full',
+	is_array( $redirected ) && 184 === ( $redirected['id'] ?? null ) && '' !== ( $redirected['title'] ?? '' )
+	&& array_key_exists( 'is_closed', $redirected ) && array_key_exists( 'listed', $redirected ),
+	'Withholding the record entirely would leave an agent unable to answer why the job appears '
+	. 'in no list, which is what get-job is for.'
+);
+
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_expiry_date' => '2025-11-30' ];
+
+$expired = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'an expired job carries no detail block either',
+	is_array( $expired ) && ! array_key_exists( 'detail', $expired )
+	&& 'expired' === ( $expired['detail_omitted_reason'] ?? null )
+);
+chk(
+	'and is resolvable with both of its reasons',
+	is_array( $expired ) && true === ( $expired['is_expired'] ?? null )
+	&& false === ( $expired['listed'] ?? null ) && 'expired' === ( $expired['listed_reason'] ?? null )
+);
+
+// The one state in which the reader and the site disagree, and therefore the only
+// one that can show whether get-job re-decides the disclosure question itself.
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => [ 'url' => "\t \n" ] ];
+
+$reader_would  = jpkcom_acf_jobs_get_job_data( 184, true );
+$ability_says  = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'the reader on its own would publish the detail block for a whitespace-only job_url',
+	is_array( $reader_would['detail'] ?? null ),
+	'Not a statement about desired behaviour — it is what makes the next assertion a test rather '
+	. 'than a restatement. The reader trims that url, concludes the job does not redirect, and '
+	. 'emits everything.'
+);
+chk(
+	'get-job withholds it anyway',
+	is_array( $ability_says ) && ! array_key_exists( 'detail', $ability_says ),
+	'redirects.php sends every visitor without manage_options to that whitespace target and the '
+	. 'page never renders. includes/jobs-data.php is resolved through the plugin\'s file override '
+	. 'chain, so a site can replace it outright; the disclosure decision is therefore re-taken '
+	. 'here rather than inherited, and it can only ever narrow what the reader returned.'
+);
+chk(
+	'and says that the page does not render',
+	is_array( $ability_says ) && 'no_public_detail_page' === ( $ability_says['detail_omitted_reason'] ?? null )
+);
+
+echo "\nOne answer for absent and for unreadable\n";
+
+$GLOBALS['jpkcom_test_fields'][184] = [];
+
+// Every one of these is a different reason, and each of them is a fact about this
+// site that get-job must not disclose to a subscriber probing IDs.
+$probes = [
+	'an id no post carries'    => 999999,
+	'a draft job'              => 5,
+	'a post of another type'   => 700,
+	'a password-protected job' => 701,
+	'a published company'      => 182,
+	'id 0'                     => 0,
+	'a negative id'            => -7,
+	'a non-numeric string'     => 'abc',
+	'a fractional id'          => 184.5,
+	'an array'                 => [ 184 ],
+	'a boolean'                => true,
+	'null'                     => null,
+	// Never cast, only inspected: a cast of an object is a warning at best and a
+	// Throwable at worst, and a Throwable out of an ability callback is an
+	// uncaught fatal on the 6.9 floor.
+	'an object'                => new stdClass(),
+];
+
+$fingerprints = [];
+
+foreach ( $probes as $label => $probe ) {
+
+	$answer = jpkcom_acf_jobs_ability_get_job( [ 'id' => $probe ] );
+
+	chk(
+		"{$label} is refused with a 404",
+		$answer instanceof WP_Error && 'jpkcom_acf_jobs_job_not_found' === $answer->get_error_code()
+		&& 404 === ( $answer->get_error_data()['status'] ?? null ),
+		'Not a 500 and not a 200 with an empty record: an agent has to be able to tell "there is '
+		. 'nothing here" from "this site is broken" in one turn.'
+	);
+
+	if ( $answer instanceof WP_Error ) {
+		$fingerprints[ $label ] = $answer->get_error_code() . '|' . $answer->get_error_message()
+			. '|' . var_export( $answer->get_error_data(), true );
+	}
+}
+
+chk(
+	'all thirteen refusals are indistinguishable from one another',
+	1 === count( array_unique( $fingerprints ) ) && count( $probes ) === count( $fingerprints )
+	// Named explicitly, or twelve identical 501 placeholders would satisfy this.
+	&& str_contains( (string) reset( $fingerprints ), 'jpkcom_acf_jobs_job_not_found' ),
+	'Any difference at all — a different code, a different word, a different status — turns '
+	. 'get-job into a way for every logged-in subscriber to find out which post IDs this site '
+	. 'holds and what type they are. Distinct answers: ' . implode( ' / ', array_keys( array_unique( $fingerprints ) ) )
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$GLOBALS['jpkcom_test_get_post_calls'] = 0;
+
+jpkcom_acf_jobs_ability_get_job( [ 'id' => 5 ] );
+
+$cost_of_a_draft = $GLOBALS['jpkcom_test_get_post_calls'];
+
+$GLOBALS['jpkcom_test_get_post_calls'] = 0;
+
+jpkcom_acf_jobs_ability_get_job( [ 'id' => 999999 ] );
+
+$cost_of_nothing = $GLOBALS['jpkcom_test_get_post_calls'];
+
+chk(
+	'and neither of them costs more work than the other',
+	1 === $cost_of_a_draft && 1 === $cost_of_nothing && [] === $GLOBALS['jpkcom_test_queries'],
+	'An answer is given away by what it costs as readily as by what it says. Both paths stop at '
+	. 'the reader\'s gate after exactly one post lookup and run no query at all — a second lookup '
+	. 'on one of the two branches is a timing signal that says the post is there. Measured: '
+	. $cost_of_a_draft . ' and ' . $cost_of_nothing . ' lookups.'
+);
+
+chk(
+	'a missing id is a 400 naming the parameter, not a 404',
+	( static function (): bool {
+		$answer = jpkcom_acf_jobs_ability_get_job( [] );
+
+		return $answer instanceof WP_Error && 400 === ( $answer->get_error_data()['status'] ?? null )
+			&& str_contains( $answer->get_error_message(), 'id' );
+	} )(),
+	'This one says nothing about which IDs exist, and answering "no such job" for a call that '
+	. 'named no job at all would send an agent looking for a better ID instead of a better call.'
+);
+chk(
+	'input that is not an object at all is a 400 too',
+	jpkcom_acf_jobs_ability_get_job( 'nonsense' ) instanceof WP_Error
+	&& 400 === ( jpkcom_acf_jobs_ability_get_job( 'nonsense' )->get_error_data()['status'] ?? null )
+);
+
+$GLOBALS['jpkcom_test_fields'][184]     = [];
+$GLOBALS['jpkcom_test_meta_rows'][184]  = [];
+$GLOBALS['jpkcom_test_rows'][184]       = [];
+$GLOBALS['jpkcom_test_attachments']     = [];
+
 // Deliberately after the resolver assertion above: a constant cannot be undefined
 // again, and this is the branch a real multilingual site takes.
 define( 'ICL_LANGUAGE_CODE', 'fr' );
@@ -1100,6 +1503,14 @@ forbid_in_ability_path(
 	'/\b(gm)?date\s*\(/',
 	'current_time() is the only permitted source of "today", and stored dates go through '
 	. 'jpkcom_acf_jobs_normalise_date().'
+);
+
+forbid_in_ability_path(
+	'no message in the ability path distinguishes absent from unreadable',
+	'/does not exist|no such job/i',
+	'Two different messages for "absent" and "not readable" turn get-job into a probe for which '
+	. 'IDs exist, callable by any logged-in subscriber. One message, one code — and the wording '
+	. 'that would break it is the wording that comes most naturally.'
 );
 
 forbid_in_ability_path(

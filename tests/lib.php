@@ -285,7 +285,14 @@ function get_locale(): string {
 	return 'en_GB';
 }
 
+// Counted, because "how much work did this cost" is as much a part of an answer as
+// the answer itself: two refusals that differ only in the number of lookups they
+// perform still tell a caller which of the two IDs exists.
+$GLOBALS['jpkcom_test_get_post_calls'] = 0;
+
 function get_post( mixed $id = null ): ?WP_Post {
+	$GLOBALS['jpkcom_test_get_post_calls']++;
+
 	// Mirrors real get_post(): a falsy id ( null, 0, '' ) is "empty" and falls
 	// back to the current global post rather than failing lookup outright.
 	// jpkcom_acf_jobs_get_job_data()'s `$post_id < 1` guard exists precisely
@@ -370,8 +377,18 @@ function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string 
 	return trim( strip_tags( $text ) );
 }
 
+// Attachment IDs a test wants to resolve to a URL. Empty by default, so an
+// unseeded image field still reports the false ACF gives for a missing file.
+$GLOBALS['jpkcom_test_attachments'] = [];
+
 function wp_get_attachment_image_src( int $id, string $size = 'thumbnail' ): array|false {
-	return false;
+	$url = $GLOBALS['jpkcom_test_attachments'][ $id ] ?? null;
+
+	if ( null === $url ) {
+		return false;
+	}
+
+	return [ $url, 300, 200, false ];
 }
 
 // Meta keys that exist as a ROW, whatever their value. job_featured is the one
@@ -385,22 +402,75 @@ function metadata_exists( string $meta_type, int $object_id, string $meta_key ):
 // The five ACF flexible-content functions the reader's detail branch walks
 // job_layout_content with. get_sub_field()'s second argument is the same
 // $format_value switch get_field() carries, and it is false for the same reason.
+//
+// Rows a test wants the reader to find, keyed by post ID and then by field name,
+// each row a map of sub-field name => value plus an acf_fc_layout. Empty by
+// default, so a test that seeds nothing sees exactly what ACF reports for a job
+// with no content rows.
+$GLOBALS['jpkcom_test_rows'] = [];
+
+// The single active loop, modelling ACF's loop stack far enough for one reader.
+$GLOBALS['jpkcom_test_row_loop'] = null;
+
 function have_rows( string $selector, mixed $post_id = false ): bool {
+	$key = (int) $post_id . '|' . $selector;
+
+	if ( ( $GLOBALS['jpkcom_test_row_loop']['key'] ?? null ) !== $key ) {
+		$GLOBALS['jpkcom_test_row_loop'] = [
+			'key'   => $key,
+			'rows'  => $GLOBALS['jpkcom_test_rows'][ (int) $post_id ][ $selector ] ?? [],
+			'index' => -1,
+		];
+	}
+
+	$loop = $GLOBALS['jpkcom_test_row_loop'];
+
+	if ( ( $loop['index'] + 1 ) < count( $loop['rows'] ) ) {
+		return true;
+	}
+
+	// Real have_rows() pops the exhausted loop off ACF's stack, which is what lets
+	// a second read of the same field start over instead of finding no rows.
+	$GLOBALS['jpkcom_test_row_loop'] = null;
+
 	return false;
 }
 
 function the_row( bool $format = false ): array {
-	return [];
+	if ( null === $GLOBALS['jpkcom_test_row_loop'] ) {
+		return [];
+	}
+
+	$GLOBALS['jpkcom_test_row_loop']['index']++;
+
+	return current_test_row();
+}
+
+/**
+ * Return the row the loop currently points at.
+ *
+ * @return array The current row, or [] when no loop is active.
+ */
+function current_test_row(): array {
+	$loop = $GLOBALS['jpkcom_test_row_loop'];
+
+	if ( null === $loop || $loop['index'] < 0 ) {
+		return [];
+	}
+
+	return $loop['rows'][ $loop['index'] ] ?? [];
 }
 
 function get_row_layout(): string|false {
-	return false;
+	return current_test_row()['acf_fc_layout'] ?? false;
 }
 
 function get_sub_field( string $selector, bool $format_value = true ): mixed {
-	return null;
+	return current_test_row()[ $selector ] ?? null;
 }
 
 function reset_rows(): bool {
+	$GLOBALS['jpkcom_test_row_loop'] = null;
+
 	return true;
 }

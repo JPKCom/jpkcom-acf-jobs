@@ -1384,7 +1384,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                         ],
                         'detail_omitted_reason' => [
                             'type'        => 'string',
-                            'description' => __( 'Why no detail block is present. Either "redirects_externally" or "expired": in both states the job has no detail page for a visitor, so its address, salary and application data were never published and are withheld here too.', 'jpkcom-acf-jobs' ),
+                            'description' => __( 'Why no detail block is present. "redirects_externally" when an application URL sends every visitor away before the page renders, "expired" when the page redirects to the job archive, and "no_public_detail_page" when the page does not render for a visitor for any other reason. In all three states the address, the salary and the application data of this job were never published to anybody, so they are withheld here too.', 'jpkcom-acf-jobs' ),
                         ],
                         'language'              => $language_schema,
                         'detail'                => [
@@ -2402,12 +2402,140 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
 }
 
+if ( ! function_exists( function: 'jpkcom_acf_jobs_detail_page_renders' ) ) {
+
+    /**
+     * Decide whether a job's own page would render for an anonymous visitor.
+     *
+     * This is the question the detail block depends on, and it is not the same
+     * question as "is this job listed". Address, salary, attributes and
+     * application data are public only as a side effect of a job's detail page
+     * rendering, so for a job that has no such page they were never published to
+     * anybody and emitting them to a logged-in subscriber would publish data the
+     * site has deliberately never shown. A job that is merely absent from every
+     * listing has a page like any other and keeps its detail block.
+     *
+     * Three states answer false, and each of them is a redirect in
+     * includes/redirects.php:
+     *
+     * 1. job_url is set — :32-86 sends every caller without manage_options to that
+     *    target with a 307 before single-job.php runs.
+     * 2. The job has expired — :132-173 sends every caller without edit_post to the
+     *    job archive with a 307.
+     * 3. The post carries a password — no public page in any meaningful sense, and
+     *    the reader's own gate refuses such a job outright.
+     *
+     * The job_url test mirrors redirects.php literally: ! empty() on the RAW value,
+     * NOT the trimmed value the reader compares. A url of "   " is not empty, so
+     * the site really does redirect to it, while a reader that trims first
+     * concludes the job does not redirect at all and returns everything. That
+     * difference is the whole reason this predicate exists as a second, independent
+     * decision rather than as a comment on the reader.
+     *
+     * The expiry test deliberately does NOT mirror redirects.php literally.
+     * redirects.php compares the stored value against a Y-m-d today as strings, and
+     * ACF hands out Ymd whenever the field's key reference row is missing — the
+     * state includes/wpml-acf-field-keys-fix.php exists to repair — so '20251130'
+     * < '2026-01-15' holds only by accident of the same leading digits. The shared
+     * normaliser is used instead, which is also what the visibility rule compares.
+     *
+     * Nothing here throws for any input, and a false is always the safe answer: the
+     * caller may only ever narrow what it emits on the strength of it.
+     *
+     * @since 1.4.0
+     *
+     * @param int $post_id Job post ID.
+     * @return bool True when a visitor would be served the job's own page.
+     */
+    function jpkcom_acf_jobs_detail_page_renders( int $post_id ): bool {
+
+        if ( $post_id < 1 || ! function_exists( function: 'get_field' ) ) {
+
+            return false;
+
+        }
+
+        // Guarded because real get_post( 0 ) treats 0 as empty and falls back to
+        // the global post — the same footgun the reader's gate carries — and
+        // because a job page cannot render for anything that is not a published,
+        // unprotected job in the first place.
+        $post = get_post( $post_id );
+
+        if ( ! $post instanceof WP_Post ) {
+
+            return false;
+
+        }
+
+        if ( $post->post_type !== 'job' || $post->post_status !== 'publish' || $post->post_password !== '' ) {
+
+            return false;
+
+        }
+
+        $job_url = get_field( 'job_url', $post_id, true );
+
+        if ( is_array( value: $job_url ) && ! empty( $job_url['url'] ) ) {
+
+            return false;
+
+        }
+
+        if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_date' ) ) {
+
+            // The date normaliser is part of the overridable data layer. Without it
+            // the expiry cannot be decided, and the answer that withholds data is
+            // the only safe one.
+            return false;
+
+        }
+
+        $expiry = jpkcom_acf_jobs_normalise_date( get_field( 'job_expiry_date', $post_id, true ) );
+
+        // Through its last day, matching the >= comparison of the visibility rule,
+        // and against the site timezone rather than UTC.
+        if ( $expiry !== null && $expiry < current_time( 'Y-m-d' ) ) {
+
+            return false;
+
+        }
+
+        return true;
+
+    }
+
+}
+
 if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
 
     /**
      * Execute callback for jpkcom-acf-jobs/get-job.
      *
-     * Not implemented in this build, for the same reason as query-jobs above.
+     * Answers "everything this site publishes about job N", including the detail
+     * data only its own page carries, and answers it for jobs no listing contains —
+     * that is what separates this ability from a query-jobs of one result. A job
+     * with no job_featured row, or an expired one, is resolvable here with `listed`
+     * false and the reason; applying the visibility rule as an existence test
+     * instead would leave "why does job 42 appear in no list" unanswerable by any
+     * ability.
+     *
+     * Two rules hold this callback together:
+     *
+     * 1. **One answer for "absent" and for "not readable".** The same code, the
+     *    same message, the same 404, and the same amount of work, for an ID that
+     *    names nothing, an ID that names a draft, a page, a revision, a company or
+     *    a password-protected job, and an ID that is not a positive integer.
+     *    Anything else — a distinct message, an extra lookup, a log line — turns
+     *    this ability into a way for every logged-in subscriber to enumerate which
+     *    post IDs a site holds. Only the shape of the CALL is answered precisely: a
+     *    request that names no id at all gets a 400 naming the parameter, which
+     *    says nothing about any ID.
+     * 2. **The detail-page rule is re-decided here, not inherited.** The reader is
+     *    called with $full = true and applies the rule itself, but
+     *    includes/jobs-data.php is resolved through the plugin's file override
+     *    chain and a site may replace it outright. jpkcom_acf_jobs_detail_page_renders()
+     *    is therefore re-run over the result. It can only ever remove the detail
+     *    block, never add one, so this is a narrowing and never a disclosure.
      *
      * @since 1.4.0
      *
@@ -2416,11 +2544,114 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
      */
     function jpkcom_acf_jobs_ability_get_job( mixed $input = null ): array|WP_Error {
 
-        return jpkcom_acf_jobs_ability_error(
-            'jpkcom_acf_jobs_not_implemented',
-            __( 'This ability is not available in this build.', 'jpkcom-acf-jobs' ),
-            501
-        );
+        if ( ! function_exists( function: 'get_field' ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_acf_missing',
+                __( 'Advanced Custom Fields Pro is not active on this site, so the job fields cannot be read. Reading the stored values directly is deliberately not attempted: without ACF the field definitions are missing too, and every value would be returned in its raw stored shape.', 'jpkcom-acf-jobs' ),
+                503
+            );
+
+        }
+
+        // Checked rather than assumed, for the same reason as in query-jobs: a
+        // partial override of the data layer becomes an error message instead of a
+        // fatal. Answering the 404 below in that state would be worse than either —
+        // it would report every job on the site as absent.
+        if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_data_layer_missing',
+                __( 'The job data layer is unavailable on this site, so no job can be read.', 'jpkcom-acf-jobs' ),
+                500
+            );
+
+        }
+
+        if ( $input === null ) {
+
+            $input = [];
+
+        }
+
+        if ( ! is_array( value: $input ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_invalid_input',
+                __( 'The input of jpkcom-acf-jobs/get-job has to be an object carrying an "id" property, for example {"id": 42}.', 'jpkcom-acf-jobs' )
+            );
+
+        }
+
+        if ( ! array_key_exists( 'id', $input ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_invalid_input',
+                __( 'The "id" parameter is required and names the job to return. It is a job post ID as returned by jpkcom-acf-jobs/query-jobs, not a title and not a slug.', 'jpkcom-acf-jobs' )
+            );
+
+        }
+
+        // Resolved without a cast, because a cast of an object without __toString
+        // throws and a Throwable out of an ability callback is an uncaught fatal on
+        // the 6.9 floor. A JSON number arrives as int or float depending on how it
+        // was written, and core's own integer check accepts a numeric string, so
+        // all three integral spellings are honoured and nothing else is.
+        $id  = 0;
+        $raw = $input['id'];
+
+        if ( is_int( value: $raw ) ) {
+
+            $id = $raw;
+
+        } elseif ( is_float( value: $raw ) && $raw >= 1.0 && $raw < (float) PHP_INT_MAX && floor( $raw ) === $raw ) {
+
+            $id = (int) $raw;
+
+        } elseif ( is_string( value: $raw ) && ctype_digit( trim( string: $raw ) ) ) {
+
+            $id = (int) trim( string: $raw );
+
+        }
+
+        // $full is unconditionally true. The reader owns the detail-page rule and
+        // needs to be asked for the full record to apply it at all: called with
+        // false it returns the compact record, which carries neither `listed` nor
+        // any reason, and the caller would be told nothing about why it got less
+        // than it asked for.
+        //
+        // An unresolvable id lands here as 0, which the reader's own gate refuses
+        // exactly as it refuses a draft — one code path, one answer, and no branch
+        // above it that could be timed apart.
+        $record = jpkcom_acf_jobs_get_job_data( $id, true );
+
+        if ( ! is_array( value: $record ) || $record === [] ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_job_not_found',
+                __( 'That id does not resolve to a job that can be read. The answer is deliberately identical for an id naming nothing at all, for one naming something other than a published, unprotected job, and for one that is not a positive integer: any difference between those cases would let every logged-in user find out which post IDs this site holds. Call jpkcom-acf-jobs/query-jobs for ids that resolve.', 'jpkcom-acf-jobs' ),
+                404
+            );
+
+        }
+
+        if ( ! jpkcom_acf_jobs_detail_page_renders( $id ) ) {
+
+            unset( $record['detail'] );
+
+            // Only when the reader named no reason of its own. The two it names
+            // are more specific than anything that can be derived from a boolean.
+            if ( ! is_string( value: $record['detail_omitted_reason'] ?? null ) || $record['detail_omitted_reason'] === '' ) {
+
+                $record['detail_omitted_reason'] = 'no_public_detail_page';
+
+            }
+
+        }
+
+        $record['language'] = jpkcom_acf_jobs_ability_language();
+
+        return $record;
 
     }
 
