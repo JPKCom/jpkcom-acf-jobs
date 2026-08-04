@@ -1266,6 +1266,12 @@ chk(
 
 $GLOBALS['jpkcom_test_meta_rows'][184] = [];
 
+// Stated as a fixture rather than derived, because that is the whole point: two
+// independent clauses of the shared rule exclude a job with no job_featured row —
+// the EXISTS clause and the meta_key the ordering needs — and neither of them is
+// visible to PHP.
+$GLOBALS['jpkcom_test_unlisted'] = [ 184 ];
+
 $unlisted = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
 
 chk(
@@ -1283,6 +1289,9 @@ chk(
 	. 'visitor who has the link.'
 );
 
+// The row exists and holds zero, so the rule's EXISTS clause is satisfied and the
+// site lists the job — it just does not sort it first.
+$GLOBALS['jpkcom_test_unlisted']                    = [];
 $GLOBALS['jpkcom_test_meta_rows'][184]              = [ 'job_featured' ];
 $GLOBALS['jpkcom_test_fields'][184]['job_featured'] = false;
 
@@ -1291,10 +1300,11 @@ $stored_zero = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
 chk(
 	'a job_featured row storing 0 is listed all the same',
 	is_array( $stored_zero ) && true === ( $stored_zero['listed'] ?? null )
-	&& false === ( $stored_zero['is_featured'] ?? null ),
+	&& false === ( $stored_zero['is_featured'] ?? null )
+	&& ! array_key_exists( 'listed_reason', $stored_zero ),
 	'listed is an EXISTS test on the meta ROW, not on its value, and get_field() cannot tell a '
 	. 'missing row from a stored zero. Reading the value instead reports every unfeatured job as '
-	. 'unlisted.'
+	. 'unlisted — and a reason next to listed:true is a contradiction in the same record.'
 );
 
 echo "\nNo detail page, no detail data\n";
@@ -1326,7 +1336,11 @@ chk(
 	. 'in no list, which is what get-job is for.'
 );
 
+// A spelling the rule and PHP both read the same way, so both exclude it. That
+// agreement is the normal case and the fixture has to say so: an "expired but
+// listed" record is a state no site can produce.
 $GLOBALS['jpkcom_test_fields'][184] = [ 'job_expiry_date' => '2025-11-30' ];
+$GLOBALS['jpkcom_test_unlisted']    = [ 184 ];
 
 $expired = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
 
@@ -1340,6 +1354,84 @@ chk(
 	is_array( $expired ) && true === ( $expired['is_expired'] ?? null )
 	&& false === ( $expired['listed'] ?? null ) && 'expired' === ( $expired['listed_reason'] ?? null )
 );
+
+echo "\nlisted is answered by the visibility query, not by a paraphrase of it\n";
+
+// The state where a PHP re-derivation and the query part company. MariaDB casts
+// '2025-11-30 00:00:00' to the DATE 2025-11-30 — measured on the reference
+// instance — so the rule's own comparison finds the job expired and drops it,
+// while jpkcom_acf_jobs_normalise_date() refuses the value outright and every
+// PHP reading of it concludes "not expired".
+$GLOBALS['jpkcom_test_fields'][184]     = [ 'job_expiry_date' => '2025-11-30 00:00:00' ];
+$GLOBALS['jpkcom_test_meta_rows'][184]  = [ 'job_featured' ];
+$GLOBALS['jpkcom_test_unlisted']        = [ 184 ];
+$GLOBALS['jpkcom_test_queries']         = [];
+
+$verdict       = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+$verdict_query = $GLOBALS['jpkcom_test_queries'][0] ?? [];
+$verdict_cost  = count( $GLOBALS['jpkcom_test_queries'] );
+$listed_by_query = in_array(
+	184,
+	array_column( ( jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 50 ] )['jobs'] ?? [] ), 'id' ),
+	true
+);
+
+chk(
+	'get-job and query-jobs agree about whether a job is listed',
+	is_array( $verdict ) && ( $verdict['listed'] ?? null ) === $listed_by_query,
+	'Two abilities in one feature answering the same question differently is the defect this '
+	. 'assertion exists for. listed is defined as "does this job satisfy the visibility rule", and '
+	. 'the visibility rule is jpkcom_acf_jobs_build_job_query_args() — not a PHP paraphrase of it, '
+	. 'which cannot see a DATE cast and drifts the moment the rule changes. get-job said '
+	. var_export( $verdict['listed'] ?? null, true ) . ', query-jobs said '
+	. var_export( $listed_by_query, true )
+);
+chk(
+	'get-job asks the shared rule about this one job',
+	[ 184 ] === ( $verdict_query['post__in'] ?? null )
+	&& 'job' === ( $verdict_query['post_type'] ?? null )
+	&& 'publish' === ( $verdict_query['post_status'] ?? null )
+	&& false === ( $verdict_query['has_password'] ?? null )
+	&& 'job_featured' === ( $verdict_query['meta_key'] ?? null )
+	&& is_array( $verdict_query['meta_query'] ?? null ),
+	'It has to be the same arguments the archive and the shortcode run, restricted to one id. A '
+	. 'locally assembled meta_query would be a second copy of the rule and would drift from it '
+	. 'exactly as the PHP paraphrase did.'
+);
+chk(
+	'and the verdict query fetches one id and no total',
+	'ids' === ( $verdict_query['fields'] ?? null ) && 1 === ( $verdict_query['posts_per_page'] ?? null )
+	&& true === ( $verdict_query['no_found_rows'] ?? null ) && 1 === $verdict_cost,
+	'One bounded query on a single-record ability. Nothing here needs a total, no post row has to '
+	. 'come back, and the presence or absence of the id IS the answer.'
+);
+chk(
+	'a reason PHP cannot establish is reported as unknown rather than guessed',
+	is_array( $verdict ) && false === ( $verdict['listed'] ?? null )
+	&& 'unknown' === ( $verdict['listed_reason'] ?? null ),
+	'listed_reason stays a PHP determination because it is an explanation rather than a verdict, '
+	. 'but it may never contradict the verdict. Here the rule excluded the job for a reason no PHP '
+	. 'reading of the stored value can see, and an honest "unknown" beats a confident wrong one.'
+);
+
+// The mirror image: the rule returns the job while the PHP reading found a reason
+// it should not be listed. The verdict wins, and the contradiction is removed
+// rather than published.
+$GLOBALS['jpkcom_test_meta_rows'][184] = [];
+$GLOBALS['jpkcom_test_unlisted']       = [];
+
+$contradiction = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'a reason is never published beside listed:true',
+	is_array( $contradiction ) && true === ( $contradiction['listed'] ?? null )
+	&& ! array_key_exists( 'listed_reason', $contradiction ),
+	'The reason is an explanation of the verdict. Carrying one that explains the opposite verdict '
+	. 'is a record that contradicts itself in two adjacent properties, and a client has no way to '
+	. 'tell which half to believe.'
+);
+
+$GLOBALS['jpkcom_test_meta_rows'][184] = [ 'job_featured' ];
 
 echo "\nA stored date nobody can read is not a date that says \"never expires\"\n";
 

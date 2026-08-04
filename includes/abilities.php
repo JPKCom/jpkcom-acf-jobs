@@ -1075,7 +1075,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                 ],
                 'is_expired'           => [
                     'type'        => 'boolean',
-                    'description' => __( 'True when the expiry date has passed. Expired jobs are absent from every listing and their pages redirect to the job archive.', 'jpkcom-acf-jobs' ),
+                    'description' => __( 'True when the expiry date has passed. Expired jobs are absent from every listing and their pages redirect to the job archive. This is a reading of the stored value and can differ from what the site visibility rule concludes: a date stored in a spelling this plugin cannot read is reported here as not expired, while the rule\'s own SQL comparison may still resolve it to a date and exclude the job. Where the two differ, the "listed" property of jpkcom-acf-jobs/get-job is the one that says what the site does.', 'jpkcom-acf-jobs' ),
                 ],
                 'summary'              => [
                     'type'        => 'string',
@@ -1376,11 +1376,11 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     'properties' => $job_schema['properties'] + [
                         'listed'                => [
                             'type'        => 'boolean',
-                            'description' => __( 'Whether this job appears in the site listings and in jpkcom-acf-jobs/query-jobs.', 'jpkcom-acf-jobs' ),
+                            'description' => __( 'Whether this job appears in the site listings and in jpkcom-acf-jobs/query-jobs. Answered by running the site\'s own visibility query for this one job rather than by re-deriving the rule, so it cannot disagree with what query-jobs returns.', 'jpkcom-acf-jobs' ),
                         ],
                         'listed_reason'         => [
                             'type'        => 'string',
-                            'description' => __( 'Why the job is not listed. Present only when listed is false. Either "missing_job_featured" or "expired".', 'jpkcom-acf-jobs' ),
+                            'description' => __( 'Why the job is not listed. Present only when listed is false. "missing_job_featured" when the job carries no job_featured value at all, "expired" when its expiry date has passed, and "unknown" when the visibility rule excluded the job for something the stored values do not explain — an expiry date in a spelling this plugin cannot read is the usual cause. An explicit unknown is deliberate: the alternative is naming the most plausible-looking cause and being wrong.', 'jpkcom-acf-jobs' ),
                         ],
                         'detail_omitted_reason' => [
                             'type'        => 'string',
@@ -2402,6 +2402,95 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
 }
 
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_job_is_listed' ) ) {
+
+    /**
+     * Ask the site visibility rule whether it returns this one job.
+     *
+     * The verdict comes from the rule itself, restricted to a single post ID,
+     * rather than from a second reading of the same meta in PHP. Spec section 5.3
+     * defines `listed` as whether the job satisfies the visibility rule, and the
+     * visibility rule is jpkcom_acf_jobs_build_job_query_args() — not a paraphrase
+     * of it.
+     *
+     * A paraphrase was measured to be wrong, not merely fragile. MariaDB casts a
+     * stored job_expiry_date of '2025-11-30 00:00:00' to the DATE 2025-11-30
+     * through the rule's own type => 'DATE' comparison and drops the job, while
+     * jpkcom_acf_jobs_normalise_date() refuses that spelling outright and every PHP
+     * reading of it concludes "not expired". get-job then reported listed: true for
+     * a job query-jobs would not return — two abilities in one feature answering the
+     * same question differently. Asking the query removes the entire class rather
+     * than that one instance of it: any later change to the rule is reflected here
+     * automatically, and no copy of it can drift again.
+     *
+     * The jpkcom_acf_jobs_ability_query_args filter is deliberately NOT applied. It
+     * exists so a site can shape what query-jobs lists; applying it to a verdict
+     * about the site's own rule would let a callback make this answer disagree with
+     * the rule it reports on.
+     *
+     * @since 1.4.0
+     *
+     * @param int $post_id Job post ID.
+     * @return bool True when the site visibility rule returns this job.
+     */
+    function jpkcom_acf_jobs_ability_job_is_listed( int $post_id ): bool {
+
+        if ( $post_id < 1 || ! function_exists( function: 'jpkcom_acf_jobs_build_job_query_args' ) ) {
+
+            return false;
+
+        }
+
+        $args = jpkcom_acf_jobs_build_job_query_args(
+            [
+                'post_status'                => 'publish',
+                'posts_per_page'             => 1,
+                'paged'                      => 1,
+                'exclude_password_protected' => true,
+            ]
+        );
+
+        // Re-asserted after the builder, which a site may replace through the
+        // plugin's file override chain. A widened rule would answer "listed" for a
+        // draft.
+        $args['post_type']           = 'job';
+        $args['post_status']         = 'publish';
+        $args['has_password']        = false;
+        $args['post__in']            = [ $post_id ];
+        $args['fields']              = 'ids';
+        $args['no_found_rows']       = true;
+        $args['ignore_sticky_posts'] = true;
+
+        $query = new WP_Query( $args );
+
+        $found = [];
+
+        foreach ( (array) $query->posts as $result ) {
+
+            // Never casts an object: absint() of one is a warning and a 1, and a
+            // site filter is free to have set `fields` back to full posts.
+            if ( $result instanceof WP_Post ) {
+
+                $found[] = (int) $result->ID;
+
+                continue;
+
+            }
+
+            if ( is_scalar( value: $result ) ) {
+
+                $found[] = absint( $result );
+
+            }
+
+        }
+
+        return in_array( $post_id, $found, true );
+
+    }
+
+}
+
 if ( ! function_exists( function: 'jpkcom_acf_jobs_detail_page_renders' ) ) {
 
     /**
@@ -2659,6 +2748,27 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
                 __( 'That id does not resolve to a job that can be read. The answer is deliberately identical for an id naming nothing at all, for one naming something other than a published, unprotected job, and for one that is not a positive integer: any difference between those cases would let every logged-in user find out which post IDs this site holds. Call jpkcom-acf-jobs/query-jobs for ids that resolve.', 'jpkcom-acf-jobs' ),
                 404
             );
+
+        }
+
+        // The verdict, from the rule rather than from a reading of the same meta.
+        // See jpkcom_acf_jobs_ability_job_is_listed(): the reader's own `listed` is
+        // a PHP paraphrase and was measured disagreeing with the query for a
+        // malformed expiry date.
+        $record['listed'] = jpkcom_acf_jobs_ability_job_is_listed( $id );
+
+        // listed_reason stays a PHP determination, because it is an explanation
+        // rather than a verdict — but it may never contradict the verdict. A reason
+        // beside listed:true is a self-contradicting record, and a job the rule
+        // excluded for something no field reading explains gets an explicit
+        // "unknown" rather than the most plausible-looking cause.
+        if ( $record['listed'] ) {
+
+            unset( $record['listed_reason'] );
+
+        } elseif ( ! is_string( value: $record['listed_reason'] ?? null ) || $record['listed_reason'] === '' ) {
+
+            $record['listed_reason'] = 'unknown';
 
         }
 

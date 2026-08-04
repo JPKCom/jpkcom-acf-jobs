@@ -213,6 +213,20 @@ class WP_Query {
 			}
 		}
 
+		// The visibility rule, as the SQL side concludes it. This stub cannot run a
+		// meta_query — and the point of answering `listed` with a query rather than
+		// with a PHP paraphrase is precisely that PHP cannot run one either. So the
+		// exclusion is stated as a fixture and applied to every query that carries
+		// the shared rule, which is what jpkcom_acf_jobs_build_job_query_args()
+		// stamps with meta_key => job_featured.
+		if ( 'job_featured' === ( $args['meta_key'] ?? null ) && [] !== $GLOBALS['jpkcom_test_unlisted'] ) {
+			$ids = array_values( array_diff( $ids, $GLOBALS['jpkcom_test_unlisted'] ) );
+		}
+
+		if ( isset( $args['post__in'] ) ) {
+			$ids = array_values( array_intersect( $ids, array_map( 'intval', (array) $args['post__in'] ) ) );
+		}
+
 		$total = count( $ids );
 		$limit = (int) ( $args['posts_per_page'] ?? 0 );
 		$paged = max( 1, (int) ( $args['paged'] ?? 1 ) );
@@ -254,6 +268,10 @@ class WP_Query {
 }
 
 $GLOBALS['jpkcom_test_queries'] = [];
+
+// Post IDs the site visibility rule excludes. Empty by default, so every existing
+// assertion still sees a stub that returns everything of the requested type.
+$GLOBALS['jpkcom_test_unlisted'] = [];
 
 function get_terms( array $args = [] ): array {
 	if ( 'job-attribute' !== ( $args['taxonomy'] ?? '' ) ) {

@@ -716,6 +716,15 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
         // absent from every listing although its page renders perfectly well.
         // The EXISTS test is on the meta row, not on the value: the visibility
         // rule excludes a missing row, not a stored zero.
+        //
+        // This is a PHP reading of the stored values and therefore a paraphrase of
+        // the rule rather than the rule itself. It cannot see what the rule's own
+        // SQL comparison sees — a job_expiry_date of '2025-11-30 00:00:00' is cast
+        // to a DATE and excluded there, while jpkcom_acf_jobs_normalise_date()
+        // refuses that spelling and everything below concludes "not expired".
+        // jpkcom_acf_jobs_ability_get_job() therefore replaces `listed` with the
+        // answer of the query itself and keeps only the reason from here. A direct
+        // caller of this function gets the paraphrase and should know it is one.
         $record['listed'] = true;
 
         if ( ! metadata_exists( 'post', $post_id, 'job_featured' ) ) {
