@@ -201,6 +201,18 @@ class WP_Query {
 	public array $query_vars   = [];
 
 	public function __construct( array $args = [] ) {
+		// Core's own anti-DoS rule, modelled rather than described:
+		// wp-includes/class-wp-query.php:866-869, byte-identical in 6.9.4 and
+		// 7.0.2, blanks s when it is not scalar or longer than 1600 BYTES. It runs
+		// inside WP_Query, after any caller has finished inspecting the arguments
+		// it passed — so a guard that only checks its own array cannot see it, and
+		// a stub that recorded the arguments verbatim would hide the whole class.
+		// What is recorded below is therefore what the query EXECUTED, not what it
+		// was handed.
+		if ( ! is_scalar( $args['s'] ?? '' ) || ( ! empty( $args['s'] ) && strlen( (string) $args['s'] ) > 1600 ) ) {
+			$args['s'] = '';
+		}
+
 		$this->query_vars                 = $args;
 		$GLOBALS['jpkcom_test_queries'][] = $args;
 

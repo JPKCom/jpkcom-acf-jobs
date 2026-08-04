@@ -101,6 +101,30 @@ if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_PER_PAGE_MAX' ) ) {
 }
 
 
+if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES' ) ) {
+
+    /**
+     * Longest search term, in bytes, that WordPress will actually apply.
+     *
+     * Read out of wp-includes/class-wp-query.php:866-869 rather than guessed. The
+     * guard there is an anti-DoS measure that silently empties `s` when it is not
+     * scalar or longer than 1600 bytes, and it runs INSIDE WP_Query — after any
+     * caller has finished inspecting the arguments it passed. The result is not a
+     * crash: the search simply stops narrowing and every post matches.
+     *
+     * Verified byte-identical on WordPress 6.9.4 (the declared floor) and 7.0.2,
+     * so there is no stricter of the two to take.
+     *
+     * strlen(), so the unit is BYTES. Counting characters would hand a 900-
+     * character accented term to a guard that counts bytes and reproduce the
+     * defect for non-ASCII callers only.
+     *
+     * @since 1.4.0
+     */
+    define( 'JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES', 1600 );
+
+}
+
 if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_PAGE_MAX' ) ) {
 
     /**
@@ -2052,6 +2076,27 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
             }
 
+            // Refused rather than truncated. WordPress empties a search term
+            // longer than this INSIDE WP_Query, so the query stops narrowing and
+            // every job matches while the response would still echo the term back
+            // as applied. Cutting the term down to the limit would answer a
+            // question the caller did not ask, which is the same wrong answer one
+            // step removed; naming the limit lets a caller shorten and retry in
+            // one turn.
+            if ( strlen( $search ) > JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES ) {
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_invalid_filter',
+                    sprintf(
+                        /* translators: 1: maximum search length in bytes, 2: length of the term received. */
+                        __( 'The "search" filter accepts at most %1$d bytes and the term sent is %2$d. WordPress itself discards a longer term while running the query, which would return every job as a search result, so it is refused here rather than applied or shortened. Note that the limit counts bytes: an accented or non-Latin character costs more than one.', 'jpkcom-acf-jobs' ),
+                        JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES,
+                        strlen( $search )
+                    )
+                );
+
+            }
+
         }
 
         $job_type_choices = jpkcom_acf_jobs_job_type_choices();
@@ -2256,6 +2301,22 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
             $args['post_status']  = 'publish';
             $args['has_password'] = false;
 
+            // The four values that decide the LIMIT, re-asserted for the same
+            // reason as the three above: the response reports page, per_page and
+            // total_pages, and each of these can make that report a lie without
+            // touching a single filter clause. Measured in
+            // wp-includes/class-wp-query.php on the 6.9.4 floor —
+            //   :2805-2808  a numeric `offset` takes precedence over `paged`, so
+            //               page 2 would return page 1's rows.
+            //   :2017-2021  posts_per_page of -1 turns `nopaging` on by itself.
+            //   :2798       a truthy `nopaging` skips the LIMIT clause entirely
+            //               and returns every row while per_page still says 10.
+            $args['posts_per_page'] = $per_page;
+            $args['paged']          = $page;
+            $args['nopaging']       = false;
+
+            unset( $args['offset'] );
+
             $dropped = '';
 
             foreach ( [ 'job_type' => 'job_type', 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $meta_key ) {
@@ -2278,7 +2339,19 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
             // was the axis this check first forgot. WP_Query ignores an absent or
             // empty s, so a callback that unsets it turns a search into a request
             // for every job on the site while `filters` still echoes the term back.
-            if ( $search !== '' && ( ! isset( $args['s'] ) || ! is_string( value: $args['s'] ) || $args['s'] === '' ) ) {
+            // The length is re-checked here as well as at input. The check above
+            // covers the term the caller sent; this one covers a callback that
+            // lengthened it past what core will apply, which is the same silent
+            // widening arriving through a different door.
+            if (
+                $search !== ''
+                && (
+                    ! isset( $args['s'] )
+                    || ! is_string( value: $args['s'] )
+                    || $args['s'] === ''
+                    || strlen( $args['s'] ) > JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES
+                )
+            ) {
 
                 $dropped = 'search';
 
@@ -2288,9 +2361,18 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
                 $tax_applied = false;
 
+                // The terms have to be there, not merely the clause. A clause with
+                // an empty terms list is not an error in core — WP_Tax_Query
+                // answers it with 1=0 — but the response would still name the
+                // attributes as applied, and "no jobs carry this attribute" is a
+                // different statement from "the filter was never run".
                 foreach ( (array) ( $args['tax_query'] ?? [] ) as $clause ) {
 
-                    if ( is_array( value: $clause ) && ( $clause['taxonomy'] ?? null ) === 'job-attribute' ) {
+                    if (
+                        is_array( value: $clause )
+                        && ( $clause['taxonomy'] ?? null ) === 'job-attribute'
+                        && ! empty( $clause['terms'] )
+                    ) {
 
                         $tax_applied = true;
 

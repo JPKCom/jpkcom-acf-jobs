@@ -1060,7 +1060,245 @@ foreach ( $dropped_axes as $axis => $case ) {
 
 }
 
+// Two more doors into the same room, both of which only the post-condition can
+// see: a callback that GROWS the search term past what core will apply, and one
+// that empties the attribute terms while leaving the clause in place.
+$post_condition_only = [
+	'a search term grown past the limit by a callback' => [
+		static fn ( array $a ): array => array_merge( $a, [ 's' => str_repeat( 'a', 1601 ) ] ),
+		[ 'search' => 'Stelle' ],
+	],
+	'attribute terms emptied by a callback' => [
+		static function ( array $a ): array {
+			if ( isset( $a['tax_query'][0]['terms'] ) ) {
+				$a['tax_query'][0]['terms'] = [];
+			}
+
+			return $a;
+		},
+		[ 'attribute' => [ 'firmenwagen' ] ],
+	],
+];
+
+foreach ( $post_condition_only as $label => $case ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $case[0];
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$caught = jpkcom_acf_jobs_ability_query_jobs( $case[1] );
+
+	chk(
+		"the post-condition catches {$label}",
+		$caught instanceof WP_Error && 'jpkcom_acf_jobs_filter_not_applied' === $caught->get_error_code(),
+		'The input-side check cannot see this one: the term was fine when the caller sent it. '
+		. 'An emptied terms list is answered by core with 1=0 rather than with every job, so the '
+		. 'result stays honest — but naming the attribute as applied when it never ran is not.'
+	);
+	chk(
+		"and no query runs for {$label}",
+		[] === $GLOBALS['jpkcom_test_queries']
+	);
+
+}
+
+// Four ways to make page, per_page and total_pages a lie without touching a
+// single filter clause. All read out of wp-includes/class-wp-query.php on the
+// 6.9.4 floor: :2805-2808 offset overrides paged, :2017-2021 a posts_per_page of
+// -1 switches nopaging on by itself, :2798 a truthy nopaging drops the LIMIT.
+$pagination_hijacks = [
+	'an offset that overrides paged' => static fn ( array $a ): array => $a + [ 'offset' => 5 ],
+	'nopaging'                       => static fn ( array $a ): array => $a + [ 'nopaging' => true ],
+	'an unbounded posts_per_page'    => static fn ( array $a ): array => array_merge( $a, [ 'posts_per_page' => -1 ] ),
+	'a page of its own choosing'     => static fn ( array $a ): array => array_merge( $a, [ 'paged' => 7 ] ),
+];
+
+foreach ( $pagination_hijacks as $label => $callback ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $callback;
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$answer = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 2, 'page' => 1 ] );
+	$ran    = listing_query();
+
+	chk(
+		"the argument filter cannot rewrite the pagination: {$label}",
+		is_array( $answer )
+		&& ! isset( $ran['offset'] ) && empty( $ran['nopaging'] )
+		&& 2 === ( $ran['posts_per_page'] ?? null ) && 1 === ( $ran['paged'] ?? null )
+		&& 2 === ( $answer['per_page'] ?? null ) && 1 === ( $answer['page'] ?? null ),
+		'per_page, page and total_pages are a promise about which slice of the result set this '
+		. 'response is. Any of these four breaks that promise without touching a filter, and the '
+		. 'caller has no way to detect it.'
+	);
+
+}
+
 unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+echo "\nA filter core will not apply must not be claimed as applied\n";
+
+/**
+ * Report every filter the response claims that the executed query did not carry.
+ *
+ * The post-condition inside the callback checks the arguments it is about to
+ * hand to WP_Query. This checks the other end: what the query actually ran,
+ * against what the response tells the caller was applied. Anything core discards
+ * *inside* WP_Query — after the callback's own check has passed — is invisible to
+ * that check and visible to this one.
+ *
+ * @param mixed $response Ability result, or a WP_Error.
+ * @param array $query    Recorded arguments of the executed listing query.
+ * @return array List of human-readable violations.
+ */
+function filters_not_carried( mixed $response, array $query ): array {
+	if ( ! is_array( $response ) ) {
+		return [];
+	}
+
+	$claimed = (array) ( $response['filters'] ?? [] );
+	$out     = [];
+
+	foreach ( [ 'job_type' => 'job_type', 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $meta_key ) {
+		if ( ! empty( $claimed[ $axis ] ) && null === find_meta_clause( $query['meta_query'] ?? null, $meta_key ) ) {
+			$out[] = "filters.{$axis} claimed, but no {$meta_key} clause was executed";
+		}
+	}
+
+	if ( ! empty( $claimed['attribute'] ) ) {
+		$terms = null;
+
+		foreach ( (array) ( $query['tax_query'] ?? [] ) as $clause ) {
+			if ( is_array( $clause ) && 'job-attribute' === ( $clause['taxonomy'] ?? null ) ) {
+				$terms = $clause['terms'] ?? null;
+			}
+		}
+
+		if ( empty( $terms ) ) {
+			$out[] = 'filters.attribute claimed, but no job-attribute terms were executed';
+		}
+	}
+
+	if ( isset( $claimed['search'] ) && ( $query['s'] ?? '' ) !== $claimed['search'] ) {
+		$out[] = sprintf(
+			'filters.search claimed as %d bytes, but the executed query carried %d',
+			strlen( (string) $claimed['search'] ),
+			strlen( (string) ( $query['s'] ?? '' ) )
+		);
+	}
+
+	if ( false === ( $claimed['include_closed'] ?? null ) && null === find_meta_clause( $query['meta_query'] ?? null, 'job_closed' ) ) {
+		$out[] = 'filters.include_closed is false, but no job_closed clause was executed';
+	}
+
+	return $out;
+}
+
+// 1600 is read from wp-includes/class-wp-query.php:867 on BOTH instances —
+// WP 6.9.4 at /home/jpk/ddev/test2 and WP 7.0.2 at /home/jpk/ddev/posts carry a
+// byte-identical guard, so there is no stricter version to take. strlen(), so the
+// unit is BYTES: a multibyte term reaches the limit in fewer characters.
+$search_limit = 1600;
+
+chk(
+	'the limit the callback enforces is the one core actually applies',
+	defined( 'JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES' )
+	&& $search_limit === JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES,
+	'Read out of the core source on both instances rather than taken on trust. If core ever '
+	. 'lowers it, this is the assertion that says so.'
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$at_limit = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => str_repeat( 'a', $search_limit ) ] );
+
+chk(
+	'a search term exactly at the limit is accepted and reaches WP_Query',
+	is_array( $at_limit ) && $search_limit === strlen( (string) ( listing_query()['s'] ?? '' ) ),
+	'The boundary is inclusive in core: the guard fires above 1600, not at it. Refusing at the '
+	. 'limit would be its own wrong answer.'
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$over_limit = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => str_repeat( 'a', $search_limit + 1 ) ] );
+
+chk(
+	'one byte over the limit is refused',
+	$over_limit instanceof WP_Error && 'jpkcom_acf_jobs_invalid_filter' === $over_limit->get_error_code()
+	&& 400 === ( $over_limit->get_error_data()['status'] ?? null ),
+	'Core empties s beyond 1600 bytes and WP_Query then matches everything, so the answer was '
+	. 'every job on the site with filters.search echoing the term back as if it had been used.'
+);
+chk(
+	'the message names the limit, so a caller can shorten and retry in one turn',
+	$over_limit instanceof WP_Error && str_contains( $over_limit->get_error_message(), (string) $search_limit )
+);
+chk(
+	'and no query ran',
+	[] === $GLOBALS['jpkcom_test_queries'],
+	'Truncating to the limit instead would return results for a query the caller never made.'
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+// 801 two-byte characters is 1602 bytes. Core counts bytes, so this is over the
+// limit even though it is well under 1600 characters; mb_strlen() here would let
+// it through and reproduce the defect for every non-ASCII caller.
+$multibyte = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => str_repeat( 'ü', 801 ) ] );
+
+chk(
+	'the limit is counted in bytes, as core counts it',
+	$multibyte instanceof WP_Error && 'jpkcom_acf_jobs_invalid_filter' === $multibyte->get_error_code()
+	&& 400 === ( $multibyte->get_error_data()['status'] ?? null ),
+	// The code and the status are asserted, not merely "an error". Counting
+	// characters still ends in a refusal, because the post-condition re-checks
+	// the length in bytes — but it arrives as filter_not_applied / 500, which
+	// tells the caller a server fault it cannot fix instead of a term it can
+	// shorten. Asserting only instanceof WP_Error left that mutation green.
+	'strlen( str_repeat( "ü", 801 ) ) is 1602. Counting characters would pass it to a core '
+	. 'guard that counts bytes, and the wrong answer would come back for accented search terms '
+	. 'only — the hardest possible version of this bug to notice.'
+);
+
+$sweep = [
+	'no input'                => [],
+	'null'                    => null,
+	'the declared default'    => $defs['jpkcom-acf-jobs/query-jobs']['input_schema']['default'],
+	'job_type'                => [ 'job_type' => [ 'FULL_TIME' ] ],
+	'company'                 => [ 'company' => [ 182 ] ],
+	'location'                => [ 'location' => [ 183 ] ],
+	'attribute'               => [ 'attribute' => [ 'firmenwagen' ] ],
+	'a short search'          => [ 'search' => 'Stelle' ],
+	'a search at the limit'   => [ 'search' => str_repeat( 'a', $search_limit ) ],
+	'a search over the limit' => [ 'search' => str_repeat( 'a', $search_limit + 1 ) ],
+	'a multibyte search'      => [ 'search' => str_repeat( 'ü', 801 ) ],
+	'include_closed=false'    => [ 'include_closed' => false ],
+	'every axis at once'      => [
+		'job_type'       => [ 'FULL_TIME' ],
+		'company'        => [ 182 ],
+		'location'       => [ 183 ],
+		'attribute'      => [ 'firmenwagen' ],
+		'search'         => 'Stelle',
+		'include_closed' => false,
+	],
+];
+
+foreach ( $sweep as $label => $spelling ) {
+
+	$GLOBALS['jpkcom_test_queries'] = [];
+
+	$swept      = jpkcom_acf_jobs_ability_query_jobs( $spelling );
+	$violations = filters_not_carried( $swept, listing_query() );
+
+	chk(
+		"filters claims nothing the query did not carry: {$label}",
+		[] === $violations,
+		'A response that reports a filter the query never applied is a wrong answer presented as '
+		. 'a right one, whether the clause was dropped by this plugin, by a site callback, or by '
+		. 'core inside WP_Query. ' . implode( '; ', $violations )
+	);
+
+}
 
 echo "\nThe page number is bounded at both ends\n";
 
