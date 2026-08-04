@@ -861,14 +861,21 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_normalise_filter' ) )
 if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_meta_clause_exists' ) ) {
 
     /**
-     * Report whether a meta_query carries a clause on a given meta key.
+     * Locate the group that directly carries a matching clause on a meta key.
      *
-     * Used as a post-condition rather than as a convenience. Between the shared
-     * builder — which a site may replace through the plugin's file override chain —
-     * and the jpkcom_acf_jobs_ability_query_args filter, a requested clause can
-     * disappear without any error, and the result of that is a response containing
-     * every job while the caller believes it filtered. That is the one failure this
-     * ability must never produce silently.
+     * Returns the enclosing GROUP rather than the clause, because a clause says
+     * nothing on its own. `job_company LIKE '"182"'` inside an OR group means "at
+     * one of these companies"; the identical clause under a top-level relation of
+     * OR means "at this company, OR anything else that matched", which is every
+     * job on the site. Nothing was removed and nothing was altered — only the
+     * operator joining them changed. A post-condition that asks whether a clause
+     * is PRESENT cannot see that, which is exactly how this defect survived three
+     * review rounds of presence checks.
+     *
+     * $must_match constrains the operators carried by the clause itself, compared
+     * case-insensitively: `compare` decides whether a clause includes or excludes,
+     * and `type` decides how the value is cast before comparison. Both invert the
+     * meaning of a clause without changing its key or its value.
      *
      * The depth limit is not decoration: the argument may have been rewritten by a
      * third-party filter, and unbounded recursion on a deep array is a stack
@@ -878,14 +885,15 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_meta_clause_exists' )
      *
      * @param mixed  $meta_query Meta query as it will reach WP_Query.
      * @param string $key        Meta key to look for.
+     * @param array  $must_match Clause attributes that must match, for example [ 'compare' => 'LIKE' ].
      * @param int    $depth      Current recursion depth. Internal.
-     * @return bool True when a clause on that key is present.
+     * @return array|null The group containing the clause, or null when there is none.
      */
-    function jpkcom_acf_jobs_ability_meta_clause_exists( mixed $meta_query, string $key, int $depth = 0 ): bool {
+    function jpkcom_acf_jobs_ability_meta_clause_group( mixed $meta_query, string $key, array $must_match = [], int $depth = 0 ): ?array {
 
         if ( ! is_array( value: $meta_query ) || $depth > 10 ) {
 
-            return false;
+            return null;
 
         }
 
@@ -899,19 +907,66 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_meta_clause_exists' )
 
             if ( isset( $clause['key'] ) && is_scalar( value: $clause['key'] ) && (string) $clause['key'] === $key ) {
 
-                return true;
+                $matches = true;
+
+                foreach ( $must_match as $attribute => $expected ) {
+
+                    $actual = $clause[ $attribute ] ?? '';
+
+                    if ( ! is_scalar( value: $actual ) || strtoupper( string: (string) $actual ) !== strtoupper( string: (string) $expected ) ) {
+
+                        $matches = false;
+
+                    }
+
+                }
+
+                if ( $matches ) {
+
+                    return $meta_query;
+
+                }
 
             }
 
-            if ( jpkcom_acf_jobs_ability_meta_clause_exists( $clause, $key, $depth + 1 ) ) {
+            $nested = jpkcom_acf_jobs_ability_meta_clause_group( $clause, $key, $must_match, $depth + 1 );
 
-                return true;
+            if ( $nested !== null ) {
+
+                return $nested;
 
             }
 
         }
 
-        return false;
+        return null;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_group_relation' ) ) {
+
+    /**
+     * Read the relation of a meta_query or tax_query group.
+     *
+     * Absent means AND, which is what both WP_Meta_Query and WP_Tax_Query default
+     * to, so a missing relation is not a divergence.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $group Query group.
+     * @return string 'AND' or the uppercased relation as given.
+     */
+    function jpkcom_acf_jobs_ability_group_relation( mixed $group ): string {
+
+        if ( ! is_array( value: $group ) || ! isset( $group['relation'] ) || ! is_scalar( value: $group['relation'] ) ) {
+
+            return 'AND';
+
+        }
+
+        return strtoupper( string: (string) $group['relation'] );
 
     }
 
@@ -1895,7 +1950,9 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
      *    ["acme"] would otherwise return every job as a filtered answer. The
      *    post-condition below re-checks that each requested clause actually
      *    reached WP_Query, because the builder is overridable and the argument
-     *    filter can drop a clause just as effectively as a bad value can.
+     *    filter can drop a clause just as effectively as a bad value can — and it
+     *    checks the operators as well as the clauses, because a relation flipped
+     *    from AND to OR leaves every clause present and inverts the answer.
      * 2. A deterministic tiebreaker. ORDER BY meta_value_num DESC, date DESC leaves
      *    ties unresolved and MySQL permutes tied rows per execution — measured,
      *    four fetches of unmodified code produced three orderings, because the
@@ -1903,8 +1960,9 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
      *    listing; here an unstable sort puts a job on two pages or on none. It is
      *    appended after the builder, never inside it: the builder is shared with
      *    the shortcode and the archive, whose ordering this feature does not
-     *    change. A site that replaces `orderby` through the argument filter takes
-     *    that determinism back into its own hands.
+     *    change. The post-condition then requires it to survive the argument
+     *    filter, together with the date direction `filters.order` reports back —
+     *    so a site may add to the query, but not re-sort what it answers with.
      * 3. Real totals for a page past the last one. WP_Query::set_found_posts()
      *    returns early when posts is empty, so found_posts and max_num_pages stay
      *    0 and a response would claim an empty corpus next to a page number of
@@ -2319,9 +2377,63 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
             $dropped = '';
 
+            // The clauses are only half of the question. What follows establishes
+            // that the query still MEANS what the caller asked for: an operator is
+            // not a value that can go missing, it is what decides what the values
+            // say together, and flipping one leaves every clause present, intact,
+            // and answering something else. Measured on WP 7.0.2: a callback that
+            // changes nothing but the top-level relation from AND to OR turns
+            // job_type=["FULL_TIME"] from 2 of 6 jobs into 6 of 6, with
+            // filters.job_type still reporting ["FULL_TIME"] as applied.
+            $meta_root = $args['meta_query'] ?? null;
+
+            // The linchpin. Under AND, a callback can only ever narrow by adding
+            // clauses; under anything else, every clause this ability built
+            // becomes optional at once.
+            if ( is_array( value: $meta_root ) && jpkcom_acf_jobs_ability_group_relation( $meta_root ) !== 'AND' ) {
+
+                $dropped = 'the combination of every filter';
+
+            }
+
+            // The site visibility rule, which is the promise the whole ability
+            // makes: these are the jobs this site lists. EXISTS turned NOT EXISTS
+            // answers with precisely the jobs it does not list.
+            if ( jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_featured', [ 'compare' => 'EXISTS' ] ) === null ) {
+
+                $dropped = 'the site visibility rule';
+
+            }
+
+            // The expiry half of that rule is an OR of three clauses, and it is
+            // read through a DATE cast: ACF stores Ymd, and comparing that as CHAR
+            // against Y-m-d makes almost every expired job compare as current.
+            $expiry_group = jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_expiry_date', [ 'compare' => 'NOT EXISTS' ] );
+
+            if (
+                $expiry_group === null
+                || jpkcom_acf_jobs_ability_group_relation( $expiry_group ) !== 'OR'
+                || jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_expiry_date', [ 'compare' => '>=', 'type' => 'DATE' ] ) === null
+            ) {
+
+                $dropped = 'the expiry rule';
+
+            }
+
+            // Each requested axis: the clause must still include rather than
+            // exclude, and its group must still be an OR — the schema promises
+            // that a job carrying ANY of the listed values is returned.
             foreach ( [ 'job_type' => 'job_type', 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $meta_key ) {
 
-                if ( $known[ $axis ] !== [] && ! jpkcom_acf_jobs_ability_meta_clause_exists( $args['meta_query'] ?? null, $meta_key ) ) {
+                if ( $known[ $axis ] === [] ) {
+
+                    continue;
+
+                }
+
+                $group = jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, $meta_key, [ 'compare' => 'LIKE' ] );
+
+                if ( $group === null || jpkcom_acf_jobs_ability_group_relation( $group ) !== 'OR' ) {
 
                     $dropped = $axis;
 
@@ -2329,9 +2441,29 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
             }
 
-            if ( ! $include_closed && ! jpkcom_acf_jobs_ability_meta_clause_exists( $args['meta_query'] ?? null, 'job_closed' ) ) {
+            if ( ! $include_closed ) {
 
-                $dropped = 'include_closed';
+                $closed_group = jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_closed', [ 'compare' => 'NOT EXISTS' ] );
+
+                if ( $closed_group === null || jpkcom_acf_jobs_ability_group_relation( $closed_group ) !== 'OR' ) {
+
+                    $dropped = 'include_closed';
+
+                }
+
+            }
+
+            // The sort is an operator too, and filters.order reports its direction
+            // back to the caller. The ID component is checked with it: it is what
+            // makes page 1 and page 2 add up to the result set exactly, which is a
+            // promise the pagination block implicitly makes.
+            if (
+                ! is_array( value: $args['orderby'] ?? null )
+                || strtoupper( string: (string) ( $args['orderby']['date'] ?? '' ) ) !== $order
+                || strtoupper( string: (string) ( $args['orderby']['ID'] ?? '' ) ) !== $order
+            ) {
+
+                $dropped = 'order';
 
             }
 
@@ -2366,17 +2498,30 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
                 // answers it with 1=0 — but the response would still name the
                 // attributes as applied, and "no jobs carry this attribute" is a
                 // different statement from "the filter was never run".
+                // operator and field are this clause's operators: NOT IN inverts
+                // the filter outright, and a field that does not match the values
+                // resolves to no terms, which WP_Tax_Query answers with 1=0.
                 foreach ( (array) ( $args['tax_query'] ?? [] ) as $clause ) {
 
                     if (
                         is_array( value: $clause )
                         && ( $clause['taxonomy'] ?? null ) === 'job-attribute'
                         && ! empty( $clause['terms'] )
+                        && strtoupper( string: (string) ( $clause['operator'] ?? 'IN' ) ) === 'IN'
+                        && (string) ( $clause['field'] ?? 'term_id' ) === 'term_id'
                     ) {
 
                         $tax_applied = true;
 
                     }
+
+                }
+
+                // Its own relation, for the same reason the meta one has one: a
+                // second clause joined with OR makes this one optional.
+                if ( jpkcom_acf_jobs_ability_group_relation( $args['tax_query'] ?? null ) !== 'AND' ) {
+
+                    $tax_applied = false;
 
                 }
 
@@ -2394,13 +2539,13 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
             // wrong answer presented as a right one.
             if ( $dropped !== '' ) {
 
-                jpkcom_acf_jobs_ability_log( 'The ' . $dropped . ' filter did not reach WP_Query.' );
+                jpkcom_acf_jobs_ability_log( 'The ' . $dropped . ' filter did not reach WP_Query as asked.' );
 
                 return jpkcom_acf_jobs_ability_error(
                     'jpkcom_acf_jobs_filter_not_applied',
                     sprintf(
                         /* translators: %s: name of the filter axis. */
-                        __( 'The "%s" filter was accepted but did not reach the query on this site, so no result is returned. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
+                        __( 'The "%s" filter was accepted, but the query this site executed does not apply it as asked, so no result is returned. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
                         $dropped
                     ),
                     500

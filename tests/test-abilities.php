@@ -1101,6 +1101,192 @@ foreach ( $post_condition_only as $label => $case ) {
 
 }
 
+/**
+ * Rewrite every first-order clause on a meta key, wherever it is nested.
+ *
+ * @param array  $mq      Meta query.
+ * @param string $key     Meta key to rewrite.
+ * @param array  $changes Keys to merge into the matching clauses.
+ * @return array The rewritten meta query.
+ */
+function rewrite_meta_clause( array $mq, string $key, array $changes ): array {
+	foreach ( $mq as $index => $clause ) {
+		if ( 'relation' === $index || ! is_array( $clause ) ) {
+			continue;
+		}
+
+		if ( $key === ( $clause['key'] ?? null ) ) {
+			$mq[ $index ] = array_merge( $clause, $changes );
+			continue;
+		}
+
+		$mq[ $index ] = rewrite_meta_clause( $clause, $key, $changes );
+	}
+
+	return $mq;
+}
+
+/**
+ * Set the relation of the group that directly contains a clause on a meta key.
+ *
+ * @param array  $mq       Meta query.
+ * @param string $key      Meta key whose enclosing group is meant.
+ * @param string $relation Relation to set.
+ * @return array The rewritten meta query.
+ */
+function set_group_relation( array $mq, string $key, string $relation ): array {
+	foreach ( $mq as $index => $clause ) {
+		if ( 'relation' === $index || ! is_array( $clause ) ) {
+			continue;
+		}
+
+		if ( $key === ( $clause['key'] ?? null ) ) {
+			$mq['relation'] = $relation;
+
+			return $mq;
+		}
+
+		$rewritten = set_group_relation( $clause, $key, $relation );
+
+		if ( $rewritten !== $clause ) {
+			$mq[ $index ] = $rewritten;
+
+			return $mq;
+		}
+	}
+
+	return $mq;
+}
+
+// Presence was the wrong question. Every callback below leaves each clause in
+// place and intact, and changes only what the clauses MEAN together — the
+// operator rather than the operand. Live baseline on /home/jpk/ddev/posts:
+// job_type=["FULL_TIME"] is 2 of 6 jobs; with the top-level relation flipped to
+// OR it is 6 of 6, and filters.job_type still says ["FULL_TIME"].
+$meaning_hijacks = [
+	'the top-level meta relation flipped to OR' => [
+		static function ( array $a ): array {
+			$a['meta_query']['relation'] = 'OR';
+
+			return $a;
+		},
+		[ 'job_type' => [ 'FULL_TIME' ] ],
+	],
+	'an axis group flipped from OR to AND' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = set_group_relation( $a['meta_query'], 'job_company', 'AND' );
+
+			return $a;
+		},
+		[ 'company' => [ 182 ] ],
+	],
+	'an axis LIKE turned into NOT LIKE' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = rewrite_meta_clause( $a['meta_query'], 'job_company', [ 'compare' => 'NOT LIKE' ] );
+
+			return $a;
+		},
+		[ 'company' => [ 182 ] ],
+	],
+	'the visibility EXISTS turned into NOT EXISTS' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = rewrite_meta_clause( $a['meta_query'], 'job_featured', [ 'compare' => 'NOT EXISTS' ] );
+
+			return $a;
+		},
+		[],
+	],
+	'the expiry group flipped from OR to AND' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = set_group_relation( $a['meta_query'], 'job_expiry_date', 'AND' );
+
+			return $a;
+		},
+		[],
+	],
+	'the expiry DATE comparison turned into CHAR' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = rewrite_meta_clause( $a['meta_query'], 'job_expiry_date', [ 'type' => 'CHAR' ] );
+
+			return $a;
+		},
+		[],
+	],
+	'the job_closed group flipped from OR to AND' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = set_group_relation( $a['meta_query'], 'job_closed', 'AND' );
+
+			return $a;
+		},
+		[ 'include_closed' => false ],
+	],
+	'the attribute operator turned into NOT IN' => [
+		static function ( array $a ): array {
+			$a['tax_query'][0]['operator'] = 'NOT IN';
+
+			return $a;
+		},
+		[ 'attribute' => [ 'firmenwagen' ] ],
+	],
+	'the attribute field switched to slug' => [
+		static function ( array $a ): array {
+			$a['tax_query'][0]['field'] = 'slug';
+
+			return $a;
+		},
+		[ 'attribute' => [ 'firmenwagen' ] ],
+	],
+	'a second taxonomy clause combined with OR' => [
+		static function ( array $a ): array {
+			$a['tax_query']['relation'] = 'OR';
+			$a['tax_query'][]           = [
+				'taxonomy' => 'category',
+				'field'    => 'term_id',
+				'terms'    => [ 1 ],
+				'operator' => 'NOT IN',
+			];
+
+			return $a;
+		},
+		[ 'attribute' => [ 'firmenwagen' ] ],
+	],
+	'the sort direction reversed' => [
+		static function ( array $a ): array {
+			$a['orderby']['date'] = 'ASC';
+
+			return $a;
+		},
+		[ 'order' => 'DESC' ],
+	],
+];
+
+foreach ( $meaning_hijacks as $label => $case ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $case[0];
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$rebuked = jpkcom_acf_jobs_ability_query_jobs( $case[1] );
+
+	chk(
+		"the executed query still means what was asked: {$label}",
+		$rebuked instanceof WP_Error
+		&& 'jpkcom_acf_jobs_filter_not_applied' === $rebuked->get_error_code()
+		&& 500 === ( $rebuked->get_error_data()['status'] ?? null ),
+		'A relation is not a value that can go missing — it is the operator that decides what '
+		. 'the values mean together, and an AND group turned OR leaves every clause present and '
+		. 'intact while inverting the answer. Checking presence cannot see it. A 500 rather than '
+		. 'a 400 because this is a site-side misconfiguration: nothing the caller sent caused it '
+		. 'and nothing it can send avoids it.'
+	);
+	chk(
+		"and no query runs for {$label}",
+		[] === $GLOBALS['jpkcom_test_queries']
+	);
+
+}
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
 // Four ways to make page, per_page and total_pages a lie without touching a
 // single filter clause. All read out of wp-includes/class-wp-query.php on the
 // 6.9.4 floor: :2805-2808 offset overrides paged, :2017-2021 a posts_per_page of
