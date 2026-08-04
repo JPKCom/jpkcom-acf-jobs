@@ -107,13 +107,107 @@ class WP_Post {
 	}
 }
 
+/**
+ * Stand-in for WP_Term, carrying only the properties the reader may touch.
+ */
+class WP_Term {
+	public int $term_id;
+	public string $slug;
+	public string $name;
+	public string $taxonomy;
+	public string $description;
+
+	public function __construct( int $term_id, string $slug, string $name, string $taxonomy = 'job-attribute', string $description = '' ) {
+		$this->term_id     = $term_id;
+		$this->slug        = $slug;
+		$this->name        = $name;
+		$this->taxonomy    = $taxonomy;
+		$this->description = $description;
+	}
+}
+
 $GLOBALS['jpkcom_test_posts'] = [
 	184 => new WP_Post( 184, 'Stelle 01', 'publish', 'job' ),
 	182 => new WP_Post( 182, 'Testfirma GmbH', 'publish' ),
+	183 => new WP_Post( 183, 'Teststadt', 'publish', 'job_location' ),
 	5   => new WP_Post( 5, 'Unannounced GmbH', 'draft', 'job' ),
+	500 => new WP_Post( 500, 'Stealth Mode GmbH', 'draft', 'job_company' ),
+	501 => new WP_Post( 501, 'Confidential GmbH', 'publish', 'job_company', 'hunter2' ),
 	700 => new WP_Post( 700, 'A page', 'publish', 'page' ),
 	701 => new WP_Post( 701, 'Secret job', 'publish', 'job', 'hunter2' ),
 ];
+
+/**
+ * Stand-in for WP_Query.
+ *
+ * Records every argument set in $GLOBALS['jpkcom_test_queries'] so a test can
+ * assert what was asked for, and then answers from the fixture above.
+ *
+ * It deliberately IGNORES post_status and has_password and hands back every post
+ * of the requested type. That is not laziness: it models a site whose query
+ * filters have widened the result set, which is the case the projection has to
+ * survive. An assertion about the returned vocabulary can therefore only pass
+ * because jpkcom_acf_jobs_normalise_related() drops the draft and the
+ * password-protected record a second time — with a status-honouring stub the same
+ * assertion would pass even if that projection were removed.
+ */
+class WP_Query {
+	public array $posts       = [];
+	public int $found_posts   = 0;
+	public array $query_vars  = [];
+
+	public function __construct( array $args = [] ) {
+		$this->query_vars                 = $args;
+		$GLOBALS['jpkcom_test_queries'][] = $args;
+
+		$wanted = (string) ( $args['post_type'] ?? '' );
+		$ids    = [];
+
+		foreach ( $GLOBALS['jpkcom_test_posts'] as $id => $post ) {
+			if ( $post->post_type === $wanted ) {
+				$ids[] = (int) $id;
+			}
+		}
+
+		$this->found_posts = count( $ids );
+
+		$limit = (int) ( $args['posts_per_page'] ?? 0 );
+
+		if ( $limit > 0 ) {
+			$ids = array_slice( $ids, 0, $limit );
+		}
+
+		$this->posts = $ids;
+	}
+}
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+function get_terms( array $args = [] ): array {
+	if ( 'job-attribute' !== ( $args['taxonomy'] ?? '' ) ) {
+		return [];
+	}
+
+	return [
+		new WP_Term( 20, 'firmenwagen', 'Firmenwagen' ),
+		new WP_Term( 21, 'vier-tage-woche', 'Vier-Tage-Woche' ),
+	];
+}
+
+function update_postmeta_cache( array $post_ids ): array|false {
+	return false;
+}
+
+function update_object_term_cache( array $object_ids, string $object_type ): void {
+}
+
+function determine_locale(): string {
+	return 'en_US';
+}
+
+function get_locale(): string {
+	return 'en_US';
+}
 
 function get_post( mixed $id = null ): ?WP_Post {
 	// Mirrors real get_post(): a falsy id ( null, 0, '' ) is "empty" and falls

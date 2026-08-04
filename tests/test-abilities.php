@@ -123,6 +123,133 @@ chk(
 	. 'locale-dependent and are never valid input.'
 );
 
+echo "\nNo lang input, one language output\n";
+
+foreach ( [ 'jpkcom-acf-jobs/list-filters', 'jpkcom-acf-jobs/query-jobs', 'jpkcom-acf-jobs/get-job' ] as $name ) {
+
+	chk(
+		"{$name} declares no lang input",
+		! array_key_exists( 'lang', $defs[ $name ]['input_schema']['properties'] ?? [] ),
+		'Nothing in this release can switch WPML\'s language context, so a declared lang '
+		. 'parameter is a false statement in the schema: a client sending lang=fr would '
+		. 'receive German and have no way to notice.'
+	);
+
+	$language = $defs[ $name ]['output_schema']['properties']['language'] ?? null;
+
+	chk(
+		"{$name} returns a language string",
+		is_array( $language ) && 'string' === ( $language['type'] ?? null ),
+		'All three abilities echo the language the site actually resolved. Without it a '
+		. 'caller cannot tell which language the answer is in.'
+	);
+
+	chk(
+		"{$name}'s language description states the WPML semantics",
+		is_array( $language )
+		&& str_contains( (string) ( $language['description'] ?? '' ), 'absent' )
+		&& str_contains( (string) ( $language['description'] ?? '' ), 'not translated' ),
+		'job is translated without display-as-translated, so an untranslated job is absent '
+		. 'rather than substituted, and address and attribute values are not translated at '
+		. 'all. A caller that does not know reads an incomplete list as a complete one.'
+	);
+
+}
+
+chk( 'the language resolver exists', function_exists( 'jpkcom_acf_jobs_ability_language' ) );
+
+if ( function_exists( 'jpkcom_acf_jobs_ability_language' ) ) {
+	chk(
+		'without WPML the language comes from determine_locale()',
+		'en_US' === jpkcom_acf_jobs_ability_language(),
+		'The harness stubs determine_locale() to en_US and registers no wpml_current_language '
+		. 'filter. Anything else means the resolver reached for WPML state that is not there — '
+		. 'and referencing an undefined constant is a fatal on PHP 8.'
+	);
+}
+
+echo "\nFilter lists come from the full vocabulary, not from the counted pass\n";
+
+chk( 'the vocabulary reader exists', function_exists( 'jpkcom_acf_jobs_ability_related_vocabulary' ) );
+
+if ( function_exists( 'jpkcom_acf_jobs_ability_related_vocabulary' ) ) {
+
+	$GLOBALS['jpkcom_test_queries'] = [];
+
+	$vocabulary = jpkcom_acf_jobs_ability_related_vocabulary( 'job_company' );
+	$asked      = $GLOBALS['jpkcom_test_queries'][0] ?? [];
+
+	chk( 'it queries the requested post type', 'job_company' === ( $asked['post_type'] ?? null ) );
+	chk(
+		'it asks for published, unprotected records',
+		'publish' === ( $asked['post_status'] ?? null ) && false === ( $asked['has_password'] ?? null )
+	);
+	chk(
+		'it loads no post content',
+		'ids' === ( $asked['fields'] ?? null ),
+		'A vocabulary covering every company on the site must not drag every company row '
+		. 'through the query result.'
+	);
+	chk(
+		'it is bounded and computes no total',
+		is_int( $asked['posts_per_page'] ?? null ) && 0 < ( $asked['posts_per_page'] ?? 0 )
+		&& true === ( $asked['no_found_rows'] ?? null ),
+		'An unbounded vocabulary query is exactly the -1 the shared builder refuses to '
+		. 'default to, and nothing here needs a total.'
+	);
+	chk(
+		'only the published, unprotected company survives the projection',
+		[ [ 'id' => 182, 'title' => 'Testfirma GmbH' ] ] === $vocabulary,
+		'The harness WP_Query hands back every job_company regardless of status, so this can '
+		. 'only pass because the projection drops the draft (500) and the password-protected '
+		. 'one (501) a second time.'
+	);
+}
+
+if ( function_exists( 'jpkcom_acf_jobs_ability_list_filters' ) ) {
+
+	$listed = jpkcom_acf_jobs_ability_list_filters( null );
+
+	chk( 'list-filters returns an array, not an error', is_array( $listed ) );
+
+	chk(
+		'list-filters echoes the resolved language',
+		is_array( $listed ) && 'en_US' === ( $listed['language'] ?? null )
+	);
+
+	chk(
+		'companies come from the vocabulary, not from the counted jobs',
+		is_array( $listed ) && [ [ 'id' => 182, 'name' => 'Testfirma GmbH', 'count' => 0 ] ] === ( $listed['companies'] ?? null ),
+		'Every get_field() in the harness returns null, so the pass over the visible jobs '
+		. 'finds no company at all. A company here can only have come from the full '
+		. 'vocabulary — and its count is 0, which is the honest answer rather than a missing key.'
+	);
+
+	chk(
+		'locations come from the vocabulary too',
+		is_array( $listed ) && [ [ 'id' => 183, 'name' => 'Teststadt', 'place' => '', 'count' => 0 ] ] === ( $listed['locations'] ?? null )
+	);
+
+	chk(
+		'attributes are the full taxonomy with zero counts',
+		is_array( $listed ) && 2 === count( $listed['attributes'] ?? [] )
+		&& 0 === ( $listed['attributes'][0]['count'] ?? null )
+		&& 'firmenwagen' === ( $listed['attributes'][0]['slug'] ?? null ),
+		'hide_empty is false, so a term no job carries is still offered — with a count of 0.'
+	);
+}
+
+// Deliberately after the resolver assertion above: a constant cannot be undefined
+// again, and this is the branch a real multilingual site takes.
+define( 'ICL_LANGUAGE_CODE', 'fr' );
+
+chk(
+	'WPML\'s own language wins when WPML is present',
+	function_exists( 'jpkcom_acf_jobs_ability_language' ) && 'fr' === jpkcom_acf_jobs_ability_language(),
+	'ICL_LANGUAGE_CODE is what WPML defines once it has resolved a language. Without this '
+	. 'branch a multilingual site would report the site default for every request.'
+);
+
 echo "\nSource guards\n";
 
 /**
