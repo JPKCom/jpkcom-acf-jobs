@@ -313,6 +313,17 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_date' ) ) {
      * throw a TypeError, and on the WP 6.9 floor a Throwable out of an ability callback
      * is an uncaught fatal.
      *
+     * is_string() is not enough to make createFromFormat() safe: a PHP string can carry
+     * an embedded NUL byte anywhere in it, and as of PHP 8.3 that makes
+     * DateTimeImmutable::createFromFormat() throw ValueError instead of returning false —
+     * confirmed regardless of the NUL's position or which of the two formats below is
+     * tried. MySQL longtext happily stores one; an importer, WP-CLI, a WPML copy or direct
+     * SQL against job_expiry_date is enough to plant it. The try/catch below is what
+     * closes that door; everything else that can go wrong here (invalid UTF-8, absurdly
+     * long input, an overflowing month/day/date) was measured to fail closed already —
+     * createFromFormat() returns false rather than throwing, and format() never throws for
+     * the two hardcoded, always-valid format strings used here.
+     *
      * @since 1.4.0
      *
      * @param mixed $raw Stored value.
@@ -328,7 +339,15 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_date' ) ) {
 
         foreach ( [ 'Ymd', 'Y-m-d' ] as $format ) {
 
-            $date = DateTimeImmutable::createFromFormat( $format, $raw );
+            try {
+
+                $date = DateTimeImmutable::createFromFormat( $format, $raw );
+
+            } catch ( \Throwable $e ) {
+
+                continue;
+
+            }
 
             if ( $date instanceof DateTimeImmutable && $date->format( $format ) === $raw ) {
 
@@ -391,6 +410,16 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_related' ) ) {
      * to repair — get_field() returns raw IDs, and every renderer in this repo
      * dereferences ->ID on them.
      *
+     * A bare id is rejected before the lookup when absint() reduces it to less than 1.
+     * absint() maps false, '', null, 'abc' and 0 all to 0, and real get_post( 0 ) treats
+     * 0 as empty and falls back to the current global post — the same footgun
+     * jpkcom_acf_jobs_get_job_data()'s own `$post_id < 1` guard exists for. ACF genuinely
+     * returns false, not an array, for an unassigned post_object field with
+     * allow_null => 1, which both job_company and job_location are, so an unresolved id
+     * reaching get_post() unguarded would project the current job as its own employer or
+     * location. A password is checked for the same reason the reader's own gate checks
+     * one: nothing about a post_object relation implies the related post is public.
+     *
      * @since 1.4.0
      *
      * @param mixed $value Raw ACF value.
@@ -414,9 +443,25 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_related' ) ) {
 
         foreach ( $value as $item ) {
 
-            $post = $item instanceof WP_Post ? $item : get_post( absint( $item ) );
+            if ( $item instanceof WP_Post ) {
 
-            if ( ! $post instanceof WP_Post || $post->post_status !== 'publish' ) {
+                $post = $item;
+
+            } else {
+
+                $id = absint( $item );
+
+                if ( $id < 1 ) {
+
+                    continue;
+
+                }
+
+                $post = get_post( $id );
+
+            }
+
+            if ( ! $post instanceof WP_Post || $post->post_status !== 'publish' || $post->post_password !== '' ) {
 
                 continue;
 

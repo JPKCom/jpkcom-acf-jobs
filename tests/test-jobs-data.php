@@ -153,6 +153,30 @@ chk(
 );
 chk( 'an empty date is null', jpkcom_acf_jobs_normalise_date( '' ) === null );
 chk( 'a non-string date is null', jpkcom_acf_jobs_normalise_date( [ 'x' ] ) === null );
+chk(
+	'an overflowing Ymd month/day is rejected, not silently rolled forward',
+	jpkcom_acf_jobs_normalise_date( '20251340' ) === null,
+	'Without the createFromFormat()/format() round-trip check, month 13 day 40 overflows '
+	. 'into a real date instead of failing to parse — measured live as 2026-02-09.'
+);
+chk(
+	'a wildly overflowing Ymd date is rejected',
+	jpkcom_acf_jobs_normalise_date( '20259999' ) === null,
+	'Measured live: without the round-trip check this overflows to 2033-06-07.'
+);
+chk(
+	'an overflowing Y-m-d day is rejected, not silently rolled forward',
+	jpkcom_acf_jobs_normalise_date( '2025-02-30' ) === null,
+	'Measured live: without the round-trip check this overflows to 2025-03-02.'
+);
+chk(
+	'a NUL byte in the raw value does not throw',
+	jpkcom_acf_jobs_normalise_date( "2025\x001130" ) === null,
+	'DateTimeImmutable::createFromFormat() throws ValueError for an embedded NUL byte as of '
+	. 'PHP 8.3, regardless of its position in the string or which of the two formats is tried. '
+	. 'MySQL longtext can carry one via an importer, WP-CLI, a WPML copy or direct SQL, and an '
+	. 'uncaught ValueError out of an ability callback is a fatal on the WP 6.9 floor.'
+);
 
 chk( 'br markup becomes newlines', jpkcom_acf_jobs_plain_text( 'a<br />b' ) === "a\nb" );
 chk( 'tags are stripped', jpkcom_acf_jobs_plain_text( '<p>hello <b>world</b></p>' ) === 'hello world' );
@@ -173,6 +197,13 @@ chk(
 	'ACF resolves post_object fields through acf_get_posts() with post_status any.'
 );
 chk(
+	'a password-protected related post is dropped',
+	jpkcom_acf_jobs_normalise_related( [ new WP_Post( 701, 'Secret job', 'publish', 'job', 'hunter2' ) ] ) === [],
+	'The reader\'s own gate ( jpkcom_acf_jobs_get_job_data() ) treats a password as first-class. '
+	. 'A related-post projection that skips it would expose a password-protected company or '
+	. 'location through a field the gate never touches.'
+);
+chk(
 	'a bare id is re-resolved, not dereferenced',
 	jpkcom_acf_jobs_normalise_related( [ 182 ] ) === [ [ 'id' => 182, 'title' => 'Testfirma GmbH' ] ],
 	'When the _job_company key reference is missing — the case wpml-acf-field-keys-fix.php '
@@ -180,7 +211,36 @@ chk(
 	. 'dereferences ->ID on an int.'
 );
 chk( 'an unresolvable id is skipped', jpkcom_acf_jobs_normalise_related( [ 99999 ] ) === [] );
-chk( 'a non-array is an empty list', jpkcom_acf_jobs_normalise_related( false ) === [] );
+
+// get_post()'s stub falls back to $GLOBALS['post'] for any falsy id, exactly as real
+// get_post() does. absint() maps false, '', null, 'abc' and 0 all to 0, so every one of
+// these is a live path to the same footgun jpkcom_acf_jobs_get_job_data()'s own
+// $post_id < 1 guard exists for — and ACF genuinely returns false for an unassigned
+// post_object field with allow_null => 1, which job_company and job_location both are.
+// Planting a published job here — one that would resolve happily on its own — means
+// each assertion below can only pass because normalise_related() rejects a non-positive
+// id before ever calling get_post(). With $GLOBALS['post'] unset, as it is everywhere
+// else in this file, the same bug would be invisible — which is exactly how it shipped.
+$GLOBALS['post'] = new WP_Post( 900, 'Leftover Global Job', 'publish', 'job' );
+
+chk(
+	'a non-array is an empty list',
+	jpkcom_acf_jobs_normalise_related( false ) === [],
+	'ACF returns false, not an array, for an unassigned post_object field. absint( false ) '
+	. 'is 0, and get_post( 0 ) falls back to $GLOBALS[\'post\'] in real WordPress — without a '
+	. 'guard this projects the current job as its own employer or location.'
+);
+chk( 'an empty string does not resolve to the global post', jpkcom_acf_jobs_normalise_related( '' ) === [] );
+chk( 'zero does not resolve to the global post', jpkcom_acf_jobs_normalise_related( 0 ) === [] );
+chk( 'a non-numeric string does not resolve to the global post', jpkcom_acf_jobs_normalise_related( 'abc' ) === [] );
+chk(
+	'a null element does not resolve to the global post',
+	jpkcom_acf_jobs_normalise_related( [ null ] ) === [],
+	'Bare null is caught earlier by the is_array() check and never reaches this path — '
+	. 'wrapped in an array it reaches the same absint()-then-get_post() call the other four do.'
+);
+
+unset( $GLOBALS['post'] );
 
 echo "\nReader gate\n";
 
