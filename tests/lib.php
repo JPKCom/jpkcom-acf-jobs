@@ -102,6 +102,15 @@ $GLOBALS['jpkcom_test_posts'] = [
 ];
 
 function get_post( mixed $id = null ): ?WP_Post {
+	// Mirrors real get_post(): a falsy id ( null, 0, '' ) is "empty" and falls
+	// back to the current global post rather than failing lookup outright.
+	// jpkcom_acf_jobs_get_job_data()'s `$post_id < 1` guard exists precisely
+	// because of this fallback — without it, a caller passing 0 would silently
+	// receive whatever post the current request left in $GLOBALS['post'].
+	if ( empty( $id ) ) {
+		return $GLOBALS['post'] ?? null;
+	}
+
 	return $GLOBALS['jpkcom_test_posts'][ (int) $id ] ?? null;
 }
 

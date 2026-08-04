@@ -201,6 +201,25 @@ chk(
 	'get_the_title() prepends "Protected:" while ACF returns the salary and address in full.'
 );
 chk( 'a nonexistent id does not resolve', jpkcom_acf_jobs_get_job_data( 999999 ) === [] );
-chk( 'id 0 does not resolve', jpkcom_acf_jobs_get_job_data( 0 ) === [] );
+
+// get_post()'s stub treats a falsy id as "empty" and falls back to
+// $GLOBALS['post'], exactly as real WordPress does. Planting a published job
+// there — one the reader would otherwise happily return — means this
+// assertion can only pass because $post_id < 1 rejects it outright; without
+// that guard, get_post( 0 ) would resolve to this fixture, not to null, and
+// the reader would return its data. Cleared immediately after so no later
+// assertion in this file (or, if lib.php is reused, in another test file)
+// inherits it.
+$GLOBALS['post'] = new WP_Post( 900, 'Leftover Global Job', 'publish', 'job' );
+
+chk(
+	'id 0 does not resolve',
+	jpkcom_acf_jobs_get_job_data( 0 ) === [],
+	'get_post( 0 ) is "empty" and falls back to $GLOBALS[\'post\'] in real WordPress. '
+	. 'Without the $post_id < 1 guard this would resolve to whatever post the current '
+	. 'request left there instead of correctly rejecting id 0.'
+);
+
+unset( $GLOBALS['post'] );
 
 summary();
