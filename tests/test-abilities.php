@@ -344,6 +344,573 @@ if ( function_exists( 'jpkcom_acf_jobs_ability_list_filters' ) ) {
 	);
 }
 
+echo "\nFilter normalisation\n";
+
+chk(
+	'a filter that normalises to nothing is an error, not a dropped clause',
+	is_object( jpkcom_acf_jobs_ability_normalise_filter( [ 'acme' ], 'company', 20 ) ),
+	'The shortcode does array_filter( array_map( "absint", … ) ) and then skips the clause '
+	. 'when the result is empty, so company=["acme"] returns EVERY job. That is the class '
+	. 'that returned 19 of 19 posts as a filtered answer in jpkcom-post-filter.'
+);
+chk( 'a well-formed id survives', jpkcom_acf_jobs_ability_normalise_filter( [ '182' ], 'company', 20 ) === [ 182 ] );
+chk( 'a zero is rejected', is_object( jpkcom_acf_jobs_ability_normalise_filter( [ 0 ], 'company', 20 ) ) );
+chk( 'a negative id is rejected', is_object( jpkcom_acf_jobs_ability_normalise_filter( [ -5 ], 'company', 20 ) ) );
+chk( 'an empty request is not a filter at all', jpkcom_acf_jobs_ability_normalise_filter( [], 'company', 20 ) === [] );
+chk(
+	'exceeding the per-axis cap is an error, not a truncation',
+	is_object( jpkcom_acf_jobs_ability_normalise_filter( range( 1, 21 ), 'company', 20 ) ),
+	'Each extra value is one more unindexable LIKE scan.'
+);
+
+chk( 'an absent axis is not a filter either', jpkcom_acf_jobs_ability_normalise_filter( null, 'company', 20 ) === [] );
+chk(
+	'a bare scalar is refused rather than wrapped',
+	is_object( jpkcom_acf_jobs_ability_normalise_filter( '182', 'company', 20 ) ),
+	'Wrapping it would be a guess. A CSV string is the shortcode\'s input shape, not this one\'s.'
+);
+chk( 'exactly the cap is not over it', jpkcom_acf_jobs_ability_normalise_filter( range( 1, 20 ), 'company', 20 ) === range( 1, 20 ) );
+chk(
+	'a slug axis keeps its strings',
+	jpkcom_acf_jobs_ability_normalise_filter( [ ' firmenwagen ' ], 'attribute', 20 ) === [ 'firmenwagen' ]
+);
+chk( 'a blank slug is rejected', is_object( jpkcom_acf_jobs_ability_normalise_filter( [ '   ' ], 'attribute', 20 ) ) );
+chk(
+	'an object in a filter never reaches a string cast',
+	is_object( jpkcom_acf_jobs_ability_normalise_filter( [ new stdClass() ], 'attribute', 20 ) ),
+	'A cast of an object without __toString throws, and a Throwable out of an ability '
+	. 'callback is an uncaught fatal on the 6.9 floor.'
+);
+
+$normalise_error = jpkcom_acf_jobs_ability_normalise_filter( [ 'acme' ], 'company', 20 );
+
+chk(
+	'the normalisation error carries a 400, not a bare code',
+	$normalise_error instanceof WP_Error && 400 === ( $normalise_error->get_error_data()['status'] ?? null ),
+	'The REST run controller returns the WP_Error verbatim and rest_ensure_response() '
+	. 'defaults to 500 without data[status]. A 5xx tells an agent "transient fault, retry '
+	. 'unchanged" — the exact opposite of what this message is for.'
+);
+chk(
+	'the message names the axis and the valid form',
+	$normalise_error instanceof WP_Error
+	&& str_contains( $normalise_error->get_error_message(), 'company' )
+	&& str_contains( $normalise_error->get_error_message(), 'acme' ),
+	'A caller that is not told which value was wrong cannot correct itself in one turn.'
+);
+
+echo "\nPage size\n";
+
+chk( 'per_page is clamped up', 1 === jpkcom_acf_jobs_ability_clamp_per_page( 0 ) );
+chk( 'per_page is clamped down', 50 === jpkcom_acf_jobs_ability_clamp_per_page( 5000 ) );
+chk(
+	'per_page never becomes -1',
+	1 === jpkcom_acf_jobs_ability_clamp_per_page( -1 ),
+	'The shortcode default IS -1, and the builder refuses it, but the clamp is what keeps '
+	. 'an API caller from reaching an unbounded query.'
+);
+chk( 'a non-numeric per_page falls back to the default', 10 === jpkcom_acf_jobs_ability_clamp_per_page( 'lots' ) );
+chk( 'a numeric string is honoured', 25 === jpkcom_acf_jobs_ability_clamp_per_page( '25' ) );
+
+echo "\nquery-jobs\n";
+
+/**
+ * Return every recorded query against a post type, newest run last.
+ *
+ * @param string $post_type Post type to filter the recorded queries by.
+ * @return array List of recorded WP_Query argument arrays.
+ */
+function recorded_queries( string $post_type ): array {
+	return array_values(
+		array_filter(
+			$GLOBALS['jpkcom_test_queries'],
+			static fn( array $q ): bool => $post_type === ( $q['post_type'] ?? null )
+		)
+	);
+}
+
+/**
+ * Return the listing query, which is always the first query query-jobs runs.
+ *
+ * Deliberately NOT recorded_queries( 'job' )[0]: the two visibility counts pin
+ * their own post type, so a listing query that a filter widened to another post
+ * type would drop out of that list and one of the counts would be asserted in its
+ * place. That is exactly the widening these assertions exist to catch.
+ *
+ * @return array The recorded WP_Query arguments of the listing query.
+ */
+function listing_query(): array {
+	return $GLOBALS['jpkcom_test_queries'][0] ?? [];
+}
+
+/**
+ * Find one meta_query clause by its key, at any nesting depth.
+ *
+ * @param mixed  $meta_query Recorded meta_query.
+ * @param string $key        Meta key to look for.
+ * @return array|null The clause, or null when the query carries none.
+ */
+function find_meta_clause( mixed $meta_query, string $key ): ?array {
+	if ( ! is_array( $meta_query ) ) {
+		return null;
+	}
+
+	foreach ( $meta_query as $index => $clause ) {
+		if ( 'relation' === $index || ! is_array( $clause ) ) {
+			continue;
+		}
+
+		if ( $key === ( $clause['key'] ?? null ) ) {
+			return $clause;
+		}
+
+		$nested = find_meta_clause( $clause, $key );
+
+		if ( null !== $nested ) {
+			return $nested;
+		}
+	}
+
+	return null;
+}
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$result  = jpkcom_acf_jobs_ability_query_jobs( null );
+$listing = listing_query();
+
+chk(
+	'query-jobs answers with a result rather than the 501 placeholder',
+	is_array( $result ),
+	'The registration was complete from Task 5 on; the callback was not.'
+);
+chk(
+	'query-jobs reports the resolved language',
+	is_array( $result ) && 'en_US' === ( $result['language'] ?? null ),
+	'The output schema declares it and list-filters already returns it. Without it a caller '
+	. 'cannot tell which language the job titles are in.'
+);
+
+chk(
+	'a page-1 call runs one listing query and the two visibility counts',
+	3 === count( recorded_queries( 'job' ) ),
+	'Nothing here may cost a query per returned job, and the visibility counts are the two '
+	. 'the output schema declares.'
+);
+
+chk(
+	'the listing query pins post_status to publish',
+	'publish' === ( $listing['post_status'] ?? null ),
+	'Pinned explicitly and unconditionally. Core widens an unspecified post_status to include '
+	. 'private posts for a caller holding read_private_posts, so two callers would otherwise '
+	. 'see different "public" job lists.'
+);
+chk( 'the listing query excludes password-protected jobs', false === ( $listing['has_password'] ?? null ) );
+chk(
+	'the listing query carries the shared visibility rule, not a local copy',
+	'job_featured' === ( $listing['meta_key'] ?? null ) && is_array( $listing['meta_query'] ?? null ),
+	'It has to be the same rule the archive and the shortcode run, or query-jobs answers for '
+	. 'a site nobody sees.'
+);
+chk(
+	'the listing query is bounded by the clamped page size',
+	10 === ( $listing['posts_per_page'] ?? null ) && 1 === ( $listing['paged'] ?? null ),
+	'Per-property defaults are resolved in the callback: core applies only the top-level one.'
+);
+
+chk(
+	'the ordering carries a deterministic tiebreaker',
+	'DESC' === ( $listing['orderby']['ID'] ?? null ),
+	'ORDER BY meta_value_num DESC, date DESC leaves ties unresolved and MySQL permutes tied '
+	. 'rows per execution — measured in Task 3, four fetches of unmodified code produced three '
+	. 'different orderings because the seeded jobs share a post_date. Harmless for the site\'s '
+	. 'own unpaginated listing; here it makes a job appear on two pages or on none.'
+);
+chk(
+	'the tiebreaker is not in the shared builder',
+	! isset( jpkcom_acf_jobs_build_job_query_args( [] )['orderby']['ID'] ),
+	'The builder is shared with the shortcode and the archive, whose front-end ordering this '
+	. 'feature promised not to change.'
+);
+
+chk(
+	'the reader gate drops what the query handed back',
+	is_array( $result ) && [ 184 ] === array_column( $result['jobs'] ?? [], 'id' ),
+	'The harness WP_Query returns every job regardless of status, so this can only pass '
+	. 'because jpkcom_acf_jobs_get_job_data() drops the draft (5) and the password-protected '
+	. 'one (701) a second time.'
+);
+chk(
+	'the compact record carries is_closed',
+	is_array( $result ) && array_key_exists( 'is_closed', $result['jobs'][0] ?? [] ),
+	'job_closed is read by no query and rendered by no template, so a record without it lets '
+	. 'a client tell a user to apply for a filled position.'
+);
+chk(
+	'the compact record carries no detail block',
+	is_array( $result ) && ! array_key_exists( 'detail', $result['jobs'][0] ?? [] ),
+	'Address, salary and the application data are get-job\'s job, and job_layout_content is '
+	. 'unbounded.'
+);
+
+chk(
+	'unknown encodes as an object, not an array',
+	is_array( $result ) && '{}' === json_encode( $result['unknown'] ?? [] ),
+	'PHP serialises an empty array as []. The MCP Adapter hands the schema to clients raw, so '
+	. 'a caller reading unknown as a map gets a type mismatch on every unfiltered call.'
+);
+chk(
+	'filters echoes the defaults that were actually applied',
+	is_array( $result ) && true === ( $result['filters']['include_closed'] ?? null )
+	&& 'DESC' === ( $result['filters']['order'] ?? null )
+);
+chk(
+	'the archive url is published when the archive is enabled',
+	is_array( $result ) && 'https://example.test/jobs/' === ( $result['archive_url'] ?? null )
+);
+chk(
+	'the visibility block reports both shortfall causes',
+	is_array( $result ) && is_int( $result['visibility']['hidden_missing_featured'] ?? null )
+	&& is_int( $result['visibility']['hidden_expired'] ?? null )
+);
+
+echo "\nWhat the reader emits has to satisfy what the schema declares\n";
+
+/**
+ * Report every value in a record whose type the schema does not permit.
+ *
+ * A stand-in for rest_validate_value_from_schema(), reduced to the type check.
+ * Core runs the real thing over every ability result and answers
+ * ability_invalid_output instead of the result, so a property the reader can
+ * leave null while the schema declares a scalar type is not a documentation
+ * defect — it is a total outage of that ability.
+ *
+ * @param mixed  $value  Value to check.
+ * @param mixed  $schema Declared schema for it.
+ * @param string $path   Path prefix used in the message.
+ * @return array List of human-readable violations.
+ */
+function schema_type_violations( mixed $value, mixed $schema, string $path = '' ): array {
+	if ( ! is_array( $schema ) || ! isset( $schema['type'] ) ) {
+		return [];
+	}
+
+	$allowed = (array) $schema['type'];
+
+	$actual = match ( true ) {
+		null === $value     => 'null',
+		is_bool( $value )   => 'boolean',
+		is_int( $value )    => 'integer',
+		is_float( $value )  => 'number',
+		is_string( $value ) => 'string',
+		is_array( $value )  => array_is_list( $value ) ? 'array' : 'object',
+		is_object( $value ) => 'object',
+		default             => 'unknown',
+	};
+
+	// An integer satisfies number, and an empty PHP array is both a JSON array
+	// and — once jpkcom_acf_jobs_ability_json_object() has run — a JSON object.
+	$ok = in_array( $actual, $allowed, true )
+		|| ( 'integer' === $actual && in_array( 'number', $allowed, true ) )
+		|| ( [] === $value && in_array( 'object', $allowed, true ) );
+
+	if ( ! $ok ) {
+		return [ ( '' === $path ? 'root' : $path ) . ' is ' . $actual . ', schema allows [' . implode( '|', $allowed ) . ']' ];
+	}
+
+	$out = [];
+
+	if ( is_array( $value ) && in_array( 'object', $allowed, true ) ) {
+		foreach ( ( $schema['properties'] ?? [] ) as $prop => $sub ) {
+			if ( array_key_exists( $prop, $value ) ) {
+				$out = array_merge( $out, schema_type_violations( $value[ $prop ], $sub, $path . '.' . $prop ) );
+			}
+		}
+	}
+
+	if ( is_array( $value ) && in_array( 'array', $allowed, true ) && isset( $schema['items'] ) ) {
+		foreach ( $value as $index => $item ) {
+			$out = array_merge( $out, schema_type_violations( $item, $schema['items'], $path . '[' . $index . ']' ) );
+		}
+	}
+
+	return $out;
+}
+
+$response_violations = schema_type_violations( $result, $defs['jpkcom-acf-jobs/query-jobs']['output_schema'], 'query-jobs' );
+$compact_violations  = schema_type_violations(
+	jpkcom_acf_jobs_get_job_data( 184, false ),
+	$defs['jpkcom-acf-jobs/query-jobs']['output_schema']['properties']['jobs']['items'],
+	'job'
+);
+$full_violations = schema_type_violations(
+	jpkcom_acf_jobs_get_job_data( 184, true ),
+	$defs['jpkcom-acf-jobs/get-job']['output_schema'],
+	'job'
+);
+
+chk(
+	'the whole query-jobs response satisfies its own output schema',
+	[] === $response_violations,
+	'Core validates every ability result against output_schema and returns ability_invalid_output '
+	. 'in its place. ' . implode( '; ', $response_violations )
+);
+chk(
+	'the compact record satisfies the declared output schema',
+	[] === $compact_violations,
+	'Measured on WP 7.0.2 with ACF Pro 6.8.6: work_type is null for all six seeded jobs, and '
+	. 'with a bare "object" declared for it EVERY query-jobs call failed with '
+	. 'ability_invalid_output rather than returning a job. ' . implode( '; ', $compact_violations )
+);
+chk(
+	'the full record satisfies the declared output schema',
+	[] === $full_violations,
+	'The same mechanism, in the properties get-job adds. ' . implode( '; ', $full_violations )
+);
+
+echo "\nA requested filter that normalises to nothing never reaches WP_Query\n";
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$bad = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 'acme' ] ] );
+
+chk(
+	'company=["acme"] is an error, not a count',
+	$bad instanceof WP_Error && 'jpkcom_acf_jobs_invalid_filter' === $bad->get_error_code(),
+	'absint("acme") is 0, the shortcode filters that out and skips the clause, and the '
+	. 'response then contains every job on the site.'
+);
+chk(
+	'and it carries a 400',
+	$bad instanceof WP_Error && 400 === ( $bad->get_error_data()['status'] ?? null )
+);
+chk(
+	'and no query ran at all',
+	[] === $GLOBALS['jpkcom_test_queries'],
+	'The refusal has to come before the query, not after it.'
+);
+
+$blank_search = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => '<b></b>' ] );
+
+chk(
+	'a search that sanitises away is an error, not an unfiltered list',
+	$blank_search instanceof WP_Error && 400 === ( $blank_search->get_error_data()['status'] ?? null ),
+	'includes/jobs-data.php tests ! empty( $args["search"] ) BEFORE sanitize_text_field, so '
+	. '"<b></b>" passes that test, sanitises to "" and sets s => "", which WP_Query ignores — '
+	. 'every job comes back as a search result.'
+);
+
+$bad_order = jpkcom_acf_jobs_ability_query_jobs( [ 'order' => new stdClass() ] );
+
+chk(
+	'an order that is not a string is refused before the builder casts it',
+	$bad_order instanceof WP_Error,
+	'includes/jobs-data.php:52 casts $args["order"] to string, which throws for an object '
+	. 'without __toString. A Throwable out of an ability callback is an uncaught fatal on the '
+	. '6.9 floor.'
+);
+chk(
+	'an order outside the enum is refused too',
+	jpkcom_acf_jobs_ability_query_jobs( [ 'order' => 'sideways' ] ) instanceof WP_Error,
+	'The builder maps anything that is not ASC to DESC, so an unrecognised direction would be '
+	. 'answered silently with the opposite of what was asked for.'
+);
+
+echo "\nA well-formed value that matches nothing is not an error\n";
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$missing = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 999 ] ] );
+
+chk( 'company=[999] returns a result', is_array( $missing ) );
+chk(
+	'the value lands in unknown',
+	is_array( $missing ) && [ 999 ] === ( ( (array) ( $missing['unknown'] ?? [] ) )['company'] ?? null ),
+	'That is what tells a typo apart from a genuinely empty result set.'
+);
+chk(
+	'and the empty result is honest',
+	is_array( $missing ) && 0 === ( $missing['total'] ?? null ) && [] === ( $missing['jobs'] ?? null )
+);
+chk(
+	'an axis that resolves to nothing runs no listing query',
+	2 === count( recorded_queries( 'job' ) ),
+	'Passing an empty clause list to the builder would drop the clause and return every job — '
+	. 'the exact bug this ability exists to avoid. Only the two visibility counts remain.'
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$narrowed       = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 182 ] ] );
+$narrow_listing = listing_query();
+$company_clause = find_meta_clause( $narrow_listing['meta_query'] ?? null, 'job_company' );
+
+chk(
+	'a known company reaches WP_Query as a LIKE clause on the serialised id',
+	is_array( $company_clause ) && '"182"' === ( $company_clause['value'] ?? null )
+	&& 'LIKE' === ( $company_clause['compare'] ?? null ),
+	'A suite can pass while no filter ever reaches the query. This is the assertion that '
+	. 'catches it.'
+);
+chk(
+	'and the applied filter is echoed back',
+	is_array( $narrowed ) && [ 182 ] === ( $narrowed['filters']['company'] ?? null )
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$by_slug     = jpkcom_acf_jobs_ability_query_jobs( [ 'attribute' => [ 'firmenwagen' ] ] );
+$tax_listing = listing_query();
+
+chk(
+	'an attribute slug is resolved to a term id and filtered as a tax_query',
+	'job-attribute' === ( $tax_listing['tax_query'][0]['taxonomy'] ?? null )
+	&& [ 20 ] === ( $tax_listing['tax_query'][0]['terms'] ?? null )
+	&& 'term_id' === ( $tax_listing['tax_query'][0]['field'] ?? null ),
+	'save_terms and load_terms are both on, so ACF discards the stored job_attribute meta on '
+	. 'read. A meta LIKE would filter on a store the site never reads.'
+);
+chk(
+	'the caller keeps speaking slugs',
+	is_array( $by_slug ) && [ 'firmenwagen' ] === ( $by_slug['filters']['attribute'] ?? null )
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+jpkcom_acf_jobs_ability_query_jobs( [ 'include_closed' => false ] );
+
+$closed_clause = find_meta_clause( listing_query()['meta_query'] ?? null, 'job_closed' );
+
+chk(
+	'include_closed=false reaches WP_Query as a job_closed clause',
+	is_array( $closed_clause ),
+	'The shared builder knows nothing about job_closed, so a callback that merely accepted the '
+	. 'parameter would answer with the filled positions included.'
+);
+chk(
+	'the default leaves job_closed unfiltered',
+	null === find_meta_clause( $listing['meta_query'] ?? null, 'job_closed' ),
+	'Default true, matching the site itself, which lists filled positions and marks them.'
+);
+
+echo "\nA page past the last one\n";
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$page2 = jpkcom_acf_jobs_ability_query_jobs( [ 'page' => 2, 'per_page' => 2 ] );
+
+chk(
+	'a page that still has posts runs exactly one listing query',
+	3 === count( recorded_queries( 'job' ) ),
+	'Dropping the $query->posts === [] half of the guard doubles the query count of every '
+	. 'paginated call.'
+);
+chk(
+	'page 2 reports the real totals',
+	is_array( $page2 ) && 3 === ( $page2['total'] ?? null ) && 2 === ( $page2['total_pages'] ?? null )
+	&& 2 === ( $page2['page'] ?? null )
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$page3 = jpkcom_acf_jobs_ability_query_jobs( [ 'page' => 3, 'per_page' => 2 ] );
+
+chk(
+	'a page past the last one still reports the real totals',
+	is_array( $page3 ) && 3 === ( $page3['total'] ?? null ) && 2 === ( $page3['total_pages'] ?? null ),
+	'WP_Query::set_found_posts() returns early when posts is empty, so found_posts and '
+	. 'max_num_pages stay 0. A response saying total 0 beside page 3 reads as an empty corpus.'
+);
+chk( 'it echoes the requested page back', is_array( $page3 ) && 3 === ( $page3['page'] ?? null ) );
+chk( 'and it returns no jobs', is_array( $page3 ) && [] === ( $page3['jobs'] ?? null ) );
+chk(
+	'the recovery costs exactly one extra query',
+	4 === count( recorded_queries( 'job' ) ),
+	'One re-run for page 1, on that path only.'
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$clamped = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 5000, 'order' => 'asc' ] );
+
+chk(
+	'the page size that reaches WP_Query is the clamped one',
+	50 === ( listing_query()['posts_per_page'] ?? null ),
+	'The clamp is what keeps an API caller from reaching an unbounded query.'
+);
+chk( 'and the response reports the applied page size', is_array( $clamped ) && 50 === ( $clamped['per_page'] ?? null ) );
+chk(
+	'ASC reaches both the date component and the tiebreaker',
+	'ASC' === ( listing_query()['orderby']['date'] ?? null )
+	&& 'ASC' === ( listing_query()['orderby']['ID'] ?? null )
+);
+
+echo "\nWhat the argument filter is not allowed to change\n";
+
+$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static function ( array $args ): array {
+	$args['post_type']   = 'page';
+	$args['post_status'] = 'any';
+
+	unset( $args['has_password'] );
+
+	return $args;
+};
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+jpkcom_acf_jobs_ability_query_jobs( null );
+
+$hijacked = listing_query();
+
+chk(
+	'the argument filter cannot widen the post type, the status or the password gate',
+	'job' === ( $hijacked['post_type'] ?? null ) && 'publish' === ( $hijacked['post_status'] ?? null )
+	&& false === ( $hijacked['has_password'] ?? null ),
+	'The results of these abilities are deliberately independent of the caller and of any '
+	. 'site callback, so two callers never see different "public" job lists.'
+);
+
+$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static function ( array $args ): array {
+	$args['meta_query'] = [];
+
+	return $args;
+};
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$clause_dropped = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 182 ] ] );
+
+chk(
+	'a callback that drops a requested clause is refused, not answered',
+	$clause_dropped instanceof WP_Error
+	&& 'jpkcom_acf_jobs_filter_not_applied' === $clause_dropped->get_error_code()
+	&& 500 === ( $clause_dropped->get_error_data()['status'] ?? null ),
+	'This is the same failure as company=["acme"], one layer further down: the caller asked '
+	. 'for one company and the query would have returned every job. Nothing the caller sends '
+	. 'can cause it and nothing it changes can avoid it, which is why this one is a 5xx.'
+);
+chk(
+	'and no unfiltered list is run in its place',
+	[] === $GLOBALS['jpkcom_test_queries'],
+	'Returning the unfiltered result would present a wrong answer as a right one.'
+);
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+$GLOBALS['jpkcom_test_options']['jpkcom_acf_job_disable_archive'] = 1;
+
+$withheld = jpkcom_acf_jobs_ability_query_jobs( null );
+
+chk(
+	'archive_url is withheld when the site owner disabled the archive',
+	is_array( $withheld ) && '' === ( $withheld['archive_url'] ?? null ),
+	'That address answers with a 307 to an esc_url_raw-sanitised, wp_redirect-dispatched '
+	. 'target on any host, and publishing the link would silently reverse the site owner\'s '
+	. 'explicit "do not publish a job list" setting.'
+);
+
+unset( $GLOBALS['jpkcom_test_options']['jpkcom_acf_job_disable_archive'] );
+
 // Deliberately after the resolver assertion above: a constant cannot be undefined
 // again, and this is the branch a real multilingual site takes.
 define( 'ICL_LANGUAGE_CODE', 'fr' );

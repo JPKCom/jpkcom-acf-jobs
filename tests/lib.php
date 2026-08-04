@@ -70,8 +70,20 @@ function __( string $text, string $domain = 'default' ): string {
 	return $text;
 }
 
+// One callback per hook, registered by assigning to this map. Without it the
+// ability path's own argument filter cannot be exercised at all, and the guards
+// that run AFTER it — the post type, the status and the dropped-clause check —
+// would be asserted only against arguments nothing had touched.
+$GLOBALS['jpkcom_test_filters'] = [];
+
 function apply_filters( string $hook_name, mixed $value, mixed ...$args ): mixed {
-	return $value;
+	$callback = $GLOBALS['jpkcom_test_filters'][ $hook_name ] ?? null;
+
+	if ( null === $callback ) {
+		return $value;
+	}
+
+	return $callback( $value, ...$args );
 }
 
 // includes/abilities.php calls this at file scope, so the require would fatal
@@ -86,6 +98,37 @@ function sanitize_text_field( string $str ): string {
 
 function absint( mixed $maybeint ): int {
 	return abs( (int) $maybeint );
+}
+
+/**
+ * Stand-in for WP_Error, carrying only what the ability path sets and reads.
+ *
+ * The status in $data is the load-bearing part: the REST run controller returns
+ * the WP_Error verbatim and rest_ensure_response() answers 500 without it, which
+ * tells an agent "transient fault, retry unchanged".
+ */
+class WP_Error {
+	public string $code;
+	public string $message;
+	public array $data;
+
+	public function __construct( string $code = '', string $message = '', mixed $data = '' ) {
+		$this->code    = $code;
+		$this->message = $message;
+		$this->data    = is_array( $data ) ? $data : [];
+	}
+
+	public function get_error_code(): string {
+		return $this->code;
+	}
+
+	public function get_error_message(): string {
+		return $this->message;
+	}
+
+	public function get_error_data(): mixed {
+		return $this->data;
+	}
 }
 
 /**
@@ -152,9 +195,10 @@ $GLOBALS['jpkcom_test_posts'] = [
  * assertion would pass even if that projection were removed.
  */
 class WP_Query {
-	public array $posts       = [];
-	public int $found_posts   = 0;
-	public array $query_vars  = [];
+	public array $posts        = [];
+	public int $found_posts    = 0;
+	public int $max_num_pages  = 0;
+	public array $query_vars   = [];
 
 	public function __construct( array $args = [] ) {
 		$this->query_vars                 = $args;
@@ -169,15 +213,38 @@ class WP_Query {
 			}
 		}
 
-		$this->found_posts = count( $ids );
-
+		$total = count( $ids );
 		$limit = (int) ( $args['posts_per_page'] ?? 0 );
+		$paged = max( 1, (int) ( $args['paged'] ?? 1 ) );
 
 		if ( $limit > 0 ) {
-			$ids = array_slice( $ids, 0, $limit );
+			$ids = array_slice( $ids, ( $paged - 1 ) * $limit, $limit );
 		}
 
-		$this->posts = $ids;
+		// Mirrors WP_Query::set_found_posts(), which returns early when posts is
+		// empty and leaves found_posts and max_num_pages at zero. That early return
+		// is exactly what makes a page past the last one report a corpus of zero
+		// next to a page number of three, and a stub that answered with the real
+		// total anyway would leave the recovery guard untestable.
+		if ( [] === $ids ) {
+			$this->posts = [];
+			return;
+		}
+
+		$this->found_posts   = $total;
+		$this->max_num_pages = $limit > 0 ? (int) ceil( $total / $limit ) : 1;
+		$this->posts         = $ids;
+
+		if ( 'ids' === ( $args['fields'] ?? '' ) ) {
+			return;
+		}
+
+		// A real WP_Query hands back WP_Post objects unless fields => 'ids', and the
+		// projection has to survive both shapes: a site filter may set fields.
+		$this->posts = array_map(
+			static fn( int $id ): WP_Post => $GLOBALS['jpkcom_test_posts'][ $id ],
+			$ids
+		);
 	}
 }
 
@@ -254,8 +321,44 @@ function get_the_terms( mixed $post, string $taxonomy ): array|false {
 	return false;
 }
 
-function is_wp_error( mixed $thing ): bool {
+function get_post_type( mixed $post = null ): string|false {
+	$p = get_post( $post );
+
+	return $p instanceof WP_Post ? $p->post_type : false;
+}
+
+function get_term_by( string $field, mixed $value, string $taxonomy = '' ): WP_Term|false {
+	// Deliberately narrow: the ability path is only ever allowed to resolve a slug
+	// inside job-attribute, and a stub that answered for any field or any taxonomy
+	// would make the taxonomy argument untestable.
+	if ( 'slug' !== $field || 'job-attribute' !== $taxonomy ) {
+		return false;
+	}
+
+	foreach ( get_terms( [ 'taxonomy' => 'job-attribute' ] ) as $term ) {
+		if ( $term->slug === $value ) {
+			return $term;
+		}
+	}
+
 	return false;
+}
+
+$GLOBALS['jpkcom_test_options'] = [];
+
+function get_option( string $option, mixed $default_value = false ): mixed {
+	return $GLOBALS['jpkcom_test_options'][ $option ] ?? $default_value;
+}
+
+function get_post_type_archive_link( string $post_type ): string|false {
+	return 'https://example.test/' . $post_type . 's/';
+}
+
+// Real, not a constant false: the ability path decides its own control flow with
+// this, so a stub that always said "no error" would run a WP_Error on as if it
+// were a result array.
+function is_wp_error( mixed $thing ): bool {
+	return $thing instanceof WP_Error;
 }
 
 function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string {

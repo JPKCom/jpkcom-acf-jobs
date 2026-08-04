@@ -549,6 +549,324 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_count_query' ) ) {
 
 }
 
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_visibility_counts' ) ) {
+
+    /**
+     * Count the published jobs the site visibility rule excludes, by cause.
+     *
+     * Two independent causes exclude a job that has no job_featured row: the
+     * EXISTS clause of the visibility rule, and the meta_key the ordering needs,
+     * whose postmeta.meta_key condition lands in the WHERE clause. Removing either
+     * one changes nothing, so subtracting a listed total from a published total
+     * would attribute the shortfall to whichever cause happened to be named. Each
+     * cause therefore gets its own query.
+     *
+     * The expired count is conditioned on job_featured existing as well, so the
+     * two causes partition the difference rather than overlapping.
+     *
+     * @since 1.4.0
+     *
+     * @return array {
+     *     @type int $hidden_missing_featured Published jobs carrying no job_featured row.
+     *     @type int $hidden_expired          Published jobs whose expiry date has passed.
+     * }
+     */
+    function jpkcom_acf_jobs_ability_visibility_counts(): array {
+
+        return [
+
+            'hidden_missing_featured' => jpkcom_acf_jobs_ability_count_query(
+                [
+                    'post_type'    => 'job',
+                    'post_status'  => 'publish',
+                    'has_password' => false,
+                    'meta_query'   => [
+                        [
+                            'key'     => 'job_featured',
+                            'compare' => 'NOT EXISTS',
+                        ],
+                    ],
+                ]
+            ),
+
+            // The date comparison is the mirror image of the visibility rule's:
+            // the same raw column, the same DATE cast, and the same site-timezone
+            // today.
+            'hidden_expired' => jpkcom_acf_jobs_ability_count_query(
+                [
+                    'post_type'    => 'job',
+                    'post_status'  => 'publish',
+                    'has_password' => false,
+                    'meta_query'   => [
+                        'relation' => 'AND',
+                        [
+                            'key'     => 'job_featured',
+                            'compare' => 'EXISTS',
+                        ],
+                        [
+                            'key'     => 'job_expiry_date',
+                            'value'   => current_time( 'Y-m-d' ),
+                            'compare' => '<',
+                            'type'    => 'DATE',
+                        ],
+                    ],
+                ]
+            ),
+
+        ];
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_clamp_per_page' ) ) {
+
+    /**
+     * Clamp a requested page size into the range the query ability allows.
+     *
+     * Never returns -1 or 0. The shortcode's own default IS -1 and the shared
+     * builder refuses to default to it, but this clamp is what keeps an API caller
+     * from reaching an unbounded query in the first place.
+     *
+     * Clamping rather than refusing is deliberate here, and it is not the same
+     * decision as the one the filter axes take. The response echoes the applied
+     * page size back, so a caller can see what it got; a silently dropped filter
+     * clause has no such tell, which is why that case is an error instead.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Requested page size.
+     * @return int Page size between 1 and JPKCOM_ACFJOBS_ABILITY_PER_PAGE_MAX.
+     */
+    function jpkcom_acf_jobs_ability_clamp_per_page( mixed $value ): int {
+
+        if ( ! is_numeric( value: $value ) ) {
+
+            return JPKCOM_ACFJOBS_ABILITY_PER_PAGE_DEFAULT;
+
+        }
+
+        return min( JPKCOM_ACFJOBS_ABILITY_PER_PAGE_MAX, max( 1, (int) $value ) );
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_normalise_filter' ) ) {
+
+    /**
+     * Validate one filter axis, refusing anything that would normalise away.
+     *
+     * This is the load-bearing guard of the whole ability. The shortcode builds
+     * each clause as array_filter( array_map( 'absint', … ) ) and skips it when the
+     * result is empty, so company=["acme"] adds no clause at all and the response
+     * contains EVERY job — the same class that answered with 19 of 19 posts in
+     * jpkcom-post-filter. A requested filter that survives normalisation empty is
+     * therefore an error naming the valid form, never a dropped clause.
+     *
+     * A well-formed value that simply matches nothing is a different statement and
+     * is not handled here: the caller resolves it and reports it in `unknown`,
+     * because an empty result for company=[999] is honest.
+     *
+     * Only the shape is decided here. Whether a well-formed id or slug exists on
+     * this site is resolved at the call site, where get_post_type() and
+     * get_term_by() are available and where the `unknown` bucket lives.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed  $raw  Raw value as it arrived in the ability input.
+     * @param string $axis Axis name: 'job_type', 'company', 'location' or 'attribute'.
+     * @param int    $max  Maximum number of values this axis accepts.
+     * @return array|WP_Error Normalised values, [] when the axis was not requested, or an error.
+     */
+    function jpkcom_acf_jobs_ability_normalise_filter( mixed $raw, string $axis, int $max ): array|WP_Error {
+
+        if ( $raw === null ) {
+
+            return [];
+
+        }
+
+        if ( ! is_array( value: $raw ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_invalid_filter',
+                sprintf(
+                    /* translators: %s: name of the filter axis. */
+                    __( 'The "%s" filter has to be an array of values. A single value must be wrapped in an array, and a comma-separated string is not accepted.', 'jpkcom-acf-jobs' ),
+                    $axis
+                )
+            );
+
+        }
+
+        if ( $raw === [] ) {
+
+            return [];
+
+        }
+
+        if ( count( $raw ) > $max ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_invalid_filter',
+                sprintf(
+                    /* translators: 1: name of the filter axis, 2: maximum number of values, 3: number of values received. */
+                    __( 'The "%1$s" filter accepts at most %2$d values and %3$d were sent. The surplus is not dropped: each extra value is one more unindexable scan, and a silently shortened filter answers a question that was never asked.', 'jpkcom-acf-jobs' ),
+                    $axis,
+                    $max,
+                    count( $raw )
+                )
+            );
+
+        }
+
+        // company and location are post IDs; job_type and attribute are stable
+        // string keys. Nothing here accepts a label: labels are locale-dependent
+        // and match nothing.
+        $numeric = ( $axis === 'company' || $axis === 'location' );
+        $out     = [];
+
+        foreach ( $raw as $value ) {
+
+            // Built before any branch may fail, and never by casting: a cast of an
+            // object without __toString throws, and a Throwable out of an ability
+            // callback is an uncaught fatal on the 6.9 floor.
+            $shown = gettype( $value );
+
+            if ( is_scalar( value: $value ) ) {
+
+                $shown = substr( sanitize_text_field( (string) $value ), 0, 40 );
+
+            }
+
+            if ( $numeric ) {
+
+                $id = 0;
+
+                if ( is_int( value: $value ) ) {
+
+                    $id = $value;
+
+                } elseif ( is_string( value: $value ) && ctype_digit( trim( string: $value ) ) ) {
+
+                    $id = (int) trim( string: $value );
+
+                }
+
+                if ( $id < 1 ) {
+
+                    return jpkcom_acf_jobs_ability_error(
+                        'jpkcom_acf_jobs_invalid_filter',
+                        sprintf(
+                            /* translators: 1: name of the filter axis, 2: the rejected value. */
+                            __( 'The "%1$s" filter accepts post IDs as positive integers, and "%2$s" is not one. It is refused rather than skipped, because a value that normalises away would remove the whole clause and return every job as a filtered answer. Call jpkcom-acf-jobs/list-filters for the accepted IDs.', 'jpkcom-acf-jobs' ),
+                            $axis,
+                            $shown
+                        )
+                    );
+
+                }
+
+                $out[] = $id;
+
+                continue;
+
+            }
+
+            $trimmed = '';
+
+            if ( is_string( value: $value ) ) {
+
+                $trimmed = trim( string: $value );
+
+            }
+
+            if ( $trimmed === '' ) {
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_invalid_filter',
+                    sprintf(
+                        /* translators: 1: name of the filter axis, 2: the rejected value. */
+                        __( 'The "%1$s" filter accepts non-empty strings, and "%2$s" is not one. It is refused rather than skipped, because a value that normalises away would remove the whole clause and return every job as a filtered answer. Call jpkcom-acf-jobs/list-filters for the accepted values, and pass the value rather than the label.', 'jpkcom-acf-jobs' ),
+                        $axis,
+                        $shown
+                    )
+                );
+
+            }
+
+            $out[] = $trimmed;
+
+        }
+
+        // Duplicates are collapsed, not refused: a repeated value is unambiguous,
+        // and every copy would become one more LIKE clause.
+        return array_values( array_unique( $out ) );
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_meta_clause_exists' ) ) {
+
+    /**
+     * Report whether a meta_query carries a clause on a given meta key.
+     *
+     * Used as a post-condition rather than as a convenience. Between the shared
+     * builder — which a site may replace through the plugin's file override chain —
+     * and the jpkcom_acf_jobs_ability_query_args filter, a requested clause can
+     * disappear without any error, and the result of that is a response containing
+     * every job while the caller believes it filtered. That is the one failure this
+     * ability must never produce silently.
+     *
+     * The depth limit is not decoration: the argument may have been rewritten by a
+     * third-party filter, and unbounded recursion on a deep array is a stack
+     * overflow, which no ability callback may risk.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed  $meta_query Meta query as it will reach WP_Query.
+     * @param string $key        Meta key to look for.
+     * @param int    $depth      Current recursion depth. Internal.
+     * @return bool True when a clause on that key is present.
+     */
+    function jpkcom_acf_jobs_ability_meta_clause_exists( mixed $meta_query, string $key, int $depth = 0 ): bool {
+
+        if ( ! is_array( value: $meta_query ) || $depth > 10 ) {
+
+            return false;
+
+        }
+
+        foreach ( $meta_query as $index => $clause ) {
+
+            if ( $index === 'relation' || ! is_array( value: $clause ) ) {
+
+                continue;
+
+            }
+
+            if ( isset( $clause['key'] ) && is_scalar( value: $clause['key'] ) && (string) $clause['key'] === $key ) {
+
+                return true;
+
+            }
+
+            if ( jpkcom_acf_jobs_ability_meta_clause_exists( $clause, $key, $depth + 1 ) ) {
+
+                return true;
+
+            }
+
+        }
+
+        return false;
+
+    }
+
+}
+
 if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_permission_list_filters' ) ) {
 
     /**
@@ -743,7 +1061,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     'items'       => $choice_schema,
                 ],
                 'work_type'            => [
-                    'type'        => 'object',
+                    'type'        => [ 'object', 'null' ],
                     'description' => __( 'Remote work, on-site work or both. Null when the job does not say.', 'jpkcom-acf-jobs' ),
                     'properties'  => $choice_schema['properties'],
                 ],
@@ -763,7 +1081,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     'items'       => $attribute_schema,
                 ],
                 'expiry_date'          => [
-                    'type'        => 'string',
+                    'type'        => [ 'string', 'null' ],
                     'description' => __( 'Last day the job is listed, as Y-m-d. Null when the job does not expire.', 'jpkcom-acf-jobs' ),
                 ],
             ],
@@ -1058,7 +1376,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                                                 'description' => __( 'Company website. ', 'jpkcom-acf-jobs' ) . $untrusted_note,
                                             ],
                                             'logo_url' => [
-                                                'type'        => 'string',
+                                                'type'        => [ 'string', 'null' ],
                                                 'description' => __( 'Company logo image URL.', 'jpkcom-acf-jobs' ),
                                             ],
                                         ],
@@ -1090,7 +1408,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                                     ],
                                 ],
                                 'salary'                => [
-                                    'type'        => 'object',
+                                    'type'        => [ 'object', 'null' ],
                                     'description' => __( 'Base salary. Null when the job does not state one.', 'jpkcom-acf-jobs' ),
                                     'properties'  => [
                                         'amount'   => [
@@ -1134,7 +1452,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                                             'description' => __( 'Application instructions as plain text. Markup is stripped and any shortcode is left as literal text. ', 'jpkcom-acf-jobs' ) . $untrusted_note,
                                         ],
                                         'button'      => [
-                                            'type'        => 'object',
+                                            'type'        => [ 'object', 'null' ],
                                             'description' => __( 'Application link as shown on the page. ', 'jpkcom-acf-jobs' ) . $untrusted_note,
                                             'properties'  => [
                                                 'title' => [
@@ -1164,7 +1482,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                                                 'description' => __( 'Row text as plain text. Markup is stripped and any shortcode is left as literal text, never executed.', 'jpkcom-acf-jobs' ),
                                             ],
                                             'image'  => [
-                                                'type'        => 'string',
+                                                'type'        => [ 'string', 'null' ],
                                                 'description' => __( 'Row image URL. Null when the row carries no image.', 'jpkcom-acf-jobs' ),
                                             ],
                                         ],
@@ -1488,50 +1806,9 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
             ]
         );
 
-        // Its own query, because two independent causes exclude a job that has no
-        // job_featured row: the EXISTS clause of the visibility rule, and the
-        // meta_key the ordering needs, whose postmeta.meta_key condition lands in
-        // the WHERE clause. Removing either one changes nothing, so subtracting
-        // the listed total from the published total would attribute the shortfall
-        // to whichever cause happened to be named.
-        $hidden_missing_featured = jpkcom_acf_jobs_ability_count_query(
-            [
-                'post_type'    => 'job',
-                'post_status'  => 'publish',
-                'has_password' => false,
-                'meta_query'   => [
-                    [
-                        'key'     => 'job_featured',
-                        'compare' => 'NOT EXISTS',
-                    ],
-                ],
-            ]
-        );
-
-        // Conditioned on job_featured existing as well, so the two shortfall
-        // causes partition the difference rather than overlapping. The date
-        // comparison is the mirror image of the visibility rule's: the same raw
-        // column, the same DATE cast, and the same site-timezone today.
-        $hidden_expired = jpkcom_acf_jobs_ability_count_query(
-            [
-                'post_type'    => 'job',
-                'post_status'  => 'publish',
-                'has_password' => false,
-                'meta_query'   => [
-                    'relation' => 'AND',
-                    [
-                        'key'     => 'job_featured',
-                        'compare' => 'EXISTS',
-                    ],
-                    [
-                        'key'     => 'job_expiry_date',
-                        'value'   => current_time( 'Y-m-d' ),
-                        'compare' => '<',
-                        'type'    => 'DATE',
-                    ],
-                ],
-            ]
-        );
+        // Shared with query-jobs, which declares the same two numbers. Each cause
+        // needs its own query; see jpkcom_acf_jobs_ability_visibility_counts().
+        $hidden = jpkcom_acf_jobs_ability_visibility_counts();
 
         return [
             'job_types'      => $job_types,
@@ -1546,8 +1823,8 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
             'visibility'     => [
                 'published_total'         => $published_total,
                 'listed_total'            => $listed_total,
-                'hidden_missing_featured' => $hidden_missing_featured,
-                'hidden_expired'          => $hidden_expired,
+                'hidden_missing_featured' => $hidden['hidden_missing_featured'],
+                'hidden_expired'          => $hidden['hidden_expired'],
             ],
         ];
 
@@ -1560,11 +1837,36 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
     /**
      * Execute callback for jpkcom-acf-jobs/query-jobs.
      *
-     * Not implemented in this build. The registration array with both schemas is
-     * complete, so the ability registers and is discoverable; the query itself
-     * arrives with the filter normalisation and the pagination guards it needs.
-     * A WP_Error keeps that state visible to a caller instead of answering with a
-     * plausible but empty result set.
+     * Answers "which jobs does this site list, narrowed by these filters" with the
+     * same query the site itself runs, plus three things the site never needed:
+     *
+     * 1. A requested filter that normalises to nothing is refused with a 400. The
+     *    shared builder skips a clause whose value list is empty, so company=
+     *    ["acme"] would otherwise return every job as a filtered answer. The
+     *    post-condition below re-checks that each requested clause actually
+     *    reached WP_Query, because the builder is overridable and the argument
+     *    filter can drop a clause just as effectively as a bad value can.
+     * 2. A deterministic tiebreaker. ORDER BY meta_value_num DESC, date DESC leaves
+     *    ties unresolved and MySQL permutes tied rows per execution — measured,
+     *    four fetches of unmodified code produced three orderings, because the
+     *    seeded jobs share a post_date. Harmless for the site's own unpaginated
+     *    listing; here an unstable sort puts a job on two pages or on none. It is
+     *    appended after the builder, never inside it: the builder is shared with
+     *    the shortcode and the archive, whose ordering this feature does not
+     *    change. A site that replaces `orderby` through the argument filter takes
+     *    that determinism back into its own hands.
+     * 3. Real totals for a page past the last one. WP_Query::set_found_posts()
+     *    returns early when posts is empty, so found_posts and max_num_pages stay
+     *    0 and a response would claim an empty corpus next to a page number of
+     *    three.
+     *
+     * Per-property defaults are resolved here. Core applies only the top-level
+     * `default`, and only when the input is exactly null.
+     *
+     * Nothing in this function throws for any input, and nothing casts an
+     * unvalidated value: the shared builder casts `order` to string, which throws
+     * for an object without __toString, and a Throwable out of an ability callback
+     * is an uncaught fatal on the declared 6.9 floor.
      *
      * @since 1.4.0
      *
@@ -1573,11 +1875,488 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
      */
     function jpkcom_acf_jobs_ability_query_jobs( mixed $input = null ): array|WP_Error {
 
-        return jpkcom_acf_jobs_ability_error(
-            'jpkcom_acf_jobs_not_implemented',
-            __( 'This ability is not available in this build.', 'jpkcom-acf-jobs' ),
-            501
-        );
+        if ( ! function_exists( function: 'get_field' ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_acf_missing',
+                __( 'Advanced Custom Fields Pro is not active on this site, so the job fields cannot be read. Reading the stored values directly is deliberately not attempted: without ACF the field definitions are missing too, and every value would be returned in its raw stored shape.', 'jpkcom-acf-jobs' ),
+                503
+            );
+
+        }
+
+        // includes/jobs-data.php is resolved through the plugin's file override
+        // chain, so a site can replace it. Checking rather than assuming turns a
+        // partial override into an error message instead of a fatal.
+        if (
+            ! function_exists( function: 'jpkcom_acf_jobs_build_job_query_args' )
+            || ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' )
+        ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_data_layer_missing',
+                __( 'The job data layer is unavailable on this site, so the job visibility rule cannot be applied.', 'jpkcom-acf-jobs' ),
+                500
+            );
+
+        }
+
+        if ( $input === null ) {
+
+            $input = [];
+
+        }
+
+        if ( ! is_array( value: $input ) ) {
+
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_invalid_input',
+                __( 'The input of jpkcom-acf-jobs/query-jobs has to be an object. Every property of it is optional, so an empty object asks for the first page of all listed jobs.', 'jpkcom-acf-jobs' )
+            );
+
+        }
+
+        // Pagination is clamped rather than refused, because the response echoes
+        // the applied page and page size back and a caller can therefore see what
+        // it got. A dropped filter clause has no such tell, which is why the axes
+        // below are refused instead.
+        $page = 1;
+
+        if ( isset( $input['page'] ) && is_numeric( value: $input['page'] ) ) {
+
+            $page = max( 1, (int) $input['page'] );
+
+        }
+
+        $per_page = jpkcom_acf_jobs_ability_clamp_per_page( $input['per_page'] ?? JPKCOM_ACFJOBS_ABILITY_PER_PAGE_DEFAULT );
+
+        // Validated before it is passed on, never merely defaulted: the builder
+        // maps anything that is not ASC to DESC, so an unrecognised direction
+        // would be answered silently with the opposite of what was asked for.
+        $order = 'DESC';
+
+        if ( isset( $input['order'] ) ) {
+
+            $requested_order = '';
+
+            if ( is_string( value: $input['order'] ) ) {
+
+                $requested_order = strtoupper( string: trim( string: $input['order'] ) );
+
+            }
+
+            if ( $requested_order !== 'ASC' && $requested_order !== 'DESC' ) {
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_invalid_input',
+                    __( 'The "order" parameter has to be the string "ASC" or "DESC". It sets the direction of the date component of the sort; featured jobs always sort first either way.', 'jpkcom-acf-jobs' )
+                );
+
+            }
+
+            $order = $requested_order;
+
+        }
+
+        $include_closed = true;
+
+        if ( isset( $input['include_closed'] ) ) {
+
+            if ( ! is_bool( value: $input['include_closed'] ) ) {
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_invalid_input',
+                    __( 'The "include_closed" parameter has to be a boolean. It defaults to true, matching the site itself, which lists filled positions and marks them with is_closed.', 'jpkcom-acf-jobs' )
+                );
+
+            }
+
+            $include_closed = $input['include_closed'];
+
+        }
+
+        // Sanitised here rather than in the builder, and checked afterwards. The
+        // builder tests ! empty( $args['search'] ) BEFORE sanitising, so a string
+        // like "<b></b>" passes that test, sanitises to '' and sets s => '', which
+        // WP_Query ignores — every job would come back as a search result.
+        $search = '';
+
+        if ( isset( $input['search'] ) ) {
+
+            if ( is_string( value: $input['search'] ) ) {
+
+                $search = sanitize_text_field( $input['search'] );
+
+            }
+
+            if ( $search === '' ) {
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_invalid_filter',
+                    __( 'The "search" filter has to be a non-empty string, and the value sent contains nothing searchable once markup is removed. It is refused rather than skipped, because an ignored search term returns every job as a search result.', 'jpkcom-acf-jobs' )
+                );
+
+            }
+
+        }
+
+        $job_type_choices = jpkcom_acf_jobs_job_type_choices();
+
+        $requested = [
+            'job_type'  => jpkcom_acf_jobs_ability_normalise_filter( $input['job_type'] ?? null, 'job_type', max( 1, count( $job_type_choices ) ) ),
+            'company'   => jpkcom_acf_jobs_ability_normalise_filter( $input['company'] ?? null, 'company', JPKCOM_ACFJOBS_ABILITY_MAX_VALUES ),
+            'location'  => jpkcom_acf_jobs_ability_normalise_filter( $input['location'] ?? null, 'location', JPKCOM_ACFJOBS_ABILITY_MAX_VALUES ),
+            'attribute' => jpkcom_acf_jobs_ability_normalise_filter( $input['attribute'] ?? null, 'attribute', JPKCOM_ACFJOBS_ABILITY_MAX_VALUES ),
+        ];
+
+        foreach ( $requested as $axis_values ) {
+
+            if ( is_wp_error( $axis_values ) ) {
+
+                return $axis_values;
+
+            }
+
+        }
+
+        // Which of the well-formed values this site actually knows. A value that
+        // matches nothing is not an error — it is reported here and the empty
+        // result that follows is honest.
+        $known   = [
+            'job_type'  => [],
+            'company'   => [],
+            'location'  => [],
+            'attribute' => [],
+        ];
+        $unknown = [];
+
+        foreach ( $requested['job_type'] as $value ) {
+
+            if ( array_key_exists( $value, $job_type_choices ) ) {
+
+                $known['job_type'][] = $value;
+
+                continue;
+
+            }
+
+            $unknown['job_type'][] = $value;
+
+        }
+
+        // get_post_type() rather than a bare existence check: an ID belonging to a
+        // page or to a job would otherwise be built into a clause on job_company
+        // and match nothing, which reads as "no such jobs" instead of "wrong ID".
+        foreach ( [ 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $related_type ) {
+
+            foreach ( $requested[ $axis ] as $id ) {
+
+                if ( get_post_type( $id ) === $related_type ) {
+
+                    $known[ $axis ][] = $id;
+
+                    continue;
+
+                }
+
+                $unknown[ $axis ][] = $id;
+
+            }
+
+        }
+
+        // Slugs in, term IDs out. The taxonomy argument is never omitted:
+        // get_term_by( 'slug', … ) without one resolves in any taxonomy.
+        $attribute_terms = [];
+
+        foreach ( $requested['attribute'] as $slug ) {
+
+            $term = get_term_by( 'slug', $slug, 'job-attribute' );
+
+            if ( $term instanceof WP_Term ) {
+
+                $known['attribute'][] = $slug;
+                $attribute_terms[]    = (int) $term->term_id;
+
+                continue;
+
+            }
+
+            $unknown['attribute'][] = $slug;
+
+        }
+
+        // An axis that was requested but resolves to no known value cannot become a
+        // clause, and handing the builder an empty list would drop the clause and
+        // return every job. The honest answer is an empty result set, so the
+        // listing query is skipped rather than run unfiltered.
+        $exhausted = false;
+
+        foreach ( $requested as $axis => $axis_values ) {
+
+            if ( $axis_values !== [] && $known[ $axis ] === [] ) {
+
+                $exhausted = true;
+
+            }
+
+        }
+
+        $filters = [
+            'include_closed' => $include_closed,
+            'order'          => $order,
+        ];
+
+        foreach ( $requested as $axis => $axis_values ) {
+
+            if ( $axis_values !== [] ) {
+
+                $filters[ $axis ] = $known[ $axis ];
+
+            }
+
+        }
+
+        if ( $search !== '' ) {
+
+            $filters['search'] = $search;
+
+        }
+
+        $total       = 0;
+        $total_pages = 0;
+        $jobs        = [];
+
+        if ( ! $exhausted ) {
+
+            $args = jpkcom_acf_jobs_build_job_query_args(
+                [
+                    'post_status'                => 'publish',
+                    'posts_per_page'             => $per_page,
+                    'paged'                      => $page,
+                    'order'                      => $order,
+                    'job_type'                   => $known['job_type'],
+                    'company'                    => $known['company'],
+                    'location'                   => $known['location'],
+                    'attribute'                  => $attribute_terms,
+                    'search'                     => $search,
+                    'exclude_password_protected' => true,
+                ]
+            );
+
+            // The tiebreaker, appended after the builder and never inside it. See
+            // the note at the top of this function.
+            if ( is_array( value: $args['orderby'] ?? null ) ) {
+
+                $args['orderby']['ID'] = $order;
+
+            }
+
+            // job_closed is known to no query in this plugin — not the shortcode's
+            // meta_query, not the archive's pre_get_posts, not any redirect — so
+            // the clause lives here rather than in the shared builder. NOT EXISTS
+            // is required next to the comparison: a job whose toggle was never
+            // touched has no row at all.
+            if ( ! $include_closed && is_array( value: $args['meta_query'] ?? null ) ) {
+
+                $args['meta_query'][] = [
+                    'relation' => 'OR',
+                    [
+                        'key'     => 'job_closed',
+                        'compare' => 'NOT EXISTS',
+                    ],
+                    [
+                        'key'     => 'job_closed',
+                        'value'   => '1',
+                        'compare' => '!=',
+                    ],
+                ];
+
+            }
+
+            $args['ignore_sticky_posts'] = true;
+
+            /**
+             * Filter the WP_Query arguments of jpkcom-acf-jobs/query-jobs.
+             *
+             * The post type, the post status and the password exclusion are
+             * re-asserted after this filter runs, and every requested filter clause
+             * is re-checked for presence: an ability that answered with every job
+             * because a callback dropped a clause is the one failure this feature
+             * exists to prevent.
+             *
+             * @since 1.4.0
+             *
+             * @param array $args  WP_Query arguments.
+             * @param array $input Validated ability input.
+             */
+            $filtered = apply_filters( 'jpkcom_acf_jobs_ability_query_args', $args, $input );
+
+            if ( is_array( value: $filtered ) ) {
+
+                $args = $filtered;
+
+            }
+
+            $args['post_type']    = 'job';
+            $args['post_status']  = 'publish';
+            $args['has_password'] = false;
+
+            $dropped = '';
+
+            foreach ( [ 'job_type' => 'job_type', 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $meta_key ) {
+
+                if ( $known[ $axis ] !== [] && ! jpkcom_acf_jobs_ability_meta_clause_exists( $args['meta_query'] ?? null, $meta_key ) ) {
+
+                    $dropped = $axis;
+
+                }
+
+            }
+
+            if ( ! $include_closed && ! jpkcom_acf_jobs_ability_meta_clause_exists( $args['meta_query'] ?? null, 'job_closed' ) ) {
+
+                $dropped = 'include_closed';
+
+            }
+
+            if ( $attribute_terms !== [] ) {
+
+                $tax_applied = false;
+
+                foreach ( (array) ( $args['tax_query'] ?? [] ) as $clause ) {
+
+                    if ( is_array( value: $clause ) && ( $clause['taxonomy'] ?? null ) === 'job-attribute' ) {
+
+                        $tax_applied = true;
+
+                    }
+
+                }
+
+                if ( ! $tax_applied ) {
+
+                    $dropped = 'attribute';
+
+                }
+
+            }
+
+            // A 5xx on purpose, and the only one this callback can produce from
+            // well-formed input: nothing the caller sends can cause it and nothing
+            // it changes can avoid it. Answering with every job instead would be a
+            // wrong answer presented as a right one.
+            if ( $dropped !== '' ) {
+
+                jpkcom_acf_jobs_ability_log( 'The ' . $dropped . ' filter did not reach WP_Query.' );
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_filter_not_applied',
+                    sprintf(
+                        /* translators: %s: name of the filter axis. */
+                        __( 'The "%s" filter was accepted but did not reach the query on this site, so no result is returned. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
+                        $dropped
+                    ),
+                    500
+                );
+
+            }
+
+            $query = new WP_Query( $args );
+
+            $posts       = is_array( value: $query->posts ) ? $query->posts : [];
+            $total       = (int) $query->found_posts;
+            $total_pages = (int) $query->max_num_pages;
+
+            // Both halves of the guard matter. Without the first, every paginated
+            // call runs its query twice; without the second, a page past the last
+            // one reports a corpus of zero next to the page number it was asked
+            // for.
+            if ( $posts === [] && $page > 1 ) {
+
+                $recovery          = $args;
+                $recovery['paged'] = 1;
+
+                $first = new WP_Query( $recovery );
+
+                $total       = (int) $first->found_posts;
+                $total_pages = (int) $first->max_num_pages;
+
+            }
+
+            // No loop and no wp_reset_postdata(): there is no global post to
+            // restore inside an ability callback, and the_post() would set one.
+            // A WP_Post is never emitted — it exposes post_password, post_content
+            // and post_status as public properties and implements no
+            // JsonSerializable.
+            foreach ( $posts as $post ) {
+
+                $job_id = 0;
+
+                if ( $post instanceof WP_Post ) {
+
+                    $job_id = (int) $post->ID;
+
+                } elseif ( is_scalar( value: $post ) ) {
+
+                    // A site filter may set fields => 'ids'.
+                    $job_id = absint( $post );
+
+                }
+
+                if ( $job_id < 1 ) {
+
+                    continue;
+
+                }
+
+                $record = jpkcom_acf_jobs_get_job_data( $job_id, false );
+
+                // [] means the reader's own gate refused the job. The query should
+                // not have returned it, but a widened query filter is exactly the
+                // case that gate exists for.
+                if ( $record === [] ) {
+
+                    continue;
+
+                }
+
+                $jobs[] = $record;
+
+            }
+
+        }
+
+        // Withheld rather than emitted empty-handed when the archive is off: that
+        // address answers with a 307 to an esc_url_raw-sanitised, wp_redirect
+        // dispatched target on any host, and publishing the link would silently
+        // reverse the site owner's explicit "do not publish a job list" setting.
+        $archive_url = '';
+
+        if ( ! get_option( 'jpkcom_acf_job_disable_archive', false ) ) {
+
+            $link = get_post_type_archive_link( 'job' );
+
+            if ( is_string( value: $link ) ) {
+
+                $archive_url = $link;
+
+            }
+
+        }
+
+        return [
+            'filters'     => jpkcom_acf_jobs_ability_json_object( $filters ),
+            'unknown'     => jpkcom_acf_jobs_ability_json_object( $unknown ),
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+            'archive_url' => $archive_url,
+            'visibility'  => jpkcom_acf_jobs_ability_visibility_counts(),
+            'language'    => jpkcom_acf_jobs_ability_language(),
+            'jobs'        => $jobs,
+        ];
 
     }
 
