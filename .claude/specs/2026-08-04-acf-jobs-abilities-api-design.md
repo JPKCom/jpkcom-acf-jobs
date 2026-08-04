@@ -428,7 +428,7 @@ catch it.
 | `job_type` outside the eight registered values | Rejected by the schema `enum` before the query runs |
 | More filter values than the per-axis cap | `WP_Error`, `status: 400` — never a silent truncation |
 | Well-formed value with no match | Not an error; listed in `unknown` |
-| `per_page` outside 1–50 | Clamped. `-1` is never produced |
+| `per_page` outside 1–50 | **Rejected** by the input schema's `minimum`/`maximum` before the callback runs, with the same 400 as any other caller mistake. The callback still clamps as defence in depth, and `-1` is never produced. Rejecting rather than silently clamping is consistent with the rest of this table: a caller who asked for 200 results and received 50 without being told has been given a wrong answer, not a helpful one |
 | `page` past the last one | Totals recovered from a page-1 re-run; `jobs` empty |
 | `get-job` id that is not a published, unprotected `job` | `WP_Error`, `status: 404`, identical for "absent" and "not readable" |
 | ACF absent at call time | `WP_Error`. Never a raw-meta fallback |
