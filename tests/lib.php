@@ -205,8 +205,12 @@ function determine_locale(): string {
 	return 'en_US';
 }
 
+// Deliberately NOT the same value as determine_locale(). The resolver tries
+// determine_locale() first and get_locale() only as a last resort; with both
+// stubbed to the same string, deleting the determine_locale() branch entirely
+// would leave every language assertion green.
 function get_locale(): string {
-	return 'en_US';
+	return 'en_GB';
 }
 
 function get_post( mixed $id = null ): ?WP_Post {
@@ -227,8 +231,15 @@ function get_the_title( mixed $post = null ): string {
 	return $p instanceof WP_Post ? $p->post_title : '';
 }
 
+// Field values a test wants the reader to see, keyed by post ID and then by
+// field name. Empty by default, so every existing assertion keeps seeing the
+// null ACF returns for an unset field.
+$GLOBALS['jpkcom_test_fields'] = [];
+
 function get_field( string $selector, mixed $post_id = false, bool $format_value = true, bool $escape_html = false ): mixed {
-	return null;
+	$fields = $GLOBALS['jpkcom_test_fields'][ (int) $post_id ] ?? [];
+
+	return $fields[ $selector ] ?? null;
 }
 
 function get_permalink( mixed $post = null ): string {
@@ -255,8 +266,12 @@ function wp_get_attachment_image_src( int $id, string $size = 'thumbnail' ): arr
 	return false;
 }
 
+// Meta keys that exist as a ROW, whatever their value. job_featured is the one
+// that matters: the visibility rule excludes a missing row, not a stored zero.
+$GLOBALS['jpkcom_test_meta_rows'] = [];
+
 function metadata_exists( string $meta_type, int $object_id, string $meta_key ): bool {
-	return false;
+	return in_array( $meta_key, $GLOBALS['jpkcom_test_meta_rows'][ (int) $object_id ] ?? [], true );
 }
 
 // The five ACF flexible-content functions the reader's detail branch walks

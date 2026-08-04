@@ -19,6 +19,13 @@ require_once __DIR__ . '/lib.php';
 
 define( 'JPKCOM_ACFJOBS_ABILITIES', true );
 
+// Pinned low on purpose. includes/abilities.php defines this only when it is not
+// already defined, and at its real value of 500 the truncation branch is
+// unreachable from a fixture — which is how it shipped undetectable in the first
+// place. The post fixture holds three job_company records and one job_location,
+// so a cap of 1 truncates the first and not the second.
+define( 'JPKCOM_ACFJOBS_ABILITY_VOCABULARY_LIMIT', 1 );
+
 require_once $root . '/includes/jobs-data.php';
 require_once $root . '/includes/abilities.php';
 
@@ -178,6 +185,7 @@ if ( function_exists( 'jpkcom_acf_jobs_ability_related_vocabulary' ) ) {
 
 	$vocabulary = jpkcom_acf_jobs_ability_related_vocabulary( 'job_company' );
 	$asked      = $GLOBALS['jpkcom_test_queries'][0] ?? [];
+	$records    = $vocabulary['records'] ?? null;
 
 	chk( 'it queries the requested post type', 'job_company' === ( $asked['post_type'] ?? null ) );
 	chk(
@@ -199,18 +207,115 @@ if ( function_exists( 'jpkcom_acf_jobs_ability_related_vocabulary' ) ) {
 	);
 	chk(
 		'only the published, unprotected company survives the projection',
-		[ [ 'id' => 182, 'title' => 'Testfirma GmbH' ] ] === $vocabulary,
+		[ [ 'id' => 182, 'title' => 'Testfirma GmbH' ] ] === $records,
 		'The harness WP_Query hands back every job_company regardless of status, so this can '
 		. 'only pass because the projection drops the draft (500) and the password-protected '
 		. 'one (501) a second time.'
+	);
+	chk(
+		'it fetches one more record than the cap, so truncation is detectable at all',
+		( JPKCOM_ACFJOBS_ABILITY_VOCABULARY_LIMIT + 1 ) === ( $asked['posts_per_page'] ?? null ),
+		'Asking for exactly the cap with no_found_rows makes truncation invisible to the code '
+		. 'itself: a site with 600 companies would return 500 and report nothing at all.'
+	);
+	chk(
+		'a truncated vocabulary says so',
+		true === ( $vocabulary['truncated'] ?? null ),
+		'Three job_company fixtures against a cap of 1. Silent truncation is exactly what this '
+		. 'feature refuses to do everywhere else.'
+	);
+
+	$untruncated = jpkcom_acf_jobs_ability_related_vocabulary( 'job_location' );
+
+	chk(
+		'an untruncated vocabulary says so too',
+		false === ( $untruncated['truncated'] ?? null ),
+		'One job_location fixture against a cap of 1: exactly at the cap is not over it.'
 	);
 }
 
 if ( function_exists( 'jpkcom_acf_jobs_ability_list_filters' ) ) {
 
-	$listed = jpkcom_acf_jobs_ability_list_filters( null );
+	$GLOBALS['jpkcom_test_queries'] = [];
+
+	$listed  = jpkcom_acf_jobs_ability_list_filters( null );
+	$queries = $GLOBALS['jpkcom_test_queries'];
 
 	chk( 'list-filters returns an array, not an error', is_array( $listed ) );
+
+	chk(
+		'list-filters reports a truncated vocabulary',
+		true === ( $listed['vocabulary_truncated'] ?? null ),
+		'The company vocabulary is over the pinned cap, and the caller has to be told that the '
+		. 'filter menu it just received is incomplete.'
+	);
+
+	$job_queries = array_values(
+		array_filter( $queries, static fn( array $q ): bool => 'job' === ( $q['post_type'] ?? null ) )
+	);
+
+	chk(
+		'list-filters runs the visibility query and the three count queries',
+		4 === count( $job_queries ),
+		'One bounded pass over the listed jobs, plus published_total, hidden_missing_featured '
+		. 'and hidden_expired.'
+	);
+
+	foreach ( $job_queries as $i => $q ) {
+		chk(
+			"job query {$i} pins post_status to publish",
+			'publish' === ( $q['post_status'] ?? null ),
+			'Pinned explicitly and unconditionally on every one of them. Core widens an '
+			. 'unspecified post_status to include private posts for a caller holding '
+			. 'read_private_posts, so two callers would otherwise see different "public" job '
+			. 'lists and the answer would stop being cacheable.'
+		);
+		chk(
+			"job query {$i} excludes password-protected jobs",
+			false === ( $q['has_password'] ?? null ),
+			'get_the_title() prepends the protected-title format while ACF has no notion of a '
+			. 'post password and hands out the salary and address in full.'
+		);
+	}
+
+	$visibility_query = $job_queries[0] ?? [];
+
+	chk(
+		'the visibility query asks for ids only and is bounded one past the count limit',
+		'ids' === ( $visibility_query['fields'] ?? null )
+		&& ( JPKCOM_ACFJOBS_ABILITY_COUNT_LIMIT + 1 ) === ( $visibility_query['posts_per_page'] ?? null )
+	);
+	chk(
+		'the visibility query carries the shared visibility rule, not a local copy',
+		'job_featured' === ( $visibility_query['meta_key'] ?? null )
+		&& is_array( $visibility_query['meta_query'] ?? null ),
+		'It has to be the same rule the archive and the shortcode run, or list-filters '
+		. 'describes a site nobody sees.'
+	);
+
+	foreach ( array_slice( $job_queries, 1 ) as $i => $q ) {
+		chk(
+			'count query ' . ( $i + 1 ) . ' fetches no rows it does not need',
+			'ids' === ( $q['fields'] ?? null ) && 1 === ( $q['posts_per_page'] ?? null )
+			&& false === ( $q['no_found_rows'] ?? null )
+		);
+	}
+
+	$vocabulary_queries = array_values(
+		array_filter(
+			$queries,
+			static fn( array $q ): bool => in_array( $q['post_type'] ?? '', [ 'job_company', 'job_location' ], true )
+		)
+	);
+
+	chk( 'list-filters runs both vocabulary queries', 2 === count( $vocabulary_queries ) );
+
+	foreach ( $vocabulary_queries as $i => $q ) {
+		chk(
+			"vocabulary query {$i} pins post_status to publish and excludes passwords",
+			'publish' === ( $q['post_status'] ?? null ) && false === ( $q['has_password'] ?? null )
+		);
+	}
 
 	chk(
 		'list-filters echoes the resolved language',
@@ -327,5 +432,159 @@ forbid_in_ability_path(
 	. 'acf_the_content — do_shortcode at priority 11 and wp_embed autoembed at 8. The third '
 	. 'argument must always be explicit in this path.'
 );
+
+/**
+ * Assert that every long-form read passes an explicit false, not merely a third argument.
+ *
+ * The guard above only sees the two-argument call. It does not see the far more
+ * likely regression: somebody tidying an explicit false into an explicit true,
+ * which reads as harmless and re-arms the entire acf_the_content chain.
+ */
+function long_form_reads_pass_false(): void {
+	global $pass, $fail, $root;
+
+	// Fields whose ACF type formats through acf_the_content on read. Every
+	// get_sub_field() in this path reads a flexible-content sub-field, and every
+	// layout in that group carries a wysiwyg, so those need no name list.
+	$long_form = [ 'job_short_description', 'job_application_description' ];
+
+	$hits = [];
+	$seen = 0;
+
+	foreach ( [ $root . '/includes/abilities.php', $root . '/includes/jobs-data.php' ] as $path ) {
+		foreach ( explode( "\n", (string) file_get_contents( $path ) ) as $no => $line ) {
+			$trimmed = ltrim( $line );
+
+			if ( str_starts_with( $trimmed, '//' ) || str_starts_with( $trimmed, '*' ) || str_starts_with( $trimmed, '/*' ) ) {
+				continue;
+			}
+
+			$calls = [];
+
+			if ( preg_match_all( '/get_sub_field\(([^)]*)\)/', $line, $m ) ) {
+				foreach ( $m[1] as $args ) {
+					$calls[] = [ 'get_sub_field(' . $args . ')', $args ];
+				}
+			}
+
+			foreach ( $long_form as $field ) {
+				$pattern = '/get_field\(\s*[\'"]' . preg_quote( $field, '/' ) . '[\'"]([^)]*)\)/';
+
+				if ( preg_match_all( $pattern, $line, $m ) ) {
+					foreach ( $m[1] as $args ) {
+						$calls[] = [ 'get_field( \'' . $field . '\'' . $args . ')', $args ];
+					}
+				}
+			}
+
+			foreach ( $calls as $call ) {
+				$seen++;
+
+				if ( ! preg_match( '/,\s*false\s*$/', $call[1] ) ) {
+					$hits[] = sprintf( '%s:%d  %s', basename( $path ), $no + 1, trim( $call[0] ) );
+				}
+			}
+		}
+	}
+
+	if ( 0 === $seen ) {
+		$hits[] = 'no long-form read found at all — the field names this guard watches have moved';
+	}
+
+	if ( empty( $hits ) ) {
+		$pass++;
+		echo "  PASS  every long-form read passes an explicit false\n";
+		return;
+	}
+
+	$fail++;
+	echo "  FAIL  every long-form read passes an explicit false\n";
+	echo "        An explicit true is not safer than a missing argument, it is the same call.\n";
+	echo "        acf_the_content carries do_shortcode at 11 and WP_Embed::autoembed at 8, and\n";
+	echo "        with no post context autoembed fetches the remote URL and wp_insert_post()s an\n";
+	echo "        oembed_cache row. A bare URL in a job description is enough: a read-only\n";
+	echo "        ability would then write to the database for any logged-in subscriber.\n";
+
+	foreach ( $hits as $hit ) {
+		echo "        {$hit}\n";
+	}
+}
+
+long_form_reads_pass_false();
+
+/**
+ * Assert that every permission callback actually checks a capability.
+ *
+ * The comment-matching guard above catches only the one spelling it was written
+ * for. This reads each callback body instead, so a bare `return true;` is caught
+ * whatever it is or is not annotated with.
+ */
+function permission_callbacks_check_a_capability(): void {
+	global $pass, $fail, $root;
+
+	$source = (string) file_get_contents( $root . '/includes/abilities.php' );
+	$hits   = [];
+	$found  = 0;
+
+	preg_match_all(
+		'/function\s+(jpkcom_acf_jobs_ability_permission_\w+)\s*\([^)]*\)\s*:\s*bool\s*\{/',
+		$source,
+		$matches,
+		PREG_OFFSET_CAPTURE
+	);
+
+	foreach ( $matches[0] as $index => $match ) {
+		$name  = $matches[1][ $index ][0];
+		$start = $match[1] + strlen( $match[0] );
+		$depth = 1;
+		$end   = $start;
+		$len   = strlen( $source );
+
+		for ( $pos = $start; $pos < $len && $depth > 0; $pos++ ) {
+			if ( '{' === $source[ $pos ] ) {
+				$depth++;
+			}
+
+			if ( '}' === $source[ $pos ] ) {
+				$depth--;
+			}
+
+			$end = $pos;
+		}
+
+		$body = substr( $source, $start, $end - $start );
+		$found++;
+
+		if ( ! str_contains( $body, 'current_user_can(' ) ) {
+			$hits[] = "{$name}() never calls current_user_can()";
+		}
+
+		if ( preg_match( '/return\s+(true|false)\s*;/', $body ) ) {
+			$hits[] = "{$name}() returns a literal instead of the result of a capability check";
+		}
+	}
+
+	if ( 3 !== $found ) {
+		$hits[] = sprintf( 'found %d permission callbacks, expected one per ability', $found );
+	}
+
+	if ( empty( $hits ) ) {
+		$pass++;
+		echo "  PASS  every permission callback checks a capability\n";
+		return;
+	}
+
+	$fail++;
+	echo "  FAIL  every permission callback checks a capability\n";
+	echo "        A callback that short-circuits makes jpkcom_acf_jobs_ability_capability\n";
+	echo "        decorative, and every logged-in user can then run every ability whatever the\n";
+	echo "        site filtered the capability down to.\n";
+
+	foreach ( $hits as $hit ) {
+		echo "        {$hit}\n";
+	}
+}
+
+permission_callbacks_check_a_capability();
 
 summary();

@@ -463,8 +463,16 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_related_vocabulary' )
      *
      * @since 1.4.0
      *
+     * One record more than the cap is fetched so that hitting the cap is
+     * detectable at all. Asking for exactly the cap alongside no_found_rows would
+     * make the truncation invisible to this function itself: a site with 600
+     * companies would return 500 and have no way to know it had dropped 100.
+     *
      * @param string $post_type Either 'job_company' or 'job_location'.
-     * @return array List of [ 'id' => int, 'title' => string ].
+     * @return array {
+     *     @type array $records   List of [ 'id' => int, 'title' => string ].
+     *     @type bool  $truncated Whether the site holds more records than the cap.
+     * }
      */
     function jpkcom_acf_jobs_ability_related_vocabulary( string $post_type ): array {
 
@@ -473,7 +481,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_related_vocabulary' )
                 'post_type'              => $post_type,
                 'post_status'            => 'publish',
                 'has_password'           => false,
-                'posts_per_page'         => JPKCOM_ACFJOBS_ABILITY_VOCABULARY_LIMIT,
+                'posts_per_page'         => JPKCOM_ACFJOBS_ABILITY_VOCABULARY_LIMIT + 1,
                 'paged'                  => 1,
                 'fields'                 => 'ids',
                 'orderby'                => 'title',
@@ -485,15 +493,27 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_related_vocabulary' )
             ]
         );
 
-        $ids = array_values( array_filter( array_map( 'absint', (array) $query->posts ) ) );
+        $ids       = array_values( array_filter( array_map( 'absint', (array) $query->posts ) ) );
+        $truncated = count( $ids ) > JPKCOM_ACFJOBS_ABILITY_VOCABULARY_LIMIT;
 
-        if ( $ids === [] ) {
+        if ( $truncated ) {
 
-            return [];
+            $ids = array_slice( $ids, 0, JPKCOM_ACFJOBS_ABILITY_VOCABULARY_LIMIT );
 
         }
 
-        return jpkcom_acf_jobs_normalise_related( $ids );
+        $records = [];
+
+        if ( $ids !== [] ) {
+
+            $records = jpkcom_acf_jobs_normalise_related( $ids );
+
+        }
+
+        return [
+            'records'   => $records,
+            'truncated' => $truncated,
+        ];
 
     }
 
@@ -824,6 +844,10 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                         'counts_omitted' => [
                             'type'        => 'boolean',
                             'description' => __( 'True when more than 500 jobs are listed. Every count is then dropped rather than computed from a truncated sample. The three lists themselves are never affected: they are the full vocabulary of this site either way.', 'jpkcom-acf-jobs' ),
+                        ],
+                        'vocabulary_truncated' => [
+                            'type'        => 'boolean',
+                            'description' => __( 'True when this site holds more than 500 companies or more than 500 locations. The corresponding list is then capped, so it does not contain every value query-jobs would accept and a value missing from it is not proof that no such record exists.', 'jpkcom-acf-jobs' ),
                         ],
                         'language'       => $language_schema,
                         'visibility'     => [
@@ -1301,7 +1325,9 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
         $locations      = [];
         $location_index = [];
 
-        foreach ( jpkcom_acf_jobs_ability_related_vocabulary( 'job_company' ) as $related ) {
+        $company_vocabulary = jpkcom_acf_jobs_ability_related_vocabulary( 'job_company' );
+
+        foreach ( $company_vocabulary['records'] as $related ) {
 
             $id = (int) $related['id'];
 
@@ -1315,9 +1341,15 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
         }
 
         $location_vocabulary = jpkcom_acf_jobs_ability_related_vocabulary( 'job_location' );
+        $location_records    = $location_vocabulary['records'];
         $location_ids        = [];
 
-        foreach ( $location_vocabulary as $related ) {
+        // A site with more companies or locations than the cap gets a shortened
+        // filter menu, and is told so rather than left to assume the list is
+        // everything. Silent truncation is what this feature refuses everywhere.
+        $vocabulary_truncated = ! empty( $company_vocabulary['truncated'] ) || ! empty( $location_vocabulary['truncated'] );
+
+        foreach ( $location_records as $related ) {
 
             $location_ids[] = (int) $related['id'];
 
@@ -1331,7 +1363,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
 
         }
 
-        foreach ( $location_vocabulary as $related ) {
+        foreach ( $location_records as $related ) {
 
             $id    = (int) $related['id'];
             $place = get_field( 'job_location_place', $id, false );
@@ -1507,6 +1539,9 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
             'locations'      => $locations,
             'attributes'     => $attributes,
             'counts_omitted' => $counts_omitted,
+
+            'vocabulary_truncated' => $vocabulary_truncated,
+
             'language'       => jpkcom_acf_jobs_ability_language(),
             'visibility'     => [
                 'published_total'         => $published_total,

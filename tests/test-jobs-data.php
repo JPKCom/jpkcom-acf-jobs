@@ -282,4 +282,120 @@ chk(
 
 unset( $GLOBALS['post'] );
 
+echo "\nDetail branch: the application disclosure gates\n";
+
+// The stored values below all exist on a real job whose toggles are off: that is
+// the point of the gate. job_application_shortcode names an internal form and has
+// no meaning outside this site, so it has no toggle here at all — it is never read.
+$GLOBALS['jpkcom_test_fields'][184] = [
+	'job_application_show_description' => false,
+	'job_application_show_button'      => false,
+	'job_application_show_shortcode'   => false,
+	'job_application_description'      => 'Bewerbungen an personal@example.test',
+	'job_application_button'           => [ 'title' => 'Jetzt bewerben', 'url' => 'https://ats.example.test/apply/1' ],
+	'job_application_shortcode'        => '[jpkcom_internal_form id="7"]',
+];
+
+$off = jpkcom_acf_jobs_get_job_data( 184, true );
+
+chk(
+	'the detail branch is reached at all',
+	isset( $off['detail'] ) && is_array( $off['detail'] ),
+	'Without this every assertion below would pass vacuously against a missing key.'
+);
+chk(
+	'a switched-off application description is withheld',
+	'' === ( $off['detail']['application']['description'] ?? null ),
+	'The meta survives the toggle being switched off, and the value is typically a recruiting '
+	. 'mailbox or an internal ATS link. The gate is a disclosure control, not cosmetics.'
+);
+chk(
+	'a switched-off application button is withheld',
+	// Not ?? : the key is present and its value is null, and ?? cannot tell those
+	// two apart. The key has to stay, or the block encodes as [] rather than {}.
+	array_key_exists( 'button', $off['detail']['application'] ?? [] )
+	&& null === $off['detail']['application']['button'],
+	'Same class: the button URL is editor-supplied and was deliberately taken off the page.'
+);
+chk(
+	'the application shortcode is never emitted while the toggles are off',
+	! str_contains( (string) json_encode( $off ), 'jpkcom_internal_form' ),
+	'job_application_shortcode names internal form IDs. It is not gated, it is simply never read.'
+);
+
+$GLOBALS['jpkcom_test_fields'][184]['job_application_show_description'] = true;
+$GLOBALS['jpkcom_test_fields'][184]['job_application_show_button']      = true;
+$GLOBALS['jpkcom_test_fields'][184]['job_application_show_shortcode']   = true;
+
+$on = jpkcom_acf_jobs_get_job_data( 184, true );
+
+chk(
+	'a switched-on application description is emitted',
+	'Bewerbungen an personal@example.test' === ( $on['detail']['application']['description'] ?? null ),
+	'The gate has to be a gate, not a blanket refusal, or the assertions above would pass '
+	. 'against a reader that emits nothing at all.'
+);
+chk(
+	'a switched-on application button is emitted',
+	[ 'title' => 'Jetzt bewerben', 'url' => 'https://ats.example.test/apply/1' ] === ( $on['detail']['application']['button'] ?? null )
+);
+chk(
+	'the application shortcode is never emitted with every toggle on either',
+	! str_contains( (string) json_encode( $on ), 'jpkcom_internal_form' ),
+	'There is no toggle state in which this value is published.'
+);
+
+echo "\nDetail branch: no detail page, no detail data\n";
+
+// job_url set: includes/redirects.php 307s every visitor without manage_options
+// to that target, so the detail page never renders and its data was never public.
+$GLOBALS['jpkcom_test_fields'][184]['job_url'] = [ 'url' => 'https://ats.example.test/job/1' ];
+
+$redirected = jpkcom_acf_jobs_get_job_data( 184, true );
+
+chk( 'a job that redirects away carries no detail block', ! isset( $redirected['detail'] ) );
+chk( 'and says why', 'redirects_externally' === ( $redirected['detail_omitted_reason'] ?? null ) );
+chk( 'while the compact record survives', 184 === ( $redirected['id'] ?? null ) && isset( $redirected['title'] ) );
+
+unset( $GLOBALS['jpkcom_test_fields'][184]['job_url'] );
+
+// Expired: redirects.php 307s every visitor without edit_post to the archive.
+// current_time() is stubbed to 2026-01-15.
+$GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] = '2025-11-30';
+
+$expired = jpkcom_acf_jobs_get_job_data( 184, true );
+
+chk( 'an expired job carries no detail block', ! isset( $expired['detail'] ) );
+chk( 'and says why', 'expired' === ( $expired['detail_omitted_reason'] ?? null ) );
+chk( 'and is reported as expired and unlisted', true === ( $expired['is_expired'] ?? null ) && false === ( $expired['listed'] ?? null ) );
+
+unset( $GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] );
+
+echo "\nDetail branch: listed is an EXISTS test on the meta row\n";
+
+$missing = jpkcom_acf_jobs_get_job_data( 184, true );
+
+chk(
+	'a job with no job_featured row is not listed',
+	false === ( $missing['listed'] ?? null ) && 'missing_job_featured' === ( $missing['listed_reason'] ?? null ),
+	'Two independent causes exclude such a job, and nothing on the site reports it.'
+);
+
+// A stored zero is a row. The visibility rule excludes a MISSING row, not a
+// falsy value, so this job is listed even though it is not featured.
+$GLOBALS['jpkcom_test_meta_rows'][184]      = [ 'job_featured' ];
+$GLOBALS['jpkcom_test_fields'][184]['job_featured'] = false;
+
+$stored_zero = jpkcom_acf_jobs_get_job_data( 184, true );
+
+chk(
+	'a job_featured row of zero still counts as listed',
+	true === ( $stored_zero['listed'] ?? null ) && false === ( $stored_zero['is_featured'] ?? null ),
+	'get_field() cannot tell a missing row from a stored zero; metadata_exists() can, and the '
+	. 'meta_query the site runs is an EXISTS clause.'
+);
+
+$GLOBALS['jpkcom_test_fields'][184]    = [];
+$GLOBALS['jpkcom_test_meta_rows'][184] = [];
+
 summary();
