@@ -114,128 +114,19 @@ add_action( 'init', function(): void {
         $class        = trim( string: (string) $atts['class'] );
         $title        = trim( string: (string) $atts['title'] );
 
-        // Build WP_Query args
-        $query_args = [
-            'post_type'      => 'job',
+        // The visibility rule and the three filters now live in
+        // includes/jobs-data.php, shared with the archive query and the Abilities
+        // API. Everything the shortcode passes here reproduces its previous
+        // behaviour exactly, including the unbounded default: the builder itself
+        // refuses to default to -1 so that an API caller cannot reach it.
+        $query_args = jpkcom_acf_jobs_build_job_query_args( [
             'post_status'    => 'publish',
             'posts_per_page' => $limit > 0 ? $limit : -1,
-            'meta_key'       => 'job_featured',
-            'orderby'        => [
-                'meta_value_num' => 'DESC',
-                'date'           => $sort,
-            ],
-        ];
-
-        // Build meta_query for ACF-stored arrays (checkbox/post_object stored serialized)
-        $meta_query = [
-            'relation' => 'AND',
-            [
-                'key'     => 'job_featured',
-                'compare' => 'EXISTS',
-            ],
-            [
-                'relation' => 'OR',
-                [
-                    'key'     => 'job_expiry_date',
-                    // Site timezone, not UTC: WordPress sets the PHP timezone to UTC
-                    // (wp-settings.php), so date() would keep an expired job listing
-                    // visible for the length of the UTC offset after local midnight.
-                    'value'   => current_time( 'Y-m-d' ),
-                    'compare' => '>=',
-                    'type'    => 'DATE',
-                ],
-                [
-                    'key'     => 'job_expiry_date',
-                    'compare' => 'NOT EXISTS',
-                ],
-                [
-                    'key'     => 'job_expiry_date',
-                    'value'   => '',
-                    'compare' => '=',
-                ],
-            ],
-        ];
-
-        // job_type: CSV of values (e.g. FULL_TIME,PART_TIME)
-        if ( $type_csv !== '' ) {
-
-            $want = array_filter( array: array_map( callback: 'trim', array: explode( separator: ',', string: $type_csv ) ) );
-
-            if ( ! empty( $want ) ) {
-
-                // We add a meta_query clause for each wanted value with LIKE on serialized value.
-                $type_clauses = [ 'relation' => 'OR' ];
-
-                foreach ( $want as $val ) {
-
-                    // Serialized arrays will contain "...\"VALUE\"..." so match with quotes.
-                    $type_clauses[] = [
-                        'key'     => 'job_type',
-                        'value'   => '"' . sanitize_text_field( $val ) . '"',
-                        'compare' => 'LIKE',
-                    ];
-
-                }
-
-                $meta_query[] = $type_clauses;
-
-            }
-
-        }
-
-        // Company filter: CSV of post IDs
-        if ( $company_csv !== '' ) {
-
-            $ids = array_filter( array: array_map( callback: 'absint', array: explode( separator: ',', string: $company_csv ) ) );
-
-            if ( ! empty( $ids ) ) {
-
-                $company_clauses = [ 'relation' => 'OR' ];
-                foreach ( $ids as $id ) {
-                    $company_clauses[] = [
-                        'key'     => 'job_company',
-                        'value'   => '"' . $id . '"',
-                        'compare' => 'LIKE',
-                    ];
-                }
-
-                $meta_query[] = $company_clauses;
-
-            }
-
-        }
-
-        // location filter: CSV of post IDs
-        if ( $location_csv !== '' ) {
-
-            $ids = array_filter( array: array_map( callback: 'absint', array: explode( separator: ',', string: $location_csv ) ) );
-
-            if ( ! empty( $ids ) ) {
-
-                $location_clauses = [ 'relation' => 'OR' ];
-
-                foreach ( $ids as $id ) {
-
-                    $location_clauses[] = [
-                        'key'     => 'job_location',
-                        'value'   => '"' . $id . '"',
-                        'compare' => 'LIKE',
-                    ];
-
-                }
-
-                $meta_query[] = $location_clauses;
-
-            }
-
-        }
-
-        // Only add meta_query if there are meaningful subclauses (more than the relation key)
-        if ( count( value: $meta_query ) > 1 ) {
-
-            $query_args['meta_query'] = $meta_query;
-
-        }
+            'order'          => $sort,
+            'job_type'       => $type_csv !== '' ? array_map( 'trim', explode( separator: ',', string: $type_csv ) ) : [],
+            'company'        => $company_csv !== '' ? explode( separator: ',', string: $company_csv ) : [],
+            'location'       => $location_csv !== '' ? explode( separator: ',', string: $location_csv ) : [],
+        ] );
 
         /**
          * Filter job listing query arguments before execution

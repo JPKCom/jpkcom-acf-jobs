@@ -325,6 +325,23 @@ if ( $jpkcomAcfJobSchema ) {
 
 
 /**
+ * Load job data access
+ *
+ * Provides the shared visibility rule and the job reader used by the shortcode,
+ * the archive query and the Abilities API.
+ *
+ * @since 1.4.0
+ */
+$jpkcomAcfJobData = jpkcom_acfjobs_locate_file( filename: 'jobs-data.php' );
+
+if ( $jpkcomAcfJobData ) {
+
+    require_once $jpkcomAcfJobData;
+
+}
+
+
+/**
  * Load shortcode functions
  *
  * Registers [jpkcom_acf_jobs_list] and [jpkcom_acf_jobs_attributes] shortcodes.
