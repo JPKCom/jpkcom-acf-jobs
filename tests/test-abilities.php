@@ -857,8 +857,13 @@ $GLOBALS['jpkcom_test_queries'] = [];
 // 182 is a job_company, 183 is a job_location, 999 exists at all. Only the first
 // belongs in this axis, and only a check on the post TYPE can tell 183 apart
 // from it — an existence check passes 183 just as happily.
-$mixed         = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 182, 183, 999 ] ] );
-$mixed_unknown = (array) ( $mixed['unknown'] ?? [] );
+$mixed = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 182, 183, 999 ] ] );
+
+// is_array() first, and not only for tidiness: this call returns a WP_Error the
+// moment anything upstream refuses, and indexing one as an array is a fatal that
+// takes every later assertion in this file down with it. The (array) cast is here
+// because `unknown` is a stdClass when empty.
+$mixed_unknown = is_array( $mixed ) ? (array) ( $mixed['unknown'] ?? [] ) : [];
 
 chk(
 	'an id of the wrong post type is not a company',
@@ -1286,6 +1291,405 @@ foreach ( $meaning_hijacks as $label => $case ) {
 }
 
 unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+echo "\nThe clauses the ability built are the clauses that run\n";
+
+/**
+ * Rewrite every clause on a meta key, wherever it is nested, through a callback.
+ *
+ * @param array    $mq  Meta query.
+ * @param string   $key Meta key whose clauses are meant.
+ * @param callable $fn  Receives one clause, returns the replacement.
+ * @return array The rewritten meta query.
+ */
+function map_meta_clause( array $mq, string $key, callable $fn ): array {
+	foreach ( $mq as $index => $clause ) {
+		if ( 'relation' === $index || ! is_array( $clause ) ) {
+			continue;
+		}
+
+		if ( $key === ( $clause['key'] ?? null ) ) {
+			$mq[ $index ] = $fn( $clause );
+			continue;
+		}
+
+		$mq[ $index ] = map_meta_clause( $clause, $key, $fn );
+	}
+
+	return $mq;
+}
+
+/**
+ * Append one clause to the group that directly contains a clause on a meta key.
+ *
+ * @param array  $mq     Meta query.
+ * @param string $key    Meta key whose enclosing group is meant.
+ * @param array  $clause Clause to add to that group.
+ * @return array The rewritten meta query.
+ */
+function add_to_group( array $mq, string $key, array $clause ): array {
+	foreach ( $mq as $index => $element ) {
+		if ( 'relation' === $index || ! is_array( $element ) ) {
+			continue;
+		}
+
+		if ( $key === ( $element['key'] ?? null ) ) {
+			$mq[] = $clause;
+
+			return $mq;
+		}
+
+		$rewritten = add_to_group( $element, $key, $clause );
+
+		if ( $rewritten !== $element ) {
+			$mq[ $index ] = $rewritten;
+
+			return $mq;
+		}
+	}
+
+	return $mq;
+}
+
+// Rounds 1 to 4 each asked one more question of each clause — is it present, is
+// its compare right, is its type right, is its enclosing relation right — and
+// each round found a question nobody had asked yet. None of the callbacks below
+// is answerable by that list. They change a VALUE, they ADD a value inside an OR
+// group, they move a boundary date, they widen a term list, they reorder three
+// clauses. The list of things a clause can be altered in is not bounded by what
+// anyone thought of, so the question here is not what changed but whether what
+// runs is what the ability built.
+//
+// Every number in the labels below was measured on /home/jpk/ddev/posts (WP
+// 7.0.2, 6 published jobs, two FULL_TIME) against the code as it stood before
+// this round, plus one seeded job expiring 2020-01-01 for the expiry cases.
+$identity_hijacks = [
+
+	// Round 5, critical A. Baseline job_type=["FULL_TIME"] is 2 of 6. With key,
+	// compare and the group relation left exactly as built and only the value
+	// emptied: 6 of 6, filters.job_type still ["FULL_TIME"].
+	'only the axis LIKE value, emptied' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = map_meta_clause(
+				$a['meta_query'],
+				'job_type',
+				static function ( array $c ): array {
+					$c['value'] = '';
+
+					return $c;
+				}
+			);
+
+			return $a;
+		},
+		[ 'job_type' => [ 'FULL_TIME' ] ],
+	],
+
+	// Round 5, critical B. The expiry OR group has three clauses and only two of
+	// them were ever checked. Baseline 6 of 6 with the seeded 2020 job correctly
+	// absent; with the third clause's compare turned from '=' into '!=' it is 7,
+	// and the expired job is back in a list of jobs the site does not show.
+	'only the third expiry clause, = turned into !=' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = map_meta_clause(
+				$a['meta_query'],
+				'job_expiry_date',
+				static function ( array $c ): array {
+					if ( '=' === ( $c['compare'] ?? '' ) ) {
+						$c['compare'] = '!=';
+					}
+
+					return $c;
+				}
+			);
+
+			return $a;
+		},
+		[],
+	],
+
+	// Round 4 concluded that once the top-level AND is guaranteed a callback can
+	// only narrow by adding. It can not: an addition INSIDE an OR group widens.
+	// Measured: job_type=["FULL_TIME"] with "PART_TIME" appended to the same OR
+	// group answers 4 of 6 while filters.job_type still says ["FULL_TIME"].
+	'one more value smuggled into the axis OR group' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = add_to_group(
+				$a['meta_query'],
+				'job_type',
+				[
+					'key'     => 'job_type',
+					'value'   => '"PART_TIME"',
+					'compare' => 'LIKE',
+				]
+			);
+
+			return $a;
+		},
+		[ 'job_type' => [ 'FULL_TIME' ] ],
+	],
+
+	// The visibility rule's operand rather than an axis one. compare stays '>=',
+	// type stays DATE, only the boundary moves — and every job that ever carried
+	// an expiry date is current again. Measured: 6 becomes 7.
+	'the expiry boundary date moved to 1970-01-01' => [
+		static function ( array $a ): array {
+			$a['meta_query'] = map_meta_clause(
+				$a['meta_query'],
+				'job_expiry_date',
+				static function ( array $c ): array {
+					if ( '>=' === ( $c['compare'] ?? '' ) ) {
+						$c['value'] = '1970-01-01';
+					}
+
+					return $c;
+				}
+			);
+
+			return $a;
+		},
+		[],
+	],
+
+	// The tax clause keeps its taxonomy, its field, its IN operator and a
+	// non-empty terms list — the four things round 3 and round 4 check — and
+	// filters for every attribute rather than the one asked for. Measured:
+	// attribute=["firmenwagen"] is 4 of 6, widened to 6 of 6.
+	'the attribute terms widened to every term' => [
+		static function ( array $a ): array {
+			if ( isset( $a['tax_query'][0]['terms'] ) ) {
+				$a['tax_query'][0]['terms'] = [ 20, 21 ];
+			}
+
+			return $a;
+		},
+		[ 'attribute' => [ 'firmenwagen' ] ],
+	],
+
+	// Reordering the three expiry clauses inside their OR group changes nothing
+	// core will do with them, and it is refused all the same. That direction is
+	// deliberate: this comparison errs towards refusing a query the ability did
+	// not build, never towards accepting one it did not.
+	'the three expiry clauses reordered' => [
+		static function ( array $a ): array {
+			foreach ( $a['meta_query'] as $index => $group ) {
+				if ( 'relation' === $index || ! is_array( $group ) ) {
+					continue;
+				}
+
+				$clauses = [];
+
+				foreach ( $group as $inner => $clause ) {
+					if ( is_array( $clause ) && 'job_expiry_date' === ( $clause['key'] ?? null ) ) {
+						$clauses[] = $clause;
+					}
+				}
+
+				if ( 3 === count( $clauses ) ) {
+					$a['meta_query'][ $index ] = array_merge( [ 'relation' => 'OR' ], array_reverse( $clauses ) );
+				}
+			}
+
+			return $a;
+		},
+		[],
+	],
+
+];
+
+foreach ( $identity_hijacks as $label => $case ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $case[0];
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$refused = jpkcom_acf_jobs_ability_query_jobs( $case[1] );
+
+	chk(
+		"a clause that is not the one the ability built is refused: {$label}",
+		$refused instanceof WP_Error
+		&& 'jpkcom_acf_jobs_filter_not_applied' === $refused->get_error_code()
+		&& 500 === ( $refused->get_error_data()['status'] ?? null ),
+		'Four rounds enumerated properties — presence, then compare, then type, then relation — '
+		. 'and each round found a property nobody had listed. This one is not a longer list: the '
+		. 'ability records the clauses it built and requires the executed query to carry them.'
+	);
+	chk(
+		"and no query runs for {$label}",
+		[] === $GLOBALS['jpkcom_test_queries']
+	);
+
+}
+
+// The message has to name the part that diverged, or a site owner is told only
+// that something in a query they cannot see is wrong. A top-level meta element is
+// either a group of clauses or one bare clause, and the visibility rule is the
+// bare one — the case a helper written for groups answers "no idea" for.
+$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static function ( array $args ): array {
+	$args['meta_query'] = rewrite_meta_clause( $args['meta_query'], 'job_featured', [ 'compare' => 'NOT EXISTS' ] );
+
+	return $args;
+};
+
+$named = jpkcom_acf_jobs_ability_query_jobs( [] );
+
+chk(
+	'the refusal names the part of the query that diverged',
+	$named instanceof WP_Error && str_contains( $named->get_error_message(), 'visibility' ),
+	'Got: ' . ( $named instanceof WP_Error ? $named->get_error_message() : 'no error at all' )
+);
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+// The other half of the rule, and it has to be asserted or the guard above is
+// satisfied by refusing everything. A callback may still ADD to the query — that
+// is what the filter is for — and an addition joined by the top-level AND can
+// only ever narrow. The permission is established rather than assumed: the AND
+// is verified on the executed arguments, and an addition anywhere else (see the
+// OR group case above) is refused.
+$permitted_additions = [
+	'a site clause added under the top-level AND' => static function ( array $a ): array {
+		$a['meta_query'][] = [
+			'key'     => 'job_internal',
+			'compare' => 'NOT EXISTS',
+		];
+
+		return $a;
+	},
+	'a tax_query added where the caller asked for no attribute' => static function ( array $a ): array {
+		$a['tax_query'] = [
+			[
+				'taxonomy' => 'job-attribute',
+				'field'    => 'term_id',
+				'terms'    => [ 20 ],
+				'operator' => 'IN',
+			],
+		];
+
+		return $a;
+	},
+	'a narrowing query var added beside the clauses' => static fn ( array $a ): array => array_merge( $a, [ 'post__in' => [ 184 ] ] ),
+	// Identity, not ===. WP_Meta_Query does not care in which order a clause
+	// spells its own keys, so neither may this check: a callback that rebuilds a
+	// clause it has read is not one that changed it.
+	'the same clause re-spelled with its keys in another order' => static function ( array $a ): array {
+		$a['meta_query'] = map_meta_clause(
+			$a['meta_query'],
+			'job_company',
+			static fn ( array $c ): array => [
+				'compare' => $c['compare'],
+				'value'   => $c['value'],
+				'key'     => $c['key'],
+			]
+		);
+
+		return $a;
+	},
+];
+
+foreach ( $permitted_additions as $label => $callback ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $callback;
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$allowed = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 182 ] ] );
+
+	chk(
+		"a callback may still shape the query: {$label}",
+		is_array( $allowed ) && [] !== $GLOBALS['jpkcom_test_queries'],
+		'A guard that refused every callback would satisfy every assertion above and destroy the '
+		. 'filter. Measured live: a clause added under the top-level AND narrows 6 jobs to 2 and '
+		. 'the response claims nothing about it, which is the one direction that cannot become a '
+		. 'false claim.'
+	);
+
+}
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+// Neither of these is a clause, and neither is caught by anything that looks at
+// clauses. Both make the response contradict itself, which is the same defect
+// one layer over: a caller cannot tell that the numbers it is reading are not
+// about the jobs it is reading.
+$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static fn ( array $a ): array => array_merge( $a, [ 'no_found_rows' => true ] );
+$GLOBALS['jpkcom_test_queries']                                      = [];
+
+$counted = jpkcom_acf_jobs_ability_query_jobs( [] );
+
+chk(
+	'a callback cannot switch off the totals it is reported next to',
+	is_array( $counted ) && 3 === ( $counted['total'] ?? null ) && 1 === ( $counted['total_pages'] ?? null ),
+	'WP_Query skips set_found_posts() entirely for a truthy no_found_rows, so found_posts and '
+	. 'max_num_pages stay 0. Measured live on WP 7.0.2 at per_page 3: total 0, total_pages 0, '
+	. 'and three jobs in the same response.'
+);
+
+$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static fn ( array $a ): array => array_merge( $a, [ 'fields' => 'id=>parent' ] );
+$GLOBALS['jpkcom_test_queries']                                      = [];
+
+$projected = jpkcom_acf_jobs_ability_query_jobs( [] );
+
+chk(
+	'a callback cannot choose a projection the reader cannot read',
+	is_array( $projected ) && 3 === ( $projected['total'] ?? null ) && [] !== ( $projected['jobs'] ?? [] ),
+	'Core returns bare stdClass rows for fields => id=>parent. Measured live: total 6 beside an '
+	. 'empty jobs list. Pinned rather than accommodated, because the set of projections a reader '
+	. 'can survive is another list nobody can finish.'
+);
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+echo "\nA request the site's own query builder cannot express\n";
+
+// The one case the identity check above has nothing to say about: a clause that
+// was never built cannot go missing, and there is nothing to compare it with.
+// Neither of the two below needs a test seam.
+//
+//   job_type  the builder reduces the value list with array_filter(), which
+//             discards the string "0" like every other falsy value. The
+//             vocabulary comes from an ACF field definition the SITE registers,
+//             so a choice whose value is "0" is a site's decision, not this
+//             plugin's.
+//   search    the builder tests ! empty( $args['search'] ) before it looks at the
+//             term, and empty( '0' ) is true. A caller searching for a single
+//             zero needs nothing unusual on the site at all.
+//
+// Both would otherwise set no clause, run unfiltered, and name the axis in
+// `filters` as applied.
+$vocabulary                              = jpkcom_acf_jobs_job_type_choices();
+$GLOBALS['jpkcom_test_job_type_choices'] = $vocabulary + [ '0' => 'Nullstelle' ];
+$GLOBALS['jpkcom_test_queries']          = [];
+
+$zero_type = jpkcom_acf_jobs_ability_query_jobs( [ 'job_type' => [ '0' ] ] );
+
+chk(
+	'a job_type value the shared builder drops is refused, not answered unfiltered',
+	$zero_type instanceof WP_Error && 'jpkcom_acf_jobs_filter_not_applied' === $zero_type->get_error_code()
+	&& 500 === ( $zero_type->get_error_data()['status'] ?? null ),
+	'The value passed every input check: it is in the registered vocabulary. It is the builder '
+	. 'that cannot carry it, and the builder is resolved through the plugin\'s file override '
+	. 'chain, so a site can replace it with one that carries less.'
+);
+chk(
+	'and no unfiltered list runs in place of that job_type',
+	[] === $GLOBALS['jpkcom_test_queries']
+);
+
+$GLOBALS['jpkcom_test_job_type_choices'] = [];
+$GLOBALS['jpkcom_test_queries']          = [];
+
+$zero_search = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => '0' ] );
+
+chk(
+	'a search term the shared builder drops is refused, not answered unfiltered',
+	$zero_search instanceof WP_Error && 'jpkcom_acf_jobs_filter_not_applied' === $zero_search->get_error_code()
+	&& 500 === ( $zero_search->get_error_data()['status'] ?? null ),
+	'empty( "0" ) is true, so s is never set and WP_Query returns every job on the site while '
+	. 'filters.search echoes the term back as applied.'
+);
+chk(
+	'and no unfiltered list runs in place of the search for "0"',
+	[] === $GLOBALS['jpkcom_test_queries']
+);
 
 // Four ways to make page, per_page and total_pages a lie without touching a
 // single filter clause. All read out of wp-includes/class-wp-query.php on the
@@ -1889,11 +2293,12 @@ $GLOBALS['jpkcom_test_queries']         = [];
 $verdict       = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
 $verdict_query = $GLOBALS['jpkcom_test_queries'][0] ?? [];
 $verdict_cost  = count( $GLOBALS['jpkcom_test_queries'] );
-$listed_by_query = in_array(
-	184,
-	array_column( ( jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 50 ] )['jobs'] ?? [] ), 'id' ),
-	true
-);
+// Read through a variable and guarded with is_array(): query-jobs answers with a
+// WP_Error whenever its own guards refuse, and indexing one as an array is a
+// fatal that takes every later assertion in this file with it.
+$listing         = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 50 ] );
+$listed_by_query = is_array( $listing )
+	&& in_array( 184, array_column( (array) ( $listing['jobs'] ?? [] ), 'id' ), true );
 
 chk(
 	'get-job and query-jobs agree about whether a job is listed',

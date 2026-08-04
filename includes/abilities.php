@@ -858,42 +858,39 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_normalise_filter' ) )
 
 }
 
-if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_meta_clause_exists' ) ) {
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_has_meta_clause' ) ) {
 
     /**
-     * Locate the group that directly carries a matching clause on a meta key.
+     * Whether a meta query carries any clause on a meta key.
      *
-     * Returns the enclosing GROUP rather than the clause, because a clause says
-     * nothing on its own. `job_company LIKE '"182"'` inside an OR group means "at
-     * one of these companies"; the identical clause under a top-level relation of
-     * OR means "at this company, OR anything else that matched", which is every
-     * job on the site. Nothing was removed and nothing was altered — only the
-     * operator joining them changed. A post-condition that asks whether a clause
-     * is PRESENT cannot see that, which is exactly how this defect survived three
-     * review rounds of presence checks.
+     * This answers one question only, and it is a question about the ability's OWN
+     * construction: did the shared builder turn the request into a clause at all.
+     * It is asked before jpkcom_acf_jobs_ability_query_args runs, because after
+     * that filter the question is no longer "is something there" but "is what is
+     * there what this ability built" — which is decided by identity, in
+     * jpkcom_acf_jobs_ability_query_divergence(), and not by inspecting properties.
      *
-     * $must_match constrains the operators carried by the clause itself, compared
-     * case-insensitively: `compare` decides whether a clause includes or excludes,
-     * and `type` decides how the value is cast before comparison. Both invert the
-     * meaning of a clause without changing its key or its value.
+     * Deliberately shape-tolerant. The builder is resolved through the plugin's
+     * file override chain and the spec's promise is that this ability runs the same
+     * query the site itself runs, so how a site spells its own clause is its
+     * business; that the clause exists for a filter the response is about to CLAIM
+     * is not.
      *
-     * The depth limit is not decoration: the argument may have been rewritten by a
-     * third-party filter, and unbounded recursion on a deep array is a stack
-     * overflow, which no ability callback may risk.
+     * The depth limit is not decoration: unbounded recursion on a deep array is a
+     * stack overflow, which no ability callback may risk.
      *
      * @since 1.4.0
      *
-     * @param mixed  $meta_query Meta query as it will reach WP_Query.
+     * @param mixed  $meta_query Meta query.
      * @param string $key        Meta key to look for.
-     * @param array  $must_match Clause attributes that must match, for example [ 'compare' => 'LIKE' ].
      * @param int    $depth      Current recursion depth. Internal.
-     * @return array|null The group containing the clause, or null when there is none.
+     * @return bool True when at least one clause names the key.
      */
-    function jpkcom_acf_jobs_ability_meta_clause_group( mixed $meta_query, string $key, array $must_match = [], int $depth = 0 ): ?array {
+    function jpkcom_acf_jobs_ability_has_meta_clause( mixed $meta_query, string $key, int $depth = 0 ): bool {
 
         if ( ! is_array( value: $meta_query ) || $depth > 10 ) {
 
-            return null;
+            return false;
 
         }
 
@@ -907,39 +904,501 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_meta_clause_exists' )
 
             if ( isset( $clause['key'] ) && is_scalar( value: $clause['key'] ) && (string) $clause['key'] === $key ) {
 
-                $matches = true;
-
-                foreach ( $must_match as $attribute => $expected ) {
-
-                    $actual = $clause[ $attribute ] ?? '';
-
-                    if ( ! is_scalar( value: $actual ) || strtoupper( string: (string) $actual ) !== strtoupper( string: (string) $expected ) ) {
-
-                        $matches = false;
-
-                    }
-
-                }
-
-                if ( $matches ) {
-
-                    return $meta_query;
-
-                }
+                return true;
 
             }
 
-            $nested = jpkcom_acf_jobs_ability_meta_clause_group( $clause, $key, $must_match, $depth + 1 );
+            if ( jpkcom_acf_jobs_ability_has_meta_clause( $clause, $key, $depth + 1 ) ) {
 
-            if ( $nested !== null ) {
-
-                return $nested;
+                return true;
 
             }
 
         }
 
-        return null;
+        return false;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_unbacked_claim' ) ) {
+
+    /**
+     * Report the first filter the response would claim that the query does not carry.
+     *
+     * A precondition on the ability's own construction, asked before any site
+     * callback can touch the arguments. The shared builder is resolved through the
+     * plugin's file override chain and skips a clause whose value list came out
+     * empty, so a request that never became a clause would be answered with every
+     * job on the site while `filters` names the axis as applied — the defect this
+     * whole feature exists to prevent.
+     *
+     * It asks presence and nothing else, on purpose. What a clause has to survive
+     * between here and WP_Query is decided by identity in
+     * jpkcom_acf_jobs_ability_query_divergence(); what a site's own builder chooses
+     * to build is the site's business, and the spec's promise is that this ability
+     * runs the same query the site runs.
+     *
+     * Nothing here casts an unvalidated value: a cast of an object without
+     * __toString is a Throwable, and a Throwable out of an ability callback is an
+     * uncaught fatal on the declared 6.9 floor.
+     *
+     * @since 1.4.0
+     *
+     * @param array  $args      WP_Query arguments as the ability built them.
+     * @param array  $claims    Meta keys that must each carry a clause, keyed by the label to report.
+     * @param bool   $attribute Whether a job-attribute clause is required.
+     * @param string $search    Search term that must have reached the query, '' when none was requested.
+     * @param string $order     Direction both sort components must carry.
+     * @return string Label of the first unbacked claim, or '' when every claim is carried.
+     */
+    function jpkcom_acf_jobs_ability_unbacked_claim( array $args, array $claims, bool $attribute, string $search, string $order ): string {
+
+        $meta_query = $args['meta_query'] ?? null;
+
+        if ( ! is_array( value: $meta_query ) ) {
+
+            return 'the site visibility rule';
+
+        }
+
+        foreach ( $claims as $label => $meta_key ) {
+
+            if ( ! jpkcom_acf_jobs_ability_has_meta_clause( $meta_query, $meta_key ) ) {
+
+                return (string) $label;
+
+            }
+
+        }
+
+        if ( $attribute ) {
+
+            $carried = false;
+
+            foreach ( (array) ( $args['tax_query'] ?? [] ) as $index => $clause ) {
+
+                // The terms have to be there, not merely the clause: WP_Tax_Query
+                // answers an empty terms list with 1=0, and "no jobs carry this
+                // attribute" is a different statement from "the filter never ran".
+                if (
+                    $index !== 'relation'
+                    && is_array( value: $clause )
+                    && ( $clause['taxonomy'] ?? null ) === 'job-attribute'
+                    && ! empty( $clause['terms'] )
+                ) {
+
+                    $carried = true;
+
+                }
+
+            }
+
+            if ( ! $carried ) {
+
+                return 'attribute';
+
+            }
+
+        }
+
+        // s is a query var rather than a clause, which is exactly why it was the
+        // axis the first three rounds of this check forgot. WP_Query ignores an
+        // absent or empty s and returns every job as a search result.
+        if ( $search !== '' && ( ! isset( $args['s'] ) || ! is_string( value: $args['s'] ) || $args['s'] === '' ) ) {
+
+            return 'search';
+
+        }
+
+        if ( ! is_array( value: $args['orderby'] ?? null ) ) {
+
+            return 'order';
+
+        }
+
+        // Both components, because filters.order reports the direction back and the
+        // ID tiebreaker is what makes page 1 and page 2 add up to the result set
+        // exactly. is_scalar first: the builder is overridable and (string) of an
+        // object throws.
+        foreach ( [ 'date', 'ID' ] as $component ) {
+
+            $direction = $args['orderby'][ $component ] ?? null;
+
+            if ( ! is_scalar( value: $direction ) || strtoupper( string: (string) $direction ) !== $order ) {
+
+                return 'order';
+
+            }
+
+        }
+
+        return '';
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_canonical' ) ) {
+
+    /**
+     * Reduce any query fragment to one string that stands for its exact content.
+     *
+     * Two fragments produce the same string when they carry the same values under
+     * the same keys, and a different one as soon as anything about them differs —
+     * a value, an operator, a cast, an added key, an added clause, a changed type.
+     * That is the whole point: this ability cannot enumerate what a site callback
+     * might change about a clause, and it does not have to, because it knows what
+     * it built and can recognise it again.
+     *
+     * Three properties are load-bearing:
+     *
+     * - Key ORDER is not significant. WP_Meta_Query reads a clause by key, so
+     *   [ 'key' => …, 'compare' => … ] and [ 'compare' => …, 'key' => … ] are the
+     *   same clause, and a callback that rebuilds a clause it has read has not
+     *   changed it. The parts are therefore sorted before they are joined.
+     * - LIST order IS significant, because each part carries its own index. Two
+     *   clauses swapped inside an OR group mean the same thing to core and are
+     *   reported as a divergence here anyway. That direction is deliberate: this
+     *   comparison may refuse a query the ability did in fact build, and may never
+     *   accept one it did not.
+     * - Scalar TYPES are part of the value. '182' and 182 produce different SQL
+     *   through a LIKE comparison, so they must not compare equal.
+     *
+     * Strings are length-prefixed so that no punctuation inside a value can imitate
+     * the structure around it.
+     *
+     * Nothing here throws for any input. No value is cast to string — a cast of an
+     * object without __toString is a Throwable, and a Throwable out of an ability
+     * callback is an uncaught fatal on the declared 6.9 floor — and the recursion
+     * is depth-limited. The limit is far above anything this ability builds (its
+     * deepest fragment is a clause inside a group, at depth two), so a commitment
+     * can never itself be truncated, and a filtered fragment that is deeper than
+     * the limit differs from the commitment at a shallower level in any case.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Fragment to reduce.
+     * @param int   $depth Current recursion depth. Internal.
+     * @return string Canonical representation of the fragment.
+     */
+    function jpkcom_acf_jobs_ability_canonical( mixed $value, int $depth = 0 ): string {
+
+        if ( $depth > 12 ) {
+
+            return 'x';
+
+        }
+
+        if ( is_array( value: $value ) ) {
+
+            $parts = [];
+
+            foreach ( $value as $key => $item ) {
+
+                $parts[] = jpkcom_acf_jobs_ability_canonical( $key, $depth + 1 )
+                    . '=>' . jpkcom_acf_jobs_ability_canonical( $item, $depth + 1 );
+
+            }
+
+            sort( $parts, SORT_STRING );
+
+            return 'a{' . implode( ';', $parts ) . '}';
+
+        }
+
+        if ( is_object( value: $value ) ) {
+
+            return 'o:' . get_class( $value ) . jpkcom_acf_jobs_ability_canonical( get_object_vars( $value ), $depth + 1 );
+
+        }
+
+        if ( is_string( value: $value ) ) {
+
+            return 's:' . strlen( $value ) . ':' . $value;
+
+        }
+
+        if ( is_int( value: $value ) ) {
+
+            return 'i:' . $value;
+
+        }
+
+        if ( is_float( value: $value ) ) {
+
+            return 'd:' . var_export( $value, true );
+
+        }
+
+        if ( is_bool( value: $value ) ) {
+
+            return $value ? 'b:1' : 'b:0';
+
+        }
+
+        if ( $value === null ) {
+
+            return 'n';
+
+        }
+
+        // A resource, or whatever a future PHP adds. Named rather than cast.
+        return 't:' . gettype( $value );
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_group_label' ) ) {
+
+    /**
+     * Name a query fragment for an error message a site owner has to act on.
+     *
+     * Descriptive only. Nothing about the guard depends on it: a fragment nobody
+     * anticipated is still committed and still compared, it is merely reported
+     * under a general name.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $fragment Query fragment.
+     * @return string Human-readable name.
+     */
+    function jpkcom_acf_jobs_ability_group_label( mixed $fragment ): string {
+
+        $names = [
+            'job_featured'    => 'the site visibility rule',
+            'job_expiry_date' => 'the expiry rule',
+            'job_closed'      => 'include_closed',
+            'job_type'        => 'job_type',
+            'job_company'     => 'company',
+            'job_location'    => 'location',
+        ];
+
+        // Wrapped in a list, because a top-level element of a meta query is either
+        // a group of clauses or a single bare clause, and the visibility rule is
+        // the bare one. Unwrapped, jpkcom_acf_jobs_ability_has_meta_clause() looks
+        // for a clause among a fragment's CHILDREN and would answer no for it.
+        foreach ( $names as $meta_key => $label ) {
+
+            if ( jpkcom_acf_jobs_ability_has_meta_clause( [ $fragment ], $meta_key ) ) {
+
+                return $label;
+
+            }
+
+        }
+
+        if ( is_array( value: $fragment ) && isset( $fragment['taxonomy'] ) && $fragment['taxonomy'] === 'job-attribute' ) {
+
+            return 'attribute';
+
+        }
+
+        return 'a clause of the site query';
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) ) {
+
+    /**
+     * Record the query the ability is about to hand to the site, clause by clause.
+     *
+     * Taken immediately before jpkcom_acf_jobs_ability_query_args runs, so that
+     * what comes back can be compared against it rather than interrogated. Four
+     * review rounds asked a longer list of questions of each clause every time —
+     * presence, then compare, then type, then the enclosing relation — and every
+     * round found a question the previous one had not thought to ask. A value was
+     * still not among them, and neither was a clause added inside an OR group.
+     * The list of things that can be altered about a clause is not bounded by what
+     * anyone thought of; the set of clauses this ability built is.
+     *
+     * Committed: every top-level element of meta_query and of tax_query, and the
+     * query vars whose content the response describes — the search term it echoes
+     * back, and the sort it promises. NOT committed are the values that are pinned
+     * after the filter instead (post type, status, password gate, the four
+     * pagination vars, the row count and the projection): re-asserting those makes
+     * the response true, while re-asserting a filter clause would answer a question
+     * the caller never asked.
+     *
+     * @since 1.4.0
+     *
+     * @param array $args WP_Query arguments as the ability built them.
+     * @return array {
+     *     @type array $meta List of [ 'label' => string, 'canonical' => string ] for meta_query.
+     *     @type array $tax  The same for tax_query.
+     *     @type array $vars [ 'label' => string, 'canonical' => string ] keyed by query var.
+     * }
+     */
+    function jpkcom_acf_jobs_ability_query_commitments( array $args ): array {
+
+        $committed = [
+            'meta' => [],
+            'tax'  => [],
+            'vars' => [],
+        ];
+
+        foreach ( [ 'meta' => 'meta_query', 'tax' => 'tax_query' ] as $bucket => $arg_key ) {
+
+            if ( ! is_array( value: $args[ $arg_key ] ?? null ) ) {
+
+                continue;
+
+            }
+
+            foreach ( $args[ $arg_key ] as $index => $element ) {
+
+                if ( $index === 'relation' ) {
+
+                    continue;
+
+                }
+
+                $committed[ $bucket ][] = [
+                    'label'     => jpkcom_acf_jobs_ability_group_label( $element ),
+                    'canonical' => jpkcom_acf_jobs_ability_canonical( $element ),
+                ];
+
+            }
+
+        }
+
+        // The sort is committed whole rather than by its two directions. Featured
+        // first is a promise of the output schema, it needs meta_key as well as the
+        // meta_value_num component, and the ID tiebreaker is what makes page 1 and
+        // page 2 add up to the result set exactly.
+        foreach ( [ 's' => 'search', 'orderby' => 'order', 'meta_key' => 'order' ] as $var => $label ) {
+
+            if ( ! isset( $args[ $var ] ) ) {
+
+                continue;
+
+            }
+
+            $committed['vars'][ $var ] = [
+                'label'     => $label,
+                'canonical' => jpkcom_acf_jobs_ability_canonical( $args[ $var ] ),
+            ];
+
+        }
+
+        return $committed;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_divergence' ) ) {
+
+    /**
+     * Report the first commitment the executed query does not keep.
+     *
+     * The rule has two halves and both are established here rather than assumed.
+     *
+     * Every clause this ability built has to be present, byte for byte as it was
+     * built, as a direct element of the same group. Anything else about it — a
+     * value trimmed, a boundary moved, a term list widened, one more value added
+     * inside an OR group, an operator flipped, a key nobody has thought of yet —
+     * makes it a different clause, and a different clause is not the one the
+     * response is about to name as applied.
+     *
+     * What a callback may still do is ADD, and that permission rests on the
+     * relation of the group it adds to: under AND every further element can only
+     * remove rows, which is the one direction that cannot turn the response into a
+     * false claim. So the relation is verified on the arguments that actually run,
+     * and an addition anywhere else is refused by the paragraph above — an extra
+     * value inside an axis OR group widened FULL_TIME from 2 jobs to 4 on
+     * /home/jpk/ddev/posts while the response still claimed FULL_TIME.
+     *
+     * A commitment is consumed once it is matched, so two committed clauses need
+     * two elements to satisfy them.
+     *
+     * Nothing here throws for any input: every comparison is between two strings
+     * produced by jpkcom_acf_jobs_ability_canonical().
+     *
+     * @since 1.4.0
+     *
+     * @param array $committed Output of jpkcom_acf_jobs_ability_query_commitments().
+     * @param mixed $args      WP_Query arguments as they will reach WP_Query.
+     * @return string Name of the first divergence, or '' when the query is the one that was built.
+     */
+    function jpkcom_acf_jobs_ability_query_divergence( array $committed, mixed $args ): string {
+
+        if ( ! is_array( value: $args ) ) {
+
+            return 'the whole query';
+
+        }
+
+        foreach ( [ 'meta' => 'meta_query', 'tax' => 'tax_query' ] as $bucket => $arg_key ) {
+
+            if ( ( $committed[ $bucket ] ?? [] ) === [] ) {
+
+                continue;
+
+            }
+
+            $group = $args[ $arg_key ] ?? null;
+
+            if ( ! is_array( value: $group ) ) {
+
+                return $committed[ $bucket ][0]['label'];
+
+            }
+
+            // The linchpin, and the reason an addition needs no further inspection.
+            // Absent counts as AND, which is what both WP_Meta_Query and
+            // WP_Tax_Query default to.
+            if ( jpkcom_acf_jobs_ability_group_relation( $group ) !== 'AND' ) {
+
+                return 'the combination of every filter';
+
+            }
+
+            $present = [];
+
+            foreach ( $group as $index => $element ) {
+
+                if ( $index === 'relation' ) {
+
+                    continue;
+
+                }
+
+                $present[] = jpkcom_acf_jobs_ability_canonical( $element );
+
+            }
+
+            foreach ( $committed[ $bucket ] as $commitment ) {
+
+                $found = array_search( $commitment['canonical'], $present, true );
+
+                if ( $found === false ) {
+
+                    return $commitment['label'];
+
+                }
+
+                unset( $present[ $found ] );
+
+            }
+
+        }
+
+        foreach ( ( $committed['vars'] ?? [] ) as $var => $commitment ) {
+
+            if ( jpkcom_acf_jobs_ability_canonical( $args[ $var ] ?? null ) !== $commitment['canonical'] ) {
+
+                return $commitment['label'];
+
+            }
+
+        }
+
+        return '';
 
     }
 
@@ -1947,12 +2406,18 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
      *
      * 1. A requested filter that normalises to nothing is refused with a 400. The
      *    shared builder skips a clause whose value list is empty, so company=
-     *    ["acme"] would otherwise return every job as a filtered answer. The
-     *    post-condition below re-checks that each requested clause actually
-     *    reached WP_Query, because the builder is overridable and the argument
-     *    filter can drop a clause just as effectively as a bad value can — and it
-     *    checks the operators as well as the clauses, because a relation flipped
-     *    from AND to OR leaves every clause present and inverts the answer.
+     *    ["acme"] would otherwise return every job as a filtered answer. Two
+     *    further guards stand behind that one, and they answer different
+     *    questions. Before the argument filter runs, every filter the response is
+     *    about to CLAIM has to have become a clause — the builder is overridable
+     *    and a request that never became a clause cannot go missing later.
+     *    After it runs, the query that will execute has to be the query this
+     *    ability built: each clause is recorded beforehand and compared by
+     *    content, so a value, a boundary, a term list, an operator or a key
+     *    nobody has thought of yet all read the same way — this is not the query
+     *    that was built, and no answer is given for it. A callback may still add,
+     *    because the top-level relation of both queries is verified to be AND on
+     *    the arguments that run and a further conjunct can only narrow.
      * 2. A deterministic tiebreaker. ORDER BY meta_value_num DESC, date DESC leaves
      *    ties unresolved and MySQL permutes tied rows per execution — measured,
      *    four fetches of unmodified code produced three orderings, because the
@@ -1960,9 +2425,10 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
      *    listing; here an unstable sort puts a job on two pages or on none. It is
      *    appended after the builder, never inside it: the builder is shared with
      *    the shortcode and the archive, whose ordering this feature does not
-     *    change. The post-condition then requires it to survive the argument
-     *    filter, together with the date direction `filters.order` reports back —
-     *    so a site may add to the query, but not re-sort what it answers with.
+     *    change. The whole sort is then committed across the argument filter —
+     *    the featured-first component and the meta_key it needs, the date
+     *    direction `filters.order` reports back, and the tiebreaker — so a site
+     *    may add to the query, but not re-sort what it answers with.
      * 3. Real totals for a page past the last one. WP_Query::set_found_posts()
      *    returns early when posts is empty, so found_posts and max_num_pages stay
      *    0 and a response would claim an empty corpus next to a page number of
@@ -2333,14 +2799,91 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
             $args['ignore_sticky_posts'] = true;
 
+            // Everything the response is about to CLAIM has to have become a
+            // clause first. This is a question about the ability's own
+            // construction and it is asked before anybody else can touch the
+            // arguments: the shared builder is resolved through the plugin's file
+            // override chain, and a builder that ignores an axis hands back a
+            // query that returns every job while `filters` names the axis as
+            // applied. It is deliberately shape-tolerant — how a site spells its
+            // own clause is its business, and the spec's promise is that this
+            // ability runs the same query the site runs. What the clause then has
+            // to survive is decided below, by identity.
+            $claims = [
+                'the site visibility rule' => 'job_featured',
+                'the expiry rule'          => 'job_expiry_date',
+            ];
+
+            foreach ( [ 'job_type' => 'job_type', 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $meta_key ) {
+
+                if ( $known[ $axis ] !== [] ) {
+
+                    $claims[ $axis ] = $meta_key;
+
+                }
+
+            }
+
+            if ( ! $include_closed ) {
+
+                $claims['include_closed'] = 'job_closed';
+
+            }
+
+            $unbacked = jpkcom_acf_jobs_ability_unbacked_claim( $args, $claims, $attribute_terms !== [], $search, $order );
+
+            if ( $unbacked !== '' ) {
+
+                jpkcom_acf_jobs_ability_log( 'The ' . $unbacked . ' filter did not become a clause of the job query.' );
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_filter_not_applied',
+                    sprintf(
+                        /* translators: %s: name of the filter axis. */
+                        __( 'The "%s" filter was accepted, but this site\'s job query does not carry it, so no result is returned. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
+                        $unbacked
+                    ),
+                    500
+                );
+
+            }
+
+            // What the ability is about to run, recorded clause by clause so that
+            // what comes back can be recognised rather than interrogated. Four
+            // review rounds asked a longer list of questions of each clause every
+            // time and each round found one nobody had asked; this asks none of
+            // them.
+            $committed = jpkcom_acf_jobs_ability_query_commitments( $args );
+
             /**
              * Filter the WP_Query arguments of jpkcom-acf-jobs/query-jobs.
              *
-             * The post type, the post status and the password exclusion are
-             * re-asserted after this filter runs, and every requested filter clause
-             * is re-checked for presence: an ability that answered with every job
-             * because a callback dropped a clause is the one failure this feature
-             * exists to prevent.
+             * A callback may ADD to this query, and that is all it may do. Every
+             * clause the ability built — each element of `meta_query` and of
+             * `tax_query`, the search term `s`, and the whole `orderby` together
+             * with the `meta_key` it needs — is recorded before this filter runs
+             * and has to be present unchanged in what is executed. Unchanged means
+             * identical in content, not merely present: a value trimmed, a boundary
+             * date moved, a term list widened, one more value added inside an OR
+             * group, an operator flipped or a key nobody has thought of yet all
+             * make it a different clause, and the ability refuses to answer rather
+             * than to describe a query it did not run. The order of the keys within
+             * a clause is not content and may differ.
+             *
+             * Additions are safe because the top-level relation of both queries is
+             * verified to be AND on the arguments that actually run, so a further
+             * element can only ever remove rows — and the response claims nothing
+             * about the rows a site chose not to show. An addition INSIDE one of
+             * the ability's own groups is not that case and is refused: appending a
+             * second value to the OR group of `job_type` widened a request for
+             * FULL_TIME from 2 jobs to 4 while the response still said FULL_TIME.
+             *
+             * Post type, post status, the password gate, the four pagination vars,
+             * `no_found_rows` and `fields` are not committed but re-asserted after
+             * this filter, because for those the response can simply be made true.
+             * A site therefore cannot take the sort back either: `orderby` decides
+             * which slice each page contains, and `filters.order` reports its
+             * direction.
              *
              * @since 1.4.0
              *
@@ -2373,180 +2916,52 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
             $args['paged']          = $page;
             $args['nopaging']       = false;
 
-            unset( $args['offset'] );
+            // Neither of these is a clause, and neither can be reached by any check
+            // that looks at clauses. Both make the response contradict itself.
+            //   no_found_rows  WP_Query skips set_found_posts() entirely for a
+            //                  truthy value, so found_posts and max_num_pages stay
+            //                  0. Measured on WP 7.0.2 at per_page 3: total 0,
+            //                  total_pages 0, three jobs in the same response.
+            //   fields         core's other projections hand back bare stdClass
+            //                  rows rather than WP_Post objects, which the record
+            //                  loop below cannot read. Measured: total 6 beside an
+            //                  empty jobs list. Pinned rather than accommodated,
+            //                  because the set of projections a reader can survive
+            //                  is another list nobody can finish.
+            $args['no_found_rows'] = false;
 
-            $dropped = '';
+            unset( $args['offset'], $args['fields'] );
 
-            // The clauses are only half of the question. What follows establishes
-            // that the query still MEANS what the caller asked for: an operator is
-            // not a value that can go missing, it is what decides what the values
-            // say together, and flipping one leaves every clause present, intact,
-            // and answering something else. Measured on WP 7.0.2: a callback that
-            // changes nothing but the top-level relation from AND to OR turns
-            // job_type=["FULL_TIME"] from 2 of 6 jobs into 6 of 6, with
-            // filters.job_type still reporting ["FULL_TIME"] as applied.
-            $meta_root = $args['meta_query'] ?? null;
-
-            // The linchpin. Under AND, a callback can only ever narrow by adding
-            // clauses; under anything else, every clause this ability built
-            // becomes optional at once.
-            if ( is_array( value: $meta_root ) && jpkcom_acf_jobs_ability_group_relation( $meta_root ) !== 'AND' ) {
-
-                $dropped = 'the combination of every filter';
-
-            }
-
-            // The site visibility rule, which is the promise the whole ability
-            // makes: these are the jobs this site lists. EXISTS turned NOT EXISTS
-            // answers with precisely the jobs it does not list.
-            if ( jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_featured', [ 'compare' => 'EXISTS' ] ) === null ) {
-
-                $dropped = 'the site visibility rule';
-
-            }
-
-            // The expiry half of that rule is an OR of three clauses, and it is
-            // read through a DATE cast: ACF stores Ymd, and comparing that as CHAR
-            // against Y-m-d makes almost every expired job compare as current.
-            $expiry_group = jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_expiry_date', [ 'compare' => 'NOT EXISTS' ] );
-
-            if (
-                $expiry_group === null
-                || jpkcom_acf_jobs_ability_group_relation( $expiry_group ) !== 'OR'
-                || jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_expiry_date', [ 'compare' => '>=', 'type' => 'DATE' ] ) === null
-            ) {
-
-                $dropped = 'the expiry rule';
-
-            }
-
-            // Each requested axis: the clause must still include rather than
-            // exclude, and its group must still be an OR — the schema promises
-            // that a job carrying ANY of the listed values is returned.
-            foreach ( [ 'job_type' => 'job_type', 'company' => 'job_company', 'location' => 'job_location' ] as $axis => $meta_key ) {
-
-                if ( $known[ $axis ] === [] ) {
-
-                    continue;
-
-                }
-
-                $group = jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, $meta_key, [ 'compare' => 'LIKE' ] );
-
-                if ( $group === null || jpkcom_acf_jobs_ability_group_relation( $group ) !== 'OR' ) {
-
-                    $dropped = $axis;
-
-                }
-
-            }
-
-            if ( ! $include_closed ) {
-
-                $closed_group = jpkcom_acf_jobs_ability_meta_clause_group( $meta_root, 'job_closed', [ 'compare' => 'NOT EXISTS' ] );
-
-                if ( $closed_group === null || jpkcom_acf_jobs_ability_group_relation( $closed_group ) !== 'OR' ) {
-
-                    $dropped = 'include_closed';
-
-                }
-
-            }
-
-            // The sort is an operator too, and filters.order reports its direction
-            // back to the caller. The ID component is checked with it: it is what
-            // makes page 1 and page 2 add up to the result set exactly, which is a
-            // promise the pagination block implicitly makes.
-            if (
-                ! is_array( value: $args['orderby'] ?? null )
-                || strtoupper( string: (string) ( $args['orderby']['date'] ?? '' ) ) !== $order
-                || strtoupper( string: (string) ( $args['orderby']['ID'] ?? '' ) ) !== $order
-            ) {
-
-                $dropped = 'order';
-
-            }
-
-            // search is a query var rather than a clause, which is exactly why it
-            // was the axis this check first forgot. WP_Query ignores an absent or
-            // empty s, so a callback that unsets it turns a search into a request
-            // for every job on the site while `filters` still echoes the term back.
-            // The length is re-checked here as well as at input. The check above
-            // covers the term the caller sent; this one covers a callback that
-            // lengthened it past what core will apply, which is the same silent
-            // widening arriving through a different door.
-            if (
-                $search !== ''
-                && (
-                    ! isset( $args['s'] )
-                    || ! is_string( value: $args['s'] )
-                    || $args['s'] === ''
-                    || strlen( $args['s'] ) > JPKCOM_ACFJOBS_ABILITY_SEARCH_MAX_BYTES
-                )
-            ) {
-
-                $dropped = 'search';
-
-            }
-
-            if ( $attribute_terms !== [] ) {
-
-                $tax_applied = false;
-
-                // The terms have to be there, not merely the clause. A clause with
-                // an empty terms list is not an error in core — WP_Tax_Query
-                // answers it with 1=0 — but the response would still name the
-                // attributes as applied, and "no jobs carry this attribute" is a
-                // different statement from "the filter was never run".
-                // operator and field are this clause's operators: NOT IN inverts
-                // the filter outright, and a field that does not match the values
-                // resolves to no terms, which WP_Tax_Query answers with 1=0.
-                foreach ( (array) ( $args['tax_query'] ?? [] ) as $clause ) {
-
-                    if (
-                        is_array( value: $clause )
-                        && ( $clause['taxonomy'] ?? null ) === 'job-attribute'
-                        && ! empty( $clause['terms'] )
-                        && strtoupper( string: (string) ( $clause['operator'] ?? 'IN' ) ) === 'IN'
-                        && (string) ( $clause['field'] ?? 'term_id' ) === 'term_id'
-                    ) {
-
-                        $tax_applied = true;
-
-                    }
-
-                }
-
-                // Its own relation, for the same reason the meta one has one: a
-                // second clause joined with OR makes this one optional.
-                if ( jpkcom_acf_jobs_ability_group_relation( $args['tax_query'] ?? null ) !== 'AND' ) {
-
-                    $tax_applied = false;
-
-                }
-
-                if ( ! $tax_applied ) {
-
-                    $dropped = 'attribute';
-
-                }
-
-            }
+            // The other half, and the one four review rounds could not close by
+            // asking better questions. Presence, then compare, then type, then the
+            // enclosing relation: each round found a property the previous one had
+            // not thought to list, because the class is "anything about a clause
+            // that changed what it means" and no list of properties is ever
+            // finished. Measured on WP 7.0.2: a callback rewriting only the LIKE
+            // value of job_type turned 2 of 6 jobs into 6 of 6 with
+            // filters.job_type still saying ["FULL_TIME"]; flipping only the third
+            // expiry clause from = to != brought a job that expired in 2020 back
+            // into the list. Neither touched a property anyone had listed.
+            //
+            // So the question is no longer what changed. It is whether the query
+            // about to run is the query this ability built, and the ability knows
+            // exactly what that was.
+            $divergence = jpkcom_acf_jobs_ability_query_divergence( $committed, $args );
 
             // A 5xx on purpose, and the only one this callback can produce from
             // well-formed input: nothing the caller sends can cause it and nothing
             // it changes can avoid it. Answering with every job instead would be a
             // wrong answer presented as a right one.
-            if ( $dropped !== '' ) {
+            if ( $divergence !== '' ) {
 
-                jpkcom_acf_jobs_ability_log( 'The ' . $dropped . ' filter did not reach WP_Query as asked.' );
+                jpkcom_acf_jobs_ability_log( 'The ' . $divergence . ' filter did not reach WP_Query as the ability built it.' );
 
                 return jpkcom_acf_jobs_ability_error(
                     'jpkcom_acf_jobs_filter_not_applied',
                     sprintf(
                         /* translators: %s: name of the filter axis. */
-                        __( 'The "%s" filter was accepted, but the query this site executed does not apply it as asked, so no result is returned. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
-                        $dropped
+                        __( 'The "%s" filter was accepted, but the query this site executed is not the one this ability built, so no result is returned. A site callback may add to that query and may not alter what it already asks. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
+                        $divergence
                     ),
                     500
                 );

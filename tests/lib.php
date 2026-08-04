@@ -266,7 +266,32 @@ class WP_Query {
 		$this->max_num_pages = $limit > 0 ? (int) ceil( $total / $limit ) : 1;
 		$this->posts         = $ids;
 
+		// WP_Query::get_posts() skips set_found_posts() entirely when this is
+		// truthy, so found_posts and max_num_pages stay at zero while posts is full.
+		// Modelled because a response reporting total 0 next to three returned jobs
+		// is a self-contradiction no clause check can see.
+		if ( ! empty( $args['no_found_rows'] ) ) {
+			$this->found_posts   = 0;
+			$this->max_num_pages = 0;
+		}
+
 		if ( 'ids' === ( $args['fields'] ?? '' ) ) {
+			return;
+		}
+
+		// Core's other projections — 'id=>parent' is the one in core — return bare
+		// stdClass rows rather than WP_Post objects. A projection the reader does not
+		// recognise yields NO jobs beside a non-zero total, which is why `fields` is
+		// pinned rather than accommodated.
+		if ( '' !== (string) ( $args['fields'] ?? '' ) ) {
+			$this->posts = array_map(
+				static fn( int $id ): object => (object) [
+					'ID'          => $id,
+					'post_parent' => 0,
+				],
+				$ids
+			);
+
 			return;
 		}
 
@@ -349,6 +374,22 @@ function get_field( string $selector, mixed $post_id = false, bool $format_value
 	$fields = $GLOBALS['jpkcom_test_fields'][ (int) $post_id ] ?? [];
 
 	return $fields[ $selector ] ?? null;
+}
+
+// The job_type vocabulary as the ACF field definition supplies it, which is where
+// jpkcom_acf_jobs_job_type_choices() reads it from and what its eight literals only
+// stand in for. Empty by default, so the plugin falls back to those literals and
+// every assertion about the enum keeps reading the same list. A test that needs a
+// vocabulary the shared builder cannot express seeds this rather than editing the
+// plugin.
+$GLOBALS['jpkcom_test_job_type_choices'] = [];
+
+function acf_get_field( string $selector ): ?array {
+	if ( [] === $GLOBALS['jpkcom_test_job_type_choices'] ) {
+		return null;
+	}
+
+	return [ 'choices' => $GLOBALS['jpkcom_test_job_type_choices'] ];
 }
 
 function get_permalink( mixed $post = null ): string {
