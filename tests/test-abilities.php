@@ -759,6 +759,47 @@ chk(
 
 $GLOBALS['jpkcom_test_queries'] = [];
 
+// 182 is a job_company, 183 is a job_location, 999 exists at all. Only the first
+// belongs in this axis, and only a check on the post TYPE can tell 183 apart
+// from it — an existence check passes 183 just as happily.
+$mixed         = jpkcom_acf_jobs_ability_query_jobs( [ 'company' => [ 182, 183, 999 ] ] );
+$mixed_unknown = (array) ( $mixed['unknown'] ?? [] );
+
+chk(
+	'an id of the wrong post type is not a company',
+	is_array( $mixed ) && [ 183, 999 ] === ( $mixed_unknown['company'] ?? null ),
+	'get_post_type( 183 ) is job_location. An existence check would accept it, build a clause '
+	. 'on job_company for it and answer "no such jobs" instead of "wrong ID".'
+);
+chk(
+	'filters echoes what was applied, not what was asked for',
+	is_array( $mixed ) && [ 182 ] === ( $mixed['filters']['company'] ?? null ),
+	'Echoing the request would list 999 in filters AND in unknown at the same time, which '
+	. 'says the value was both applied and not found.'
+);
+chk(
+	'a partially known axis still queries the known part',
+	'"182"' === ( find_meta_clause( listing_query()['meta_query'] ?? null, 'job_company' )['value'] ?? null ),
+	'Two unusable values must not take the usable one down with them.'
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$searched = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => 'Stelle' ] );
+
+chk(
+	'a search term reaches WP_Query as s',
+	'Stelle' === ( listing_query()['s'] ?? null ),
+	'Every other axis is asserted to reach the query; without this one the whole search path '
+	. 'could be deleted and the suite would stay green.'
+);
+chk(
+	'and it is echoed back',
+	is_array( $searched ) && 'Stelle' === ( $searched['filters']['search'] ?? null )
+);
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
 $by_slug     = jpkcom_acf_jobs_ability_query_jobs( [ 'attribute' => [ 'firmenwagen' ] ] );
 $tax_listing = listing_query();
 
@@ -895,7 +936,82 @@ chk(
 	'Returning the unfiltered result would present a wrong answer as a right one.'
 );
 
+// One axis per callback, each dropping only its own clause, so exactly one branch
+// of the post-condition can be the thing that fires.
+$dropped_axes = [
+	'search'         => [ static fn ( array $a ): array => array_diff_key( $a, [ 's' => 0 ] ), [ 'search' => 'zzznope' ] ],
+	'attribute'      => [ static fn ( array $a ): array => array_diff_key( $a, [ 'tax_query' => 0 ] ), [ 'attribute' => [ 'firmenwagen' ] ] ],
+	'include_closed' => [ static fn ( array $a ): array => array_diff_key( $a, [ 'meta_query' => 0 ] ), [ 'include_closed' => false ] ],
+];
+
+foreach ( $dropped_axes as $axis => $case ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $case[0];
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$refused = jpkcom_acf_jobs_ability_query_jobs( $case[1] );
+
+	chk(
+		"a callback that drops the {$axis} clause is refused, not answered",
+		$refused instanceof WP_Error && 'jpkcom_acf_jobs_filter_not_applied' === $refused->get_error_code()
+		&& 500 === ( $refused->get_error_data()['status'] ?? null ),
+		"Measured live for search: with s unset, search=\"zzznope\" returned total 6 and six jobs "
+		. 'while echoing filters.search back — every job on the site presented as a search result.'
+	);
+	chk(
+		"and no unfiltered list is run in place of the {$axis} filter",
+		[] === $GLOBALS['jpkcom_test_queries']
+	);
+
+}
+
 unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+echo "\nThe page number is bounded at both ends\n";
+
+foreach ( [ 0, -3, 'nonsense' ] as $under ) {
+
+	$GLOBALS['jpkcom_test_queries'] = [];
+
+	jpkcom_acf_jobs_ability_query_jobs( [ 'page' => $under ] );
+
+	chk(
+		'page ' . var_export( $under, true ) . ' is clamped up to 1',
+		1 === ( listing_query()['paged'] ?? null ),
+		'paged => 0 makes WP_Query fall back to the paged query var of the surrounding request, '
+		. 'which inside an ability callback is whatever page the caller happened to be on.'
+	);
+
+}
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$overflowed = jpkcom_acf_jobs_ability_query_jobs( [ 'page' => PHP_INT_MAX, 'per_page' => 10 ] );
+$offset     = ( ( listing_query()['paged'] ?? 0 ) - 1 ) * ( listing_query()['posts_per_page'] ?? 1 );
+
+chk(
+	'a page number beyond the bound cannot overflow the LIMIT offset',
+	is_int( $offset ),
+	'WP_Query computes absint( ( $page - 1 ) * $posts_per_page ) for the LIMIT offset. Measured '
+	. 'live on WP 7.0.2: page 1844674407370955161 at per_page 10 overflows that product to a '
+	. 'float, the offset collapses to 0, and page ONE\'s six records come back labelled '
+	. '"page 1844674407370955161, total_pages 1". A caller paginating on those numbers is handed '
+	. 'the same six jobs twice.'
+);
+chk(
+	'the page it reports is the page it queried',
+	is_array( $overflowed ) && ( $overflowed['page'] ?? null ) === ( listing_query()['paged'] ?? null ),
+	'A response that echoes a page it never asked the database for is the wrong answer the '
+	. 'recovery guard exists to prevent.'
+);
+chk(
+	'and the bound is the largest page that stays exact at the largest page size',
+	JPKCOM_ACFJOBS_ABILITY_PAGE_MAX === ( listing_query()['paged'] ?? null )
+	&& JPKCOM_ACFJOBS_ABILITY_PAGE_MAX * JPKCOM_ACFJOBS_ABILITY_PER_PAGE_MAX <= PHP_INT_MAX,
+	'Derived rather than picked: per_page is clamped to at most PER_PAGE_MAX first, so bounding '
+	. 'page at intdiv( PHP_INT_MAX, PER_PAGE_MAX ) keeps the product exact for every page size '
+	. 'the ability accepts, and rejects no page that could address a real record.'
+);
 
 $GLOBALS['jpkcom_test_options']['jpkcom_acf_job_disable_archive'] = 1;
 

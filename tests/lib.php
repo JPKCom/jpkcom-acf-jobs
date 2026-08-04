@@ -218,7 +218,12 @@ class WP_Query {
 		$paged = max( 1, (int) ( $args['paged'] ?? 1 ) );
 
 		if ( $limit > 0 ) {
-			$ids = array_slice( $ids, ( $paged - 1 ) * $limit, $limit );
+			// absint(), exactly as WP_Query::get_posts() computes the LIMIT offset.
+			// It does not throw on an overflowed product, it CASTS one — a float
+			// beyond PHP_INT_MAX collapses to 0 and page one's records come back
+			// labelled with whatever page number was asked for. Modelling that is
+			// the whole point; a stub that threw would hide it behind a fatal.
+			$ids = array_slice( $ids, absint( ( $paged - 1 ) * $limit ), $limit );
 		}
 
 		// Mirrors WP_Query::set_found_posts(), which returns early when posts is

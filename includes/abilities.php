@@ -101,6 +101,32 @@ if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_PER_PAGE_MAX' ) ) {
 }
 
 
+if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_PAGE_MAX' ) ) {
+
+    /**
+     * Highest page number the query ability will ask the database for.
+     *
+     * Derived, not picked. WP_Query::get_posts() computes its LIMIT offset as
+     * absint( ( $page - 1 ) * $posts_per_page ), and that product is a plain PHP
+     * integer multiplication: past PHP_INT_MAX it becomes a float, and absint()
+     * casts rather than throws. Measured on WP 7.0.2 — page 1844674407370955161
+     * at a page size of 10 collapses the offset to 0, so page ONE's records come
+     * back labelled as a page far beyond total_pages and a caller paginating on
+     * those numbers is handed the same records twice.
+     *
+     * per_page is clamped to at most PER_PAGE_MAX before this bound is applied, so
+     * bounding the page at intdiv( PHP_INT_MAX, PER_PAGE_MAX ) keeps the product
+     * exact for every page size the ability accepts. max() guards the divisor: a
+     * site is free to redefine PER_PAGE_MAX, and intdiv() by zero is a fatal at
+     * file load.
+     *
+     * @since 1.4.0
+     */
+    define( 'JPKCOM_ACFJOBS_ABILITY_PAGE_MAX', intdiv( PHP_INT_MAX, max( 1, JPKCOM_ACFJOBS_ABILITY_PER_PAGE_MAX ) ) );
+
+}
+
+
 if ( ! function_exists( function: 'jpkcom_acf_jobs_abilities_enabled' ) ) {
 
     /**
@@ -1920,11 +1946,15 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
         // the applied page and page size back and a caller can therefore see what
         // it got. A dropped filter clause has no such tell, which is why the axes
         // below are refused instead.
+        // Bounded at both ends. Below 1, WP_Query falls back to the paged query
+        // var of the surrounding request; above the bound, its LIMIT offset
+        // overflows to a float and collapses to 0, which answers a page far beyond
+        // total_pages with page one's records. See JPKCOM_ACFJOBS_ABILITY_PAGE_MAX.
         $page = 1;
 
         if ( isset( $input['page'] ) && is_numeric( value: $input['page'] ) ) {
 
-            $page = max( 1, (int) $input['page'] );
+            $page = min( JPKCOM_ACFJOBS_ABILITY_PAGE_MAX, max( 1, (int) $input['page'] ) );
 
         }
 
@@ -2217,6 +2247,16 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
             if ( ! $include_closed && ! jpkcom_acf_jobs_ability_meta_clause_exists( $args['meta_query'] ?? null, 'job_closed' ) ) {
 
                 $dropped = 'include_closed';
+
+            }
+
+            // search is a query var rather than a clause, which is exactly why it
+            // was the axis this check first forgot. WP_Query ignores an absent or
+            // empty s, so a callback that unsets it turns a search into a request
+            // for every job on the site while `filters` still echoes the term back.
+            if ( $search !== '' && ( ! isset( $args['s'] ) || ! is_string( value: $args['s'] ) || $args['s'] === '' ) ) {
+
+                $dropped = 'search';
 
             }
 
