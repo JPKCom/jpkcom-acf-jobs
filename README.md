@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.11  
+**Version:** 1.4.0  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.11  
+**Stable tag:** 1.4.0  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -355,6 +355,15 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.4.0
+* Added: three read-only WordPress Abilities — `jpkcom-acf-jobs/list-filters`, `jpkcom-acf-jobs/query-jobs` and `jpkcom-acf-jobs/get-job` — so AI assistants, MCP clients and REST automation can read your job listings as structured data instead of scraping the page. They are on by default for logged-in users with the `read` capability and can be switched off with `define( 'JPKCOM_ACFJOBS_ABILITIES', false )`; see the Abilities API section above
+* Added: `jpkcom_acf_jobs_ability_meta`, `jpkcom_acf_jobs_ability_capability` and `jpkcom_acf_jobs_ability_query_args` filters, so a site can change which abilities are exposed, who may run them, and what their query contains
+* Added: the abilities return only jobs your site's own listing shows, and withhold salary, address and application details for jobs that have no public detail page — one that redirects to an external application URL, one that has expired, or one that is password-protected
+* Added: `includes/jobs-data.php`, which now holds the job visibility rule that previously existed as three separate copies — in the `[jpkcom_acf_jobs_list]` shortcode, in the job archive query, and about to become a fourth. The shortcode and the archive return exactly what they returned before; this was verified by comparing the generated SQL, the returned post IDs and the rendered HTML before and after the change
+* Added: `tools/seed-jobs.php` and `tools/unseed-jobs.php` for creating and removing the edge-case job fixtures a test installation needs
+* Fixed: the source-level guards in `tests/test-conventions.php` matched only one spelling of the date rule, so `gmdate( 'Y-m-d' )` and `date( 'Y-m-d', $timestamp )` both slipped past although each carries the timezone bug the rule exists to prevent. They also scanned `includes/` alone, and the taxonomy guard could not see the `'taxonomy' => '…'` array form. All three gaps are closed
+* Note for developers: reading an ACF wysiwyg field with the default two-argument `get_field()` runs WordPress's shortcode and oEmbed pipeline, which for a job description containing a bare URL performs an outbound HTTP request and creates a database row. Every long-form field in this plugin is now read unformatted, and a test fails the build if that changes. `CLAUDE.md` documents this and eleven further traps in detail
 
 ### 1.3.11
 * Fixed: the debug schema template printed an untranslated German sentence after the translated parse-error message; it now prints the translated message alone, escaped with `esc_html__()`
