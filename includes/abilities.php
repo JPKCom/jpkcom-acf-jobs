@@ -2490,7 +2490,34 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_detail_page_renders' ) ) {
 
         }
 
-        $expiry = jpkcom_acf_jobs_normalise_date( get_field( 'job_expiry_date', $post_id, true ) );
+        $expiry_raw = get_field( 'job_expiry_date', $post_id, true );
+        $expiry     = jpkcom_acf_jobs_normalise_date( $expiry_raw );
+
+        // Three answers, not two. jpkcom_acf_jobs_normalise_date() returns null
+        // both for "this job does not expire" and for "I cannot read this value",
+        // and only the first of those means the page renders. ACF stores Ymd and
+        // hands out Y-m-d, but a stored '2025-11-30 00:00:00', ' 2025-11-30 ',
+        // '2025/11/30' or a d.m.Y value from an overridden field group are all
+        // values redirects.php:161 compares as raw strings, finds expired and 307s
+        // every non-editor away from — while the normaliser refuses all four. That
+        // gap is exactly where the postal address, the salary and the application
+        // data of an expired job would have been published.
+        //
+        // empty() rather than a comparison, because that is the test redirects.php
+        // itself applies before it compares anything: '', false, null, '0' and 0
+        // all mean "no expiry date" on this site.
+        //
+        // Falling back to redirects.php's raw string comparison was considered and
+        // rejected: it decides '2025-11-30 00:00:00' correctly and '30.11.2025'
+        // wrongly, and a guess that is right by accident is what this predicate
+        // exists to avoid. Withholding costs a renderable page its detail block
+        // only when the stored date is unreadable, which is a data defect on the
+        // site rather than a state to design for.
+        if ( $expiry === null && ! empty( $expiry_raw ) ) {
+
+            return false;
+
+        }
 
         // Through its last day, matching the >= comparison of the visibility rule,
         // and against the site timezone rather than UTC.

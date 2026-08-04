@@ -325,6 +325,20 @@ function get_permalink( mixed $post = null ): string {
 	return 'https://example.test/job/' . ( is_object( $post ) ? $post->ID : (int) $post ) . '/';
 }
 
+// Same shape as get_home_url(): a path is appended after exactly one slash, and
+// only leading slashes are stripped from it. includes/redirects.php runs a job_url
+// carrying neither the site URL nor a scheme through this before dispatching it,
+// so this is the difference between a destination and a fragment of one.
+function home_url( string $path = '', ?string $scheme = null ): string {
+	$url = 'https://example.test';
+
+	if ( '' !== $path ) {
+		$url .= '/' . ltrim( $path, '/' );
+	}
+
+	return $url;
+}
+
 function get_the_date( string $format = '', mixed $post = null ): string {
 	return '2026-01-10';
 }

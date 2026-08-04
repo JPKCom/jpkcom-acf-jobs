@@ -1102,6 +1102,44 @@ if ( function_exists( 'jpkcom_acf_jobs_detail_page_renders' ) ) {
 
 	unset( $GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] );
 
+	// The rest of the fail-open audit. Every remaining value the predicate cannot
+	// read is pinned here, in the direction the SITE takes for the same value —
+	// which is the only correct reference, because the question is "was this data
+	// ever published", not "is this value well-formed".
+	$GLOBALS['jpkcom_test_fields'][184]['job_url'] = 'https://ats.example.test/apply/1';
+
+	chk(
+		'a job_url stored as a bare string still renders',
+		true === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'redirects.php:62 requires is_array() before it redirects, so for this shape the site '
+		. 'serves the page like any other and its address and salary really are published. '
+		. 'Withholding here would be over-withholding, not caution.'
+	);
+
+	$GLOBALS['jpkcom_test_fields'][184]['job_url'] = [ 'url' => [ 'nested' ] ];
+
+	chk(
+		'a job_url whose target is not a string withholds',
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'! empty() is true for it, so redirects.php enters its redirect branch and hands an array '
+		. 'to strpos() under strict_types — a TypeError, so that page answers 500 rather than '
+		. 'rendering. No visitor ever saw this data either.'
+	);
+
+	unset( $GLOBALS['jpkcom_test_fields'][184]['job_url'] );
+
+	$GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] = [ '2025-11-30' ];
+
+	chk(
+		'an expiry stored as an array withholds',
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'The site would render this one — PHP compares an array as greater than any string, so '
+		. 'redirects.php finds it unexpired. Withholding is deliberate: an array in a date field '
+		. 'is corrupt data, and the predicate never guesses on a value it cannot read.'
+	);
+
+	unset( $GLOBALS['jpkcom_test_fields'][184]['job_expiry_date'] );
+
 	chk(
 		'a password-protected job has none',
 		false === jpkcom_acf_jobs_detail_page_renders( 701 ),
@@ -1303,32 +1341,186 @@ chk(
 	&& false === ( $expired['listed'] ?? null ) && 'expired' === ( $expired['listed_reason'] ?? null )
 );
 
-// The one state in which the reader and the site disagree, and therefore the only
-// one that can show whether get-job re-decides the disclosure question itself.
-$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => [ 'url' => "\t \n" ] ];
+echo "\nA stored date nobody can read is not a date that says \"never expires\"\n";
 
-$reader_would  = jpkcom_acf_jobs_get_job_data( 184, true );
-$ability_says  = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+// Every one of these is a value redirects.php compares as a raw string and finds
+// expired, and every one of them is a value jpkcom_acf_jobs_normalise_date()
+// refuses: it accepts Ymd and Y-m-d and nothing else, by design. The gap between
+// those two facts is where the detail block of an expired job would be published.
+$unreadable_dates = [
+	'a datetime'          => '2025-11-30 00:00:00',
+	'a padded date'       => ' 2025-11-30 ',
+	'slashes'             => '2025/11/30',
+	'a German date'       => '30.11.2025',
+	'an unreadable value' => 'irgendwann',
+];
+
+foreach ( $unreadable_dates as $label => $stored ) {
+
+	$GLOBALS['jpkcom_test_fields'][184] = [ 'job_expiry_date' => $stored ];
+
+	chk(
+		"an expiry stored as {$label} withholds the detail page",
+		false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+		'normalise_date() answers null both for "this job does not expire" and for "I cannot read '
+		. 'this", and only the first of those means the page renders. Reading the second as the '
+		. 'first publishes the postal address, the salary and the application data of a job that '
+		. 'redirects every non-editor to the archive — the exact state the rule exists for. '
+		. 'Stored value: ' . var_export( $stored, true )
+	);
+
+}
+
+// A value in the FUTURE that still does not parse. The site would render this
+// page, so withholding is a real cost — and it is still the only safe answer,
+// because the same string comparison that decides it correctly here is the one
+// that decides '30.11.2025' incorrectly.
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_expiry_date' => '2027-11-30 00:00:00' ];
 
 chk(
-	'the reader on its own would publish the detail block for a whitespace-only job_url',
-	is_array( $reader_would['detail'] ?? null ),
+	'an unreadable future date is withheld too, rather than guessed at',
+	false === jpkcom_acf_jobs_detail_page_renders( 184 ),
+	'Undecidable is not the same as "not expired". Falling back to the raw string comparison '
+	. 'redirects.php uses would decide this one correctly and 30.11.2025 wrongly, which is the '
+	. 'guess this predicate exists to avoid making.'
+);
+
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_expiry_date' => '' ];
+
+chk(
+	'while a genuinely absent expiry still renders',
+	true === jpkcom_acf_jobs_detail_page_renders( 184 ),
+	'Without this the whole group above would pass against a predicate that withholds every job '
+	. 'that carries the field at all.'
+);
+
+// The one state in which the reader and the site still disagree after this round,
+// and therefore the only one that can show whether get-job re-decides the
+// disclosure question rather than inheriting the reader's answer.
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_expiry_date' => '2025-11-30 00:00:00' ];
+
+$reader_would = jpkcom_acf_jobs_get_job_data( 184, true );
+$ability_says = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'the reader on its own would publish the detail block for an unreadable expiry',
+	is_array( $reader_would['detail'] ?? null ) && false === ( $reader_would['is_expired'] ?? null ),
 	'Not a statement about desired behaviour — it is what makes the next assertion a test rather '
-	. 'than a restatement. The reader trims that url, concludes the job does not redirect, and '
-	. 'emits everything.'
+	. 'than a restatement. is_expired answers a question of fact and has no safe default, so the '
+	. 'reader reports "not expired" for a date it cannot read.'
 );
 chk(
 	'get-job withholds it anyway',
 	is_array( $ability_says ) && ! array_key_exists( 'detail', $ability_says ),
-	'redirects.php sends every visitor without manage_options to that whitespace target and the '
-	. 'page never renders. includes/jobs-data.php is resolved through the plugin\'s file override '
-	. 'chain, so a site can replace it outright; the disclosure decision is therefore re-taken '
-	. 'here rather than inherited, and it can only ever narrow what the reader returned.'
+	'The disclosure question does have a safe default, and this is it. includes/jobs-data.php is '
+	. 'resolved through the plugin\'s file override chain, so a site can replace it outright; the '
+	. 'decision is therefore re-taken here rather than inherited, and it can only ever narrow '
+	. 'what the reader returned.'
 );
 chk(
 	'and says that the page does not render',
 	is_array( $ability_says ) && 'no_public_detail_page' === ( $ability_says['detail_omitted_reason'] ?? null )
 );
+
+echo "\nThe withheld values, not only the withheld key\n";
+
+// A salary and a street nobody may see, on a job whose page does not render.
+$GLOBALS['jpkcom_test_fields'][183] = [
+	'job_location_place'  => 'Teststadt',
+	'job_location_street' => 'Geheimstrasse 7',
+	'job_location_zip'    => '01067',
+];
+
+$secret_fields = [
+	'job_company'           => [ 182 ],
+	'job_location'          => [ 183 ],
+	'job_base_salary_group' => [
+		'job_salary'          => 424242,
+		'job_salary_currency' => 'EUR',
+		'job_salary_period'   => 'MONTH',
+	],
+];
+
+$GLOBALS['jpkcom_test_fields'][184] = $secret_fields;
+
+$published = (string) json_encode( jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] ) );
+
+chk(
+	'a job whose page renders does publish the salary and the street',
+	str_contains( $published, '424242' ) && str_contains( $published, 'Geheimstrasse 7' ),
+	'The control for the three assertions below. Without it they would all pass against a reader '
+	. 'that never emits an address or a salary at all.'
+);
+
+$suppressed = [
+	'a job that redirects externally' => [ 'job_url' => [ 'url' => 'https://ats.example.test/apply/1' ] ],
+	'an expired job'                  => [ 'job_expiry_date' => '2025-11-30' ],
+	'a job with an unreadable expiry' => [ 'job_expiry_date' => '2025-11-30 00:00:00' ],
+];
+
+foreach ( $suppressed as $label => $extra ) {
+
+	$GLOBALS['jpkcom_test_fields'][184] = array_merge( $secret_fields, $extra );
+
+	$response = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+	$encoded  = (string) json_encode( $response );
+
+	chk(
+		"{$label} publishes neither the salary nor the street anywhere in the response",
+		is_array( $response ) && ! str_contains( $encoded, '424242' ) && ! str_contains( $encoded, 'Geheimstrasse 7' ),
+		'Asserting that the "detail" KEY is gone is not the same statement. A record that carried '
+		. 'the same values under another key, or in a diagnostic field, would satisfy the weaker '
+		. 'assertion and publish exactly what the rule exists to withhold.'
+	);
+	chk(
+		"and {$label} still says why",
+		is_array( $response ) && is_string( $response['detail_omitted_reason'] ?? null )
+		&& '' !== $response['detail_omitted_reason'],
+		'Withholding without saying so leaves an agent unable to tell "this job has no salary" '
+		. 'from "you were not shown its salary".'
+	);
+
+}
+
+echo "\nurl is the destination a visitor is actually sent to\n";
+
+$destinations = [
+	'an absolute url'      => [ 'https://ats.example.test/apply/1', 'https://ats.example.test/apply/1', true ],
+	// redirects.php runs a value carrying neither the site URL nor a scheme
+	// through home_url() before dispatching it.
+	'a site-relative url'  => [ '/bewerben', 'https://example.test/bewerben', true ],
+	'a whitespace url'     => [ "\t \n", "https://example.test/\t \n", true ],
+	// empty() is false for "0", so redirects.php does NOT redirect and the page
+	// renders like any other.
+	'a url of "0"'         => [ '0', 'https://example.test/job/184/', false ],
+];
+
+foreach ( $destinations as $label => $case ) {
+
+	$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => [ 'url' => $case[0] ] ];
+
+	$record = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+	chk(
+		"{$label} is reported as the effective destination",
+		is_array( $record ) && $case[1] === ( $record['url'] ?? null )
+		&& $case[2] === ( $record['redirects_externally'] ?? null ),
+		'Spec 5.3: url is the effective destination. A permalink reported for a page that answers '
+		. '307, or a relative fragment reported as a URL, is a destination an agent forwards to a '
+		. 'user and that goes somewhere else entirely. Got '
+		. var_export( $record['url'] ?? null, true ) . ' / '
+		. var_export( $record['redirects_externally'] ?? null, true )
+	);
+	chk(
+		"{$label} carries a detail block only when its page renders",
+		is_array( $record ) && $case[2] === ! array_key_exists( 'detail', $record ),
+		'The two answers are one decision: the page either renders for a visitor or it redirects, '
+		. 'and the URL half and the disclosure half may not disagree about which it is.'
+	);
+
+}
+
+$GLOBALS['jpkcom_test_fields'][183] = [];
 
 echo "\nOne answer for absent and for unreadable\n";
 
@@ -1407,6 +1599,32 @@ chk(
 	. 'on one of the two branches is a timing signal that says the post is there. Measured: '
 	. $cost_of_a_draft . ' and ' . $cost_of_nothing . ' lookups.'
 );
+
+// The three integral spellings a JSON id can arrive in. Core's own integer check
+// accepts all of them, and over REST it sanitises them to int before the callback
+// runs — but an in-process caller (WP-CLI, another plugin, the MCP adapter's own
+// path) reaches the callback with whatever it sent, and answering 404 for a job
+// that exists is indistinguishable from answering 404 for one that does not.
+$spellings = [
+	'an integer'         => 184,
+	'an integral float'  => 184.0,
+	'a numeric string'   => '184',
+	'a padded numeric string' => ' 184 ',
+];
+
+foreach ( $spellings as $label => $spelling ) {
+
+	$resolved = jpkcom_acf_jobs_ability_get_job( [ 'id' => $spelling ] );
+
+	chk(
+		"{$label} resolves to the job",
+		is_array( $resolved ) && 184 === ( $resolved['id'] ?? null ),
+		'Deleting the branch that handles this leaves the suite green and every caller sending '
+		. 'that spelling with a 404 for a job that is right there. Sent: '
+		. var_export( $spelling, true )
+	);
+
+}
 
 chk(
 	'a missing id is a 400 naming the parameter, not a 404',

@@ -595,11 +595,34 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
         // link field, never null, so ?? does not catch it.
         $job_url = get_field( 'job_url', $post_id, true );
 
+        // ! empty(), byte for byte the test redirects.php:62 applies, and NOT a
+        // trim(): "   " is not empty, so the site really does 307 a visitor to it,
+        // while a trimmed view of the same value concludes the job does not
+        // redirect at all and publishes a permalink that answers 307. "0" is the
+        // mirror image — empty() is true for it, so the page renders normally and
+        // this job does not redirect anywhere.
         $external_url = '';
+        $redirects    = false;
 
-        if ( is_array( value: $job_url ) && isset( $job_url['url'] ) && is_string( value: $job_url['url'] ) ) {
+        if ( is_array( value: $job_url ) && ! empty( $job_url['url'] ) ) {
 
-            $external_url = trim( $job_url['url'] );
+            $redirects = true;
+
+            if ( is_string( value: $job_url['url'] ) ) {
+
+                $external_url = $job_url['url'];
+
+                // redirects.php:66-70 resolves a target carrying neither the site
+                // URL nor a scheme through home_url() before dispatching it. A
+                // relative value is therefore not the destination, it is a fragment
+                // of one, and an agent handed "/bewerben" cannot follow it.
+                if ( strpos( haystack: $external_url, needle: home_url() ) === false && strpos( haystack: $external_url, needle: '://' ) === false ) {
+
+                    $external_url = home_url( $external_url );
+
+                }
+
+            }
 
         }
 
@@ -668,7 +691,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
             'id'                   => (int) $post->ID,
             'title'                => (string) get_the_title( $post ),
             'url'                  => $external_url !== '' ? $external_url : $permalink,
-            'redirects_externally' => $external_url !== '',
+            'redirects_externally' => $redirects,
             'date'                 => (string) get_the_date( 'Y-m-d', $post ),
             'is_featured'          => (bool) get_field( 'job_featured', $post_id, true ),
             'is_closed'            => (bool) get_field( 'job_closed', $post_id, true ),
@@ -715,7 +738,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
         // and the third, a post password, was already refused by the gate above.
         // Emitting the detail block in those states would publish data the site
         // has deliberately never shown.
-        if ( $external_url !== '' ) {
+        if ( $redirects ) {
 
             $record['detail_omitted_reason'] = 'redirects_externally';
 
