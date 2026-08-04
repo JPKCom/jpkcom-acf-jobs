@@ -266,6 +266,7 @@ Tells the caller which values `query-jobs` accepts.
   locations:  [ {id, name, place, count?} ],
   attributes: [ {term_id, slug, name, count?} ],
   counts_omitted: bool,
+  vocabulary_truncated: bool,
   language:   string,
   visibility: { published_total, listed_total, hidden_missing_featured, hidden_expired } }
 ```
@@ -287,7 +288,9 @@ Tells the caller which values `query-jobs` accepts.
   — the full vocabulary in all three cases, the same semantics the `[jpkcom_acf_jobs_attributes]`
   shortcode already has. Only the `count` values depend on the pass. Deriving the lists from the pass
   would make their contents depend on the corpus size, so a client would see a different menu on a large
-  site than on a small one.
+  site than on a small one. Those vocabulary queries are themselves bounded, and they fetch one record
+  past the cap so the truncation is **detectable**: `vocabulary_truncated` reports it. A bounded query
+  that cannot tell whether it truncated is the silent cap this design rejects everywhere else.
 - `hidden_missing_featured` needs its own query, because **two independent causes** exclude a job with
   no `job_featured` row: the `EXISTS` clause *and* `meta_key => 'job_featured'` for the ordering, whose
   `postmeta.meta_key = 'job_featured'` condition lands in the `WHERE` clause. Verified in the generated
