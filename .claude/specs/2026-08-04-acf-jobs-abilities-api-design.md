@@ -266,6 +266,7 @@ Tells the caller which values `query-jobs` accepts.
   locations:  [ {id, name, place, count?} ],
   attributes: [ {term_id, slug, name, count?} ],
   counts_omitted: bool,
+  language:   string,
   visibility: { published_total, listed_total, hidden_missing_featured, hidden_expired } }
 ```
 
@@ -280,8 +281,13 @@ Tells the caller which values `query-jobs` accepts.
   the `get_terms( [ 'taxonomy' => … ] )` shape — see §8.1.
 - **Counts and the visibility block come from one pass**, not from one query per value: fetch the
   visible job IDs (`fields => 'ids'`), prime the meta and term caches, tally in PHP. Above **500**
-  visible jobs the counts are omitted and `counts_omitted` is `true` — no silent truncation. The lists
-  themselves are always complete; only the tallies are dropped.
+  visible jobs the counts are omitted and `counts_omitted` is `true` — no silent truncation.
+- **The lists themselves are never derived from that pass.** `companies` and `locations` come from all
+  published `job_company` / `job_location` posts, and `attributes` from `get_terms( hide_empty => false )`
+  — the full vocabulary in all three cases, the same semantics the `[jpkcom_acf_jobs_attributes]`
+  shortcode already has. Only the `count` values depend on the pass. Deriving the lists from the pass
+  would make their contents depend on the corpus size, so a client would see a different menu on a large
+  site than on a small one.
 - `hidden_missing_featured` needs its own query, because **two independent causes** exclude a job with
   no `job_featured` row: the `EXISTS` clause *and* `meta_key => 'job_featured'` for the ordering, whose
   `postmeta.meta_key = 'job_featured'` condition lands in the `WHERE` clause. Verified in the generated
@@ -298,7 +304,6 @@ Tells the caller which values `query-jobs` accepts.
   attribute: [string slug],                       // max 20 values
   search:    string,
   include_closed: boolean = true,
-  lang:      string,                              // optional; see §7
   page:      integer = 1,  minimum 1,
   per_page:  integer = 10, minimum 1, maximum 50,
   order:     "ASC" | "DESC" = "DESC" }
@@ -476,8 +481,11 @@ agent that reads this data.
 
 **WPML.** `job` is translated **without** `display-as-translated` (`wpml-config.xml:3-8`), so in a
 secondary language WPML hides jobs that have no translation rather than falling back. A REST/MCP request
-carries no language segment. All three abilities therefore take an optional `lang` and **echo the
-resolved language code** in every response, and the output schema states that address and attribute
+carries no language segment. There is deliberately **no `lang` input**: nothing in this release can
+switch WPML's language context, and a declared parameter with nothing behind it is a false statement in
+the schema — a client sending `lang=fr` would receive German and have no way to notice. Instead all
+three abilities **echo the resolved language code** in every response (WPML's current language when
+WPML is active, otherwise `determine_locale()`), and the output schema states that address and attribute
 values are not translated by design and that untranslated jobs are absent rather than substituted.
 
 ---
