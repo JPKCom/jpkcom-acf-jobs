@@ -100,6 +100,44 @@ All shortcode attributes are optional.
 jpkcom_render_acf_fields();
 ```
 
+### Abilities API (since 1.4.0)
+
+The plugin registers three **read-only** WordPress Abilities, so AI assistants, MCP clients and REST
+automation can query your job listings as structured data instead of scraping the page:
+
+- `jpkcom-acf-jobs/list-filters` — which job types, companies, locations and job attributes exist on
+  this site, so a caller can filter with real values instead of guessing
+- `jpkcom-acf-jobs/query-jobs` — a filtered, paginated list of jobs
+- `jpkcom-acf-jobs/get-job` — one job in full
+
+Who can use them, and what they see:
+
+- Access requires a **logged-in user** with the `read` capability — that includes subscribers. Anonymous
+  requests are rejected.
+- Only **published** jobs are ever returned, and only those your site's own listing shows. The abilities
+  apply exactly the same visibility rule as the `/jobs/` archive and the `[jpkcom_acf_jobs_list]`
+  shortcode.
+- Detailed fields — salary, postal address, application details, the full job description — are returned
+  **only for jobs whose detail page a visitor could actually open**. A job that redirects to an external
+  application URL, an expired job and a password-protected job all have no public detail page, so those
+  fields are withheld and the reason is stated in the response.
+- Note that WordPress lists the abilities themselves — their names, descriptions and parameter
+  definitions — to any logged-in user. That is core behaviour, not a setting of this plugin.
+
+To switch the feature off entirely, add this to `wp-config.php`:
+
+```php
+define( 'JPKCOM_ACFJOBS_ABILITIES', false );
+```
+
+To keep the abilities but restrict who may run them, raise the required capability:
+
+```php
+add_filter( 'jpkcom_acf_jobs_ability_capability', static function ( $capability ) {
+    return 'edit_posts';
+} );
+```
+
 ## FAQ
 
 ### Why do I need Advanced Custom Fields Pro?
