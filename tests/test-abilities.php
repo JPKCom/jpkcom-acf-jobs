@@ -574,6 +574,101 @@ chk(
 	&& is_int( $result['visibility']['hidden_expired'] ?? null )
 );
 
+echo "\nCalling an ability with no input at all\n";
+
+// The four spellings of "no input", and they must all answer the same way.
+//
+// This is not a hypothetical. WP_Ability::normalize_input() substitutes the
+// top-level schema default VERBATIM into the callback when the input is exactly
+// null, and that default is a stdClass — it has to be, because
+// WP_Ability::get_input_schema() is handed to MCP clients raw and an empty PHP
+// array serialises as [] against a property declared type: object. So one value
+// serves two incompatible jobs, and the callback receives an OBJECT for the most
+// obvious call the ability has. The declared default itself is included below
+// rather than a hand-rolled stdClass, so this asserts against the very value core
+// substitutes rather than against a guess about its shape.
+//
+// The same defect shipped once in jpkcom-post-filter and was written up there
+// afterwards; our own spec §6 documents the mechanism under "per-property
+// defaults are applied in the callbacks". A guard that only ever passes an array
+// cannot see it.
+$no_input = [
+	'null'                 => null,
+	'an empty array'       => [],
+	'an empty stdClass'    => new stdClass(),
+	'the declared default' => $defs['jpkcom-acf-jobs/query-jobs']['input_schema']['default'],
+];
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$baseline = jpkcom_acf_jobs_ability_query_jobs( [] );
+
+foreach ( $no_input as $label => $spelling ) {
+
+	$answer = jpkcom_acf_jobs_ability_query_jobs( $spelling );
+
+	chk(
+		"query-jobs called with {$label} returns the unfiltered first page",
+		is_array( $answer ) && json_encode( $answer ) === json_encode( $baseline ),
+		'All four mean "no input given" to a caller and must produce one answer: the first page '
+		. 'of all listed jobs. Answering 400 for the call that takes no parameters makes the '
+		. 'ability unusable through the entry point every client tries first.'
+	);
+
+	chk(
+		"list-filters called with {$label} still answers",
+		is_array( jpkcom_acf_jobs_ability_list_filters( $spelling ) ),
+		'list-filters is only unaffected because its callback ignores $input entirely. That is '
+		. 'an accident of implementation, not a guarantee, so it is asserted rather than assumed.'
+	);
+
+}
+
+// "Empty object" is not the whole question, and an assertion that only ever
+// passes an EMPTY one is satisfied by special-casing stdClass and emptying it —
+// which fixes the reported call and still drops every property a non-empty object
+// carries. Measured: that shortcut leaves the four assertions above green.
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$object_input = jpkcom_acf_jobs_ability_query_jobs( (object) [ 'per_page' => 3, 'order' => 'ASC' ] );
+
+chk(
+	'an object input is read, not merely tolerated',
+	is_array( $object_input ) && 3 === ( $object_input['per_page'] ?? null )
+	&& 'ASC' === ( $object_input['filters']['order'] ?? null )
+	&& 3 === ( listing_query()['posts_per_page'] ?? null ),
+	'The question is what the input CARRIES, not what class it is. Emptying a stdClass by name '
+	. 'answers the no-input call and silently discards every property of an object that has some.'
+);
+chk(
+	'and it agrees with the array spelling of the same request',
+	json_encode( $object_input )
+	=== json_encode( jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 3, 'order' => 'ASC' ] ) )
+);
+
+chk(
+	'get-job declares no top-level default, so the substitution cannot reach it',
+	! array_key_exists( 'default', $defs['jpkcom-acf-jobs/get-job']['input_schema'] ),
+	'get-job requires an id. Nothing is substituted for a null input and validate_input() '
+	. 'refuses before the callback runs, which is the correct answer there rather than this bug.'
+);
+
+// The same question one callback over. get-job cannot be reached by the default
+// substitution, but it carries the identical is_array() gate, so an object
+// carrying a perfectly usable id was refused with a 400. Fixing the instance and
+// leaving its twin is how this defect reached a second plugin in the first place.
+chk(
+	'get-job reads an object input the same as an array input',
+	json_encode( jpkcom_acf_jobs_ability_get_job( (object) [ 'id' => 184 ] ) )
+	=== json_encode( jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] ) ),
+	'Both spellings carry the same id, so they are the same request. Only a scalar carries no '
+	. 'properties at all, and that stays a 400.'
+);
+chk(
+	'and a scalar still is not a request',
+	jpkcom_acf_jobs_ability_get_job( 'nonsense' ) instanceof WP_Error
+);
+
 echo "\nWhat the reader emits has to satisfy what the schema declares\n";
 
 /**

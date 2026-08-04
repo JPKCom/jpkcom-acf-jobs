@@ -1927,12 +1927,36 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
         }
 
+        // "No input given" has more than one spelling, and they all mean the same
+        // thing: the first page of all listed jobs.
+        //
+        // WP_Ability::normalize_input() substitutes the top-level schema default
+        // VERBATIM when the input is exactly null, and that default is a stdClass.
+        // It has to be: WP_Ability::get_input_schema() is handed to MCP clients
+        // raw, and an empty PHP array serialises as [] against a property declared
+        // type: object. One value therefore serves two incompatible jobs — a
+        // JSON-Schema default that must be an object, and a runtime value handed
+        // to this callback — so the most obvious call this ability has arrives
+        // here as an object rather than as an array.
+        //
+        // The question asked below is what the input CARRIES, not what class it
+        // is. Naming stdClass would fix today's caller and not the class: any
+        // object shape means "these are the properties", and an object with none
+        // means "no properties given".
         if ( $input === null ) {
 
             $input = [];
 
         }
 
+        if ( is_object( value: $input ) ) {
+
+            $input = get_object_vars( $input );
+
+        }
+
+        // A scalar carries no properties at all and cannot be read as a map. That
+        // is a different statement from "no input", and it stays an error.
         if ( ! is_array( value: $input ) ) {
 
             return jpkcom_acf_jobs_ability_error(
@@ -2687,6 +2711,18 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
         if ( $input === null ) {
 
             $input = [];
+
+        }
+
+        // The same normalisation query-jobs performs, and for the same reason.
+        // get-job cannot be reached by the default substitution — it declares no
+        // top-level default, because it requires an id — but the gate below is the
+        // identical one, so an object carrying a perfectly usable id was refused.
+        // Fixing one instance of this and leaving its twin is exactly how the
+        // defect reached a second plugin.
+        if ( is_object( value: $input ) ) {
+
+            $input = get_object_vars( $input );
 
         }
 
