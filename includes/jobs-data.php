@@ -608,6 +608,13 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
 
             $redirects = true;
 
+            // Only a string can be resolved to a destination. Anything else that
+            // passes ! empty() — a nested array, a number, an object — makes
+            // redirects.php hand a non-string to strpos() under strict_types, so
+            // that page answers 500 and serves neither its own content nor a
+            // redirect. The value below therefore stays empty, and the record says
+            // "it goes somewhere I cannot name" rather than naming the one address
+            // it demonstrably does not go to.
             if ( is_string( value: $job_url['url'] ) ) {
 
                 $external_url = $job_url['url'];
@@ -690,7 +697,11 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
         $record = [
             'id'                   => (int) $post->ID,
             'title'                => (string) get_the_title( $post ),
-            'url'                  => $external_url !== '' ? $external_url : $permalink,
+            // Both halves of one decision, so they cannot contradict each other for
+            // any stored value of any type. The permalink is the answer only when
+            // the job does not redirect: handing it out as a fallback while
+            // reporting a redirect sends an agent to the page that 307s away.
+            'url'                  => $redirects ? $external_url : $permalink,
             'redirects_externally' => $redirects,
             'date'                 => (string) get_the_date( 'Y-m-d', $post ),
             'is_featured'          => (bool) get_field( 'job_featured', $post_id, true ),

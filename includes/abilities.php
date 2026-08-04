@@ -1376,7 +1376,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     'properties' => $job_schema['properties'] + [
                         'listed'                => [
                             'type'        => 'boolean',
-                            'description' => __( 'Whether this job appears in the site listings and in jpkcom-acf-jobs/query-jobs. Answered by running the site\'s own visibility query for this one job rather than by re-deriving the rule, so it cannot disagree with what query-jobs returns.', 'jpkcom-acf-jobs' ),
+                            'description' => __( 'Whether this job satisfies the job visibility rule of this site — the same rule the job archive and the job list shortcode run. It is answered by running that rule for this one job rather than by re-deriving it, so it cannot drift from the rule. It is not a promise about the response of jpkcom-acf-jobs/query-jobs: a plugin or theme on this site may narrow that response further, and this property deliberately keeps reporting the site rule rather than whatever such a callback left in the list.', 'jpkcom-acf-jobs' ),
                         ],
                         'listed_reason'         => [
                             'type'        => 'string',

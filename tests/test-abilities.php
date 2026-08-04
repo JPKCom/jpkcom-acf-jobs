@@ -1414,6 +1414,37 @@ chk(
 	. 'reading of the stored value can see, and an honest "unknown" beats a confident wrong one.'
 );
 
+// What the verdict is NOT: agreement with whatever query-jobs happens to return on
+// a site that filters that response. A callback narrowing the listing must not be
+// able to change an answer about the site's own rule.
+// The base rule returns this job, so the only thing that can move the two answers
+// apart here is the filter.
+$GLOBALS['jpkcom_test_meta_rows'][184] = [ 'job_featured' ];
+$GLOBALS['jpkcom_test_fields'][184]    = [];
+$GLOBALS['jpkcom_test_unlisted']       = [];
+
+$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static function ( array $args ): array {
+	$args['post__in'] = [ 999999 ];
+
+	return $args;
+};
+
+$filtered_listing = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 50 ] );
+$verdict_stands   = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+chk(
+	'a site filter narrows query-jobs without moving the verdict get-job reports',
+	is_array( $filtered_listing )
+	&& ! in_array( 184, array_column( $filtered_listing['jobs'] ?? [], 'id' ), true )
+	&& is_array( $verdict_stands ) && true === ( $verdict_stands['listed'] ?? null ),
+	'jpkcom_acf_jobs_ability_query_args exists so a site can shape what query-jobs lists. Applying '
+	. 'it to a verdict ABOUT the site\'s rule would let a callback make that verdict disagree with '
+	. 'the rule it reports on. So listed answers for the base visibility rule and says so in its '
+	. 'schema — it does not promise to match a filtered response.'
+);
+
 // The mirror image: the rule returns the job while the PHP reading found a reason
 // it should not be listed. The verdict wins, and the contradiction is removed
 // rather than published.
@@ -1612,7 +1643,103 @@ foreach ( $destinations as $label => $case ) {
 
 }
 
+// The pair is one statement about one job, so no stored value of any type may
+// make its two halves disagree. Case-by-case expectations cannot say that: they
+// only cover the shapes somebody thought of, and the shape that broke this was
+// the one nobody did.
+$permalink = 'https://example.test/job/184/';
+
+$hostile_urls = [
+	'an absolute url'        => [ 'url' => 'https://ats.example.test/apply/1' ],
+	'a relative url'         => [ 'url' => '/bewerben' ],
+	'a whitespace url'       => [ 'url' => "\t \n" ],
+	'a url of "0"'           => [ 'url' => '0' ],
+	'an empty url'           => [ 'url' => '' ],
+	'a nested array'         => [ 'url' => [ 'nested' ] ],
+	'an integer'             => [ 'url' => 42 ],
+	'an object'              => [ 'url' => new stdClass() ],
+	'a missing url key'      => [ 'title' => 'Bewerben' ],
+	'an empty array'         => [],
+	'a bare string'          => 'https://bare-string.example/',
+	'the ACF unset value'    => '',
+	'the other unset value'  => false,
+	'a null url'             => [ 'url' => null ],
+];
+
+$incoherent = [];
+
+foreach ( $hostile_urls as $label => $stored ) {
+
+	$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => $stored ];
+
+	$record = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+	if ( ! is_array( $record ) ) {
+		$incoherent[] = $label . ' produced no record at all';
+		continue;
+	}
+
+	$says_redirect = $record['redirects_externally'] ?? null;
+	$says_url      = $record['url'] ?? null;
+
+	if ( ! is_bool( $says_redirect ) || ! is_string( $says_url ) ) {
+		$incoherent[] = $label . ' produced ' . var_export( $says_url, true ) . ' / ' . var_export( $says_redirect, true );
+		continue;
+	}
+
+	// No row in this table names the job's own address, so a permalink here can
+	// only be a fallback rather than a destination that happens to be the same.
+	$coherent = $says_redirect ? ( $says_url !== $permalink ) : ( $says_url === $permalink );
+
+	if ( ! $coherent ) {
+		$incoherent[] = $label . ' says url=' . var_export( $says_url, true )
+			. ' beside redirects_externally=' . var_export( $says_redirect, true );
+	}
+}
+
+chk(
+	'url and redirects_externally never disagree, whatever is stored',
+	[] === $incoherent,
+	'A record claiming the job redirects while handing out its own permalink sends an agent to a '
+	. 'page that answers 307, and one claiming it does not redirect while handing out a foreign '
+	. 'address does the opposite. Both halves come from one decision and have to stay one. '
+	. implode( '; ', $incoherent )
+);
+
+// The shape of the answer for a target this plugin cannot resolve to a URL, so
+// the assertion above cannot be satisfied by inventing any old string.
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => [ 'url' => [ 'nested' ] ] ];
+
+$unusable = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'an unresolvable redirect target is reported as empty, not as the permalink',
+	is_array( $unusable ) && '' === ( $unusable['url'] ?? null )
+	&& true === ( $unusable['redirects_externally'] ?? null )
+	&& ! array_key_exists( 'detail', $unusable ),
+	'! empty() is true for this value, so redirects.php enters its redirect branch and hands an '
+	. 'array to strpos() under strict_types: that page answers 500 and serves nothing. An empty '
+	. 'url says "it goes somewhere I cannot name"; the permalink would say "go here", which is the '
+	. 'one place it demonstrably does not go.'
+);
+
+// A job whose external URL resolves to its own address. redirects_externally is
+// true and url equals the permalink, and that is not the contradiction above: it
+// is a true statement about a job that redirects to itself.
+$GLOBALS['jpkcom_test_fields'][184] = [ 'job_url' => [ 'url' => '/job/184/' ] ];
+
+$self_referential = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+
+chk(
+	'a job that redirects to its own address reports that, rather than being normalised away',
+	is_array( $self_referential ) && $permalink === ( $self_referential['url'] ?? null )
+	&& true === ( $self_referential['redirects_externally'] ?? null ),
+	'The equality here is the resolved destination, not a fallback. Forcing the pair apart to '
+	. 'satisfy a naive invariant would hide a job the site 307s to itself in a loop.'
+);
+
 $GLOBALS['jpkcom_test_fields'][183] = [];
+$GLOBALS['jpkcom_test_fields'][184] = [];
 
 echo "\nOne answer for absent and for unreadable\n";
 
@@ -1990,5 +2117,87 @@ function permission_callbacks_check_a_capability(): void {
 }
 
 permission_callbacks_check_a_capability();
+
+/**
+ * Assert that the verdict path CALLS the shared builder instead of reproducing it.
+ *
+ * Every other assertion about that query checks its OUTPUT, and an accurate
+ * hand-written copy of the rule produces the same output — measured: a complete
+ * inline copy inside jpkcom_acf_jobs_ability_job_is_listed() left the whole suite
+ * green. So the property the design actually claims, that a later change to the
+ * rule reaches this answer automatically, was unguarded.
+ *
+ * PHP cannot redefine a function in place, so the check runs in a child process
+ * where a spy is defined BEFORE includes/jobs-data.php: that file wraps its own
+ * definition in function_exists(), so the spy becomes the builder for that process
+ * and returns a marker no copy of the rule contains. The marker reaching WP_Query
+ * is proof of the call itself rather than of the shape of its result.
+ *
+ * The child runs its program through eval(). That program is the constant heredoc
+ * below — no input of any kind reaches it, and the base64 is there only so the
+ * source survives shell quoting intact, not as any kind of protection. A temp file
+ * would be the alternative and would leave one behind on a failed run.
+ */
+function the_verdict_query_calls_the_builder(): void {
+	global $pass, $fail, $root;
+
+	$tests = __DIR__;
+
+	if ( ! function_exists( 'shell_exec' ) ) {
+		$fail++;
+		echo "  FAIL  the verdict query calls the shared builder\n";
+		echo "        shell_exec() is unavailable, so this could not be checked. Reported as a\n";
+		echo "        failure on purpose: an unverifiable guarantee is the thing this assertion\n";
+		echo "        exists to prevent.\n";
+		return;
+	}
+
+	$code = <<<SPY
+	function jpkcom_acf_jobs_build_job_query_args( array \$args = [] ): array {
+		\$GLOBALS['spy_calls'][] = \$args;
+
+		return [
+			'post_type'             => 'job',
+			'post_status'           => 'publish',
+			'meta_key'              => 'job_featured',
+			'meta_query'            => [],
+			'jpkcom_builder_marker' => 'called',
+		];
+	}
+
+	require_once '{$tests}/lib.php';
+	define( 'JPKCOM_ACFJOBS_ABILITIES', true );
+	require_once '{$root}/includes/jobs-data.php';
+	require_once '{$root}/includes/abilities.php';
+
+	\$GLOBALS['jpkcom_test_meta_rows'][184] = [ 'job_featured' ];
+	\$GLOBALS['jpkcom_test_queries']        = [];
+
+	jpkcom_acf_jobs_ability_job_is_listed( 184 );
+
+	\$asked = \$GLOBALS['jpkcom_test_queries'][0] ?? [];
+
+	echo count( \$GLOBALS['spy_calls'] ?? [] ), '|', ( \$asked['jpkcom_builder_marker'] ?? 'absent' );
+	SPY;
+
+	$command = escapeshellarg( PHP_BINARY ) . ' -r '
+		. escapeshellarg( 'eval(base64_decode("' . base64_encode( $code ) . '"));' ) . ' 2>&1';
+
+	$observed = trim( (string) shell_exec( $command ) );
+
+	if ( '1|called' === $observed ) {
+		$pass++;
+		echo "  PASS  the verdict query calls the shared builder\n";
+		return;
+	}
+
+	$fail++;
+	echo "  FAIL  the verdict query calls the shared builder\n";
+	echo "        Expected the builder to be called exactly once and its result to reach WP_Query\n";
+	echo "        (\"1|called\"), got \"{$observed}\". A second copy of the visibility rule answers\n";
+	echo "        correctly until the rule changes, and then answers a question nobody asked.\n";
+}
+
+the_verdict_query_calls_the_builder();
 
 summary();
