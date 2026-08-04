@@ -24,6 +24,7 @@
 - **Language:** all code, comments, commit messages and CI output in English. German only in user-facing ACF/UI strings.
 - **Commits:** no `Co-Authored-By` trailer, ever. Work happens on the `abilities-api` branch.
 - **Text domain:** `jpkcom-acf-jobs`.
+- **Test harness:** `chk()` and the WordPress stubs live once, in `tests/lib.php`, which both new test files `require_once`. CI globs `tests/test-*.php`, so `lib.php` is never started as a test of its own, and `release.yml:107` excludes `tests/` from the ZIP. `tests/test-conventions.php` stays standalone and untouched by this — it has no stubs and asserts against source text only.
 
 ---
 
@@ -197,7 +198,12 @@ Replace the `$patterns` array at `tests/test-conventions.php:132-136` with:
 			'/get_term\(\s*[^,]+,\s*[\'"]([^\'"]+)[\'"]/',
 			'/term_exists\(\s*[^,]+,\s*[\'"]([^\'"]+)[\'"]/',
 			'/taxonomy_exists\(\s*[\'"]([^\'"]+)[\'"]/',
-			'/[\'"]taxonomy[\'"]\s*=>\s*[\'"]([^\'"]+)[\'"]/',
+			// The array-key form is restricted to values that could be a taxonomy
+			// name at all. register_taxonomy() accepts [a-z0-9_-] only, and
+			// includes/helpers.php:89 has a 'taxonomy' => '🏷️' entry in an icon map
+			// keyed by ACF field type — an unrestricted pattern reports that emoji
+			// as an unregistered taxonomy.
+			'/[\'"]taxonomy[\'"]\s*=>\s*[\'"]([a-z0-9_-]{1,32})[\'"]/',
 		];
 ```
 
@@ -243,6 +249,7 @@ the pattern happening not to reach it."
 
 **Files:**
 - Create: `includes/jobs-data.php`
+- Create: `tests/lib.php`
 - Create: `tests/test-jobs-data.php`
 - Modify: `jpkcom-acf-jobs.php` (add the include, before the `shortcodes.php` block at `:334`)
 - Modify: `includes/shortcodes.php:117-238` (replace the inline construction with a call)
@@ -251,23 +258,22 @@ the pattern happening not to reach it."
 - Consumes: nothing.
 - Produces: `jpkcom_acf_jobs_build_job_query_args( array $args = [] ): array`. Recognised keys — `posts_per_page` (`int|null`), `paged` (`int|null`), `order` (`string`, `'ASC'|'DESC'`, default `'DESC'`), `post_status` (`string|null`), `job_type` (`string[]`), `company` (`int[]`), `location` (`int[]`), `attribute` (`int[]`, term IDs), `search` (`string`), `exclude_password_protected` (`bool`). Keys whose value is `null` are omitted from the result entirely.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1a: Create the shared test harness**
 
-Create `tests/test-jobs-data.php` (tabs):
+Create `tests/lib.php` (tabs). CI globs `tests/test-*.php`, so this file is never started as a test of its own; `release.yml:107` excludes `tests/` from the ZIP.
 
 ```php
 <?php
 /**
- * Behavioural guards for includes/jobs-data.php.
+ * Shared harness for the behavioural test files.
  *
- * This repo has no PHPUnit and no tests/bootstrap.php, so the file defines the
- * handful of WordPress functions jobs-data.php touches and then requires it.
- * The first assertion is that the require actually produced the functions:
- * without it an ABSPATH mismatch would hit the file's own exit; and the process
- * would end at status 0, which CI reports as green having run nothing.
+ * This repo has no PHPUnit, no Composer and no autoloader, so a test that wants
+ * to call plugin code has to supply the WordPress functions that code touches.
+ * Every stub here is a function includes/jobs-data.php or includes/abilities.php
+ * actually calls, and nothing else — this is a stub set, not a framework.
  *
- * Run with:
- *     php tests/test-jobs-data.php
+ * Not named bootstrap.php and not named test-*.php on purpose: the first would
+ * suggest a framework that does not exist, the second would make CI run it.
  *
  * @package JPKCom_ACF_Jobs
  * @since 1.4.0
@@ -277,7 +283,9 @@ declare(strict_types=1);
 
 $root = dirname( __DIR__ );
 
-define( 'ABSPATH', $root . '/' );
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', $root . '/' );
+}
 
 $pass = 0;
 $fail = 0;
@@ -306,8 +314,19 @@ function chk( string $label, bool $ok, string $why = '' ): void {
 	}
 }
 
-// Minimal WordPress surface. Deliberately not a framework: every stub here is a
-// function jobs-data.php actually calls, and nothing else.
+/**
+ * Print the tally and exit with a status CI can read.
+ *
+ * @return never
+ */
+function summary(): void {
+	global $pass, $fail;
+
+	printf( "\n  %d passed, %d failed\n", $pass, $fail );
+
+	exit( $fail > 0 ? 1 : 0 );
+}
+
 function current_time( string $type, int|bool $gmt = 0 ): string {
 	return '2026-01-15';
 }
@@ -320,6 +339,35 @@ function absint( mixed $maybeint ): int {
 	return abs( (int) $maybeint );
 }
 
+function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string {
+	return trim( strip_tags( $text ) );
+}
+```
+
+- [ ] **Step 1b: Write the failing test**
+
+Create `tests/test-jobs-data.php` (tabs). Every later `printf( "\n  %d passed…` / `exit()` pair in this plan is replaced by a call to `summary()`:
+
+```php
+<?php
+/**
+ * Behavioural guards for includes/jobs-data.php.
+ *
+ * The first assertion is that the require actually produced the functions:
+ * without it an ABSPATH mismatch would hit the file's own exit; and the process
+ * would end at status 0, which CI reports as green having run nothing.
+ *
+ * Run with:
+ *     php tests/test-jobs-data.php
+ *
+ * @package JPKCom_ACF_Jobs
+ * @since 1.4.0
+ */
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/lib.php';
+
 require_once $root . '/includes/jobs-data.php';
 
 echo "\nLoad\n";
@@ -331,8 +379,7 @@ chk(
 );
 
 if ( ! function_exists( 'jpkcom_acf_jobs_build_job_query_args' ) ) {
-	printf( "\n  %d passed, %d failed\n", $pass, $fail );
-	exit( 1 );
+	summary();
 }
 
 echo "\nVisibility rule\n";
@@ -423,9 +470,7 @@ chk(
 	'get_the_title() prepends "Protected:" while ACF hands out the full salary and address.'
 );
 
-printf( "\n  %d passed, %d failed\n", $pass, $fail );
-
-exit( $fail > 0 ? 1 : 0 );
+summary();
 ```
 
 - [ ] **Step 2: Run it to make sure it fails**
@@ -961,7 +1006,7 @@ chk( 'a nonexistent id does not resolve', jpkcom_acf_jobs_get_job_data( 999999 )
 chk( 'id 0 does not resolve', jpkcom_acf_jobs_get_job_data( 0 ) === [] );
 ```
 
-Add these stubs to the stub block at the top of the file, after `absint()`:
+Add these stubs to `tests/lib.php`, after `absint()` — not to the test file, so `tests/test-abilities.php` inherits them too:
 
 ```php
 /**
@@ -1364,7 +1409,7 @@ if ( ! defined( 'JPKCOM_ACFJOBS_ABILITIES' ) ) {
 
 - [ ] **Step 2: Write the failing test**
 
-Create `tests/test-abilities.php` (tabs). It reuses the stub approach and asserts the definition shapes:
+Create `tests/test-abilities.php` (tabs). It requires the shared harness and asserts the definition shapes. Add the three stubs it needs beyond the shared set — `__()`, `apply_filters()`, `add_action()` — to `tests/lib.php`, not here; `add_action()` matters because `abilities.php` calls it at load time.
 
 ```php
 <?php
@@ -1384,58 +1429,9 @@ Create `tests/test-abilities.php` (tabs). It reuses the stub approach and assert
 
 declare(strict_types=1);
 
-$root = dirname( __DIR__ );
+require_once __DIR__ . '/lib.php';
 
-define( 'ABSPATH', $root . '/' );
 define( 'JPKCOM_ACFJOBS_ABILITIES', true );
-
-$pass = 0;
-$fail = 0;
-
-function chk( string $label, bool $ok, string $why = '' ): void {
-	global $pass, $fail;
-
-	if ( $ok ) {
-		$pass++;
-		echo "  PASS  {$label}\n";
-		return;
-	}
-
-	$fail++;
-	echo "  FAIL  {$label}\n";
-
-	if ( '' !== $why ) {
-		echo "        {$why}\n";
-	}
-}
-
-function __( string $text, string $domain = 'default' ): string {
-	return $text;
-}
-
-function apply_filters( string $hook, mixed $value, mixed ...$args ): mixed {
-	return $value;
-}
-
-function add_action( string $hook, mixed $callback, int $priority = 10, int $accepted_args = 1 ): bool {
-	return true;
-}
-
-function current_time( string $type, int|bool $gmt = 0 ): string {
-	return '2026-01-15';
-}
-
-function sanitize_text_field( string $str ): string {
-	return trim( strip_tags( $str ) );
-}
-
-function absint( mixed $maybeint ): int {
-	return abs( (int) $maybeint );
-}
-
-function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string {
-	return trim( strip_tags( $text ) );
-}
 
 require_once $root . '/includes/jobs-data.php';
 require_once $root . '/includes/abilities.php';
@@ -1449,8 +1445,7 @@ chk(
 );
 
 if ( ! function_exists( 'jpkcom_acf_jobs_get_ability_definitions' ) ) {
-	printf( "\n  %d passed, %d failed\n", $pass, $fail );
-	exit( 1 );
+	summary();
 }
 
 $defs = jpkcom_acf_jobs_get_ability_definitions();
@@ -1620,9 +1615,7 @@ forbid_in_ability_path(
 	. 'argument must always be explicit in this path.'
 );
 
-printf( "\n  %d passed, %d failed\n", $pass, $fail );
-
-exit( $fail > 0 ? 1 : 0 );
+summary();
 ```
 
 - [ ] **Step 3: Run it to make sure it fails**
