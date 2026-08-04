@@ -47,6 +47,10 @@ if ( ! defined( 'JPKCOM_ACFJOBS_PLUGIN_URL' ) ) {
 	define( 'JPKCOM_ACFJOBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
+if ( ! defined( 'JPKCOM_ACFJOBS_ABILITIES' ) ) {
+	define( 'JPKCOM_ACFJOBS_ABILITIES', true );
+}
+
 
 /**
  * Initialize Plugin Updater
@@ -337,6 +341,23 @@ $jpkcomAcfJobData = jpkcom_acfjobs_locate_file( filename: 'jobs-data.php' );
 if ( $jpkcomAcfJobData ) {
 
     require_once $jpkcomAcfJobData;
+
+}
+
+
+/**
+ * Load Abilities API integration
+ *
+ * Registers the read-only job abilities for MCP clients, REST automation and the
+ * WordPress AI client. Loaded after jobs-data.php, which it reads through.
+ *
+ * @since 1.4.0
+ */
+$jpkcomAcfJobAbilities = jpkcom_acfjobs_locate_file( filename: 'abilities.php' );
+
+if ( $jpkcomAcfJobAbilities ) {
+
+    require_once $jpkcomAcfJobAbilities;
 
 }
 

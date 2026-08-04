@@ -66,6 +66,20 @@ function current_time( string $type, int|bool $gmt = 0 ): string {
 	return '2026-01-15';
 }
 
+function __( string $text, string $domain = 'default' ): string {
+	return $text;
+}
+
+function apply_filters( string $hook_name, mixed $value, mixed ...$args ): mixed {
+	return $value;
+}
+
+// includes/abilities.php calls this at file scope, so the require would fatal
+// without it and the run would never reach a single assertion.
+function add_action( string $hook_name, mixed $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+	return true;
+}
+
 function sanitize_text_field( string $str ): string {
 	return trim( strip_tags( $str ) );
 }
@@ -145,4 +159,31 @@ function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string 
 
 function wp_get_attachment_image_src( int $id, string $size = 'thumbnail' ): array|false {
 	return false;
+}
+
+function metadata_exists( string $meta_type, int $object_id, string $meta_key ): bool {
+	return false;
+}
+
+// The five ACF flexible-content functions the reader's detail branch walks
+// job_layout_content with. get_sub_field()'s second argument is the same
+// $format_value switch get_field() carries, and it is false for the same reason.
+function have_rows( string $selector, mixed $post_id = false ): bool {
+	return false;
+}
+
+function the_row( bool $format = false ): array {
+	return [];
+}
+
+function get_row_layout(): string|false {
+	return false;
+}
+
+function get_sub_field( string $selector, bool $format_value = true ): mixed {
+	return null;
+}
+
+function reset_rows(): bool {
+	return true;
 }

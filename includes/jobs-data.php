@@ -480,6 +480,59 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_related' ) ) {
 
 }
 
+if ( ! function_exists( function: 'jpkcom_acf_jobs_attachment_url' ) ) {
+
+    /**
+     * Resolve an ACF image value to a single URL.
+     *
+     * ACF hands out an image field either as an attachment ID or as an array of
+     * roughly thirty keys, depending on the field's return format and on whether
+     * the field group is registered at all. Both shapes reduce to one URL here.
+     * The full array is deliberately never emitted: it carries the uploader's
+     * name, the file path on disk and every registered intermediate size, none of
+     * which a job listing needs.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Raw ACF image value.
+     * @return string|null Image URL, or null when the value resolves to no attachment.
+     */
+    function jpkcom_acf_jobs_attachment_url( mixed $value ): ?string {
+
+        if ( is_array( value: $value ) && isset( $value['ID'] ) ) {
+
+            $value = $value['ID'];
+
+        }
+
+        if ( ! is_scalar( value: $value ) ) {
+
+            return null;
+
+        }
+
+        $attachment_id = absint( $value );
+
+        if ( $attachment_id < 1 ) {
+
+            return null;
+
+        }
+
+        $src = wp_get_attachment_image_src( $attachment_id, 'jpkcom-acf-job-logo' );
+
+        if ( ! is_array( value: $src ) || ! isset( $src[0] ) || ! is_string( value: $src[0] ) || $src[0] === '' ) {
+
+            return null;
+
+        }
+
+        return $src[0];
+
+    }
+
+}
+
 if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
 
     /**
@@ -522,7 +575,366 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
 
         }
 
-        return [ 'id' => (int) $post->ID, 'title' => (string) get_the_title( $post ) ];
+        // Every read below passes $post_id explicitly. There is no global $post
+        // inside an ability callback, and the single-job partials — which all read
+        // the global — are therefore not the reference for this function.
+        //
+        // The third argument of get_field() is explicit everywhere, and false for
+        // every long-form field. That is the load-bearing rule of this file:
+        // get_field()'s default formatted mode pipes a wysiwyg value through
+        // acf_the_content, which carries do_shortcode at priority 11 and
+        // WP_Embed::autoembed at 8. With no post context — which is exactly an
+        // ability callback — autoembed fetches the remote URL and wp_insert_post()s
+        // an oembed_cache row, so a declared read-only ability would write to the
+        // database and make outbound HTTP requests. A URL alone on one line of a
+        // job description is enough to trigger it.
+        $today = current_time( 'Y-m-d' );
+
+        // Read formatted, so this mirrors includes/redirects.php, which decides
+        // its 307 from exactly this shape. ACF returns '' or false for an unset
+        // link field, never null, so ?? does not catch it.
+        $job_url = get_field( 'job_url', $post_id, true );
+
+        $external_url = '';
+
+        if ( is_array( value: $job_url ) && isset( $job_url['url'] ) && is_string( value: $job_url['url'] ) ) {
+
+            $external_url = trim( $job_url['url'] );
+
+        }
+
+        $expiry_date = jpkcom_acf_jobs_normalise_date( get_field( 'job_expiry_date', $post_id, true ) );
+        $is_expired  = $expiry_date !== null && $expiry_date < $today;
+
+        $companies = [];
+
+        foreach ( jpkcom_acf_jobs_normalise_related( get_field( 'job_company', $post_id, true ) ) as $related ) {
+
+            $companies[] = [
+                'id'   => (int) $related['id'],
+                'name' => (string) $related['title'],
+            ];
+
+        }
+
+        $locations = [];
+
+        foreach ( jpkcom_acf_jobs_normalise_related( get_field( 'job_location', $post_id, true ) ) as $related ) {
+
+            $location_id = (int) $related['id'];
+            $place       = get_field( 'job_location_place', $location_id, false );
+
+            $locations[] = [
+                'id'    => $location_id,
+                'name'  => (string) $related['title'],
+                'place' => is_scalar( value: $place ) ? (string) $place : '',
+            ];
+
+        }
+
+        // The term relations, not the job_attribute meta: save_terms and
+        // load_terms are both on, so ACF discards the meta on read and the stored
+        // copy can name a term the job no longer carries.
+        $term_objects = get_the_terms( $post, 'job-attribute' );
+
+        if ( is_wp_error( $term_objects ) || ! is_array( value: $term_objects ) ) {
+
+            $term_objects = [];
+
+        }
+
+        $attributes = [];
+
+        foreach ( $term_objects as $index => $term ) {
+
+            if ( ! $term instanceof WP_Term ) {
+
+                unset( $term_objects[ $index ] );
+
+                continue;
+
+            }
+
+            $attributes[] = [
+                'slug' => (string) $term->slug,
+                'name' => (string) $term->name,
+            ];
+
+        }
+
+        $permalink = (string) get_permalink( $post );
+
+        $record = [
+            'id'                   => (int) $post->ID,
+            'title'                => (string) get_the_title( $post ),
+            'url'                  => $external_url !== '' ? $external_url : $permalink,
+            'redirects_externally' => $external_url !== '',
+            'date'                 => (string) get_the_date( 'Y-m-d', $post ),
+            'is_featured'          => (bool) get_field( 'job_featured', $post_id, true ),
+            'is_closed'            => (bool) get_field( 'job_closed', $post_id, true ),
+            'is_expired'           => $is_expired,
+            'summary'              => jpkcom_acf_jobs_plain_text( get_field( 'job_short_description', $post_id, false ) ),
+            'job_types'            => jpkcom_acf_jobs_normalise_choices( get_field( 'job_type', $post_id, true ) ),
+            'work_type'            => jpkcom_acf_jobs_normalise_choice( get_field( 'job_work_type', $post_id, true ) ),
+            'companies'            => $companies,
+            'locations'            => $locations,
+            'attributes'           => $attributes,
+            'expiry_date'          => $expiry_date,
+        ];
+
+        if ( ! $full ) {
+
+            return $record;
+
+        }
+
+        // Listed is not the same question as detail. A job with a job_url is
+        // listed and merely redirects; a job with no job_featured row at all is
+        // absent from every listing although its page renders perfectly well.
+        // The EXISTS test is on the meta row, not on the value: the visibility
+        // rule excludes a missing row, not a stored zero.
+        $record['listed'] = true;
+
+        if ( ! metadata_exists( 'post', $post_id, 'job_featured' ) ) {
+
+            $record['listed']        = false;
+            $record['listed_reason'] = 'missing_job_featured';
+
+        } elseif ( $is_expired ) {
+
+            $record['listed']        = false;
+            $record['listed_reason'] = 'expired';
+
+        }
+
+        // The detail-page rule. Address, salary, attributes and application data
+        // are public only as a side effect of a job's page rendering for a
+        // visitor. Two states mean no such page exists — includes/redirects.php
+        // 307s every caller without manage_options away from a job carrying a
+        // job_url, and every caller without edit_post away from an expired one —
+        // and the third, a post password, was already refused by the gate above.
+        // Emitting the detail block in those states would publish data the site
+        // has deliberately never shown.
+        if ( $external_url !== '' ) {
+
+            $record['detail_omitted_reason'] = 'redirects_externally';
+
+            return $record;
+
+        }
+
+        if ( $is_expired ) {
+
+            $record['detail_omitted_reason'] = 'expired';
+
+            return $record;
+
+        }
+
+        $detail_companies = [];
+
+        foreach ( $companies as $company ) {
+
+            $company_url = get_field( 'job_company_url', $company['id'], true );
+            $website     = '';
+
+            if ( is_array( value: $company_url ) && isset( $company_url['url'] ) && is_string( value: $company_url['url'] ) ) {
+
+                $website = $company_url['url'];
+
+            }
+
+            $detail_companies[] = [
+                'id'       => $company['id'],
+                'name'     => $company['name'],
+                'url'      => $website,
+                'logo_url' => jpkcom_acf_jobs_attachment_url( get_field( 'job_company_logo', $company['id'], false ) ),
+            ];
+
+        }
+
+        $detail_locations = [];
+
+        foreach ( $locations as $location ) {
+
+            $address = [
+                'id'    => $location['id'],
+                'name'  => $location['name'],
+                'place' => $location['place'],
+            ];
+
+            foreach ( [ 'street' => 'job_location_street', 'region' => 'job_location_region', 'country' => 'job_location_country' ] as $key => $field_name ) {
+
+                $value = get_field( $field_name, $location['id'], false );
+
+                $address[ $key ] = is_scalar( value: $value ) ? (string) $value : '';
+
+            }
+
+            // job_location_zip is an ACF number field. Read raw and never cast to
+            // int: 01067 is a postal code, 1067 is a different one.
+            $zip = get_field( 'job_location_zip', $location['id'], false );
+
+            $address['zip'] = is_scalar( value: $zip ) ? (string) $zip : '';
+
+            $detail_locations[] = $address;
+
+        }
+
+        $salary_group = get_field( 'job_base_salary_group', $post_id, true );
+        $salary       = null;
+
+        if ( is_array( value: $salary_group ) && isset( $salary_group['job_salary'] ) && is_numeric( $salary_group['job_salary'] ) ) {
+
+            $currency = jpkcom_acf_jobs_normalise_choice( $salary_group['job_salary_currency'] ?? null );
+            $period   = jpkcom_acf_jobs_normalise_choice( $salary_group['job_salary_period'] ?? null );
+
+            $salary = [
+                'amount'   => (float) $salary_group['job_salary'],
+                'currency' => (string) ( $currency['value'] ?? '' ),
+                'period'   => (string) ( $period['value'] ?? '' ),
+            ];
+
+        }
+
+        $detail_attributes = [];
+
+        foreach ( $term_objects as $term ) {
+
+            $detail_attributes[] = [
+                'term_id'     => (int) $term->term_id,
+                'slug'        => (string) $term->slug,
+                'name'        => (string) $term->name,
+                'description' => jpkcom_acf_jobs_plain_text( $term->description ),
+            ];
+
+        }
+
+        // The same gate the templates apply, and for the same reason it is not
+        // cosmetic: the stored value survives the toggle being switched off, and
+        // it is typically an internal applicant-tracking link or a recruiting
+        // mailbox. job_application_shortcode is never emitted at all — it names
+        // internal form IDs and has no meaning outside this site.
+        //
+        // Both keys are always present, and the gate empties the value rather
+        // than removing the key: an application block with every field switched
+        // off would otherwise be an empty PHP array, which json_encode() writes
+        // as [] while the schema declares an object.
+        $application = [
+            'description' => '',
+            'button'      => null,
+        ];
+
+        if ( get_field( 'job_application_show_description', $post_id, true ) ) {
+
+            $application['description'] = jpkcom_acf_jobs_plain_text( get_field( 'job_application_description', $post_id, false ) );
+
+        }
+
+        if ( get_field( 'job_application_show_button', $post_id, true ) ) {
+
+            $button = get_field( 'job_application_button', $post_id, true );
+
+            if ( is_array( value: $button ) && isset( $button['url'] ) && is_string( value: $button['url'] ) && $button['url'] !== '' ) {
+
+                $button_title = ( isset( $button['title'] ) && is_scalar( value: $button['title'] ) ) ? (string) $button['title'] : '';
+
+                $application['button'] = [
+                    'title' => $button_title,
+                    'url'   => $button['url'],
+                ];
+
+            }
+
+        }
+
+        // job_layout_content is unbounded flexible content carrying one wysiwyg
+        // and one attachment array per row, so it is capped rather than emitted
+        // whole. Every sub-field is read through get_sub_field( …, false ): the
+        // formatted read of a wysiwyg sub-field is the exact call the rule at the
+        // top of this function exists to prevent.
+        $layout_rows      = [];
+        $layout_truncated = false;
+        $layout_max_rows  = 20;
+
+        if (
+            function_exists( function: 'have_rows' )
+            && function_exists( function: 'the_row' )
+            && function_exists( function: 'get_row_layout' )
+            && function_exists( function: 'get_sub_field' )
+            && function_exists( function: 'reset_rows' )
+        ) {
+
+            while ( have_rows( 'job_layout_content', $post_id ) ) {
+
+                if ( count( $layout_rows ) >= $layout_max_rows ) {
+
+                    $layout_truncated = true;
+
+                    // The loop is still on ACF's loop stack at this point, and
+                    // leaving it there leaks into every later have_rows() call in
+                    // the same request.
+                    reset_rows();
+
+                    break;
+
+                }
+
+                the_row();
+
+                $layout_name = get_row_layout();
+                $text        = '';
+                $image       = null;
+
+                foreach ( [ 'text_left', 'text_right', 'wysiwyg_full' ] as $sub_field ) {
+
+                    $value = get_sub_field( $sub_field, false );
+
+                    if ( is_string( value: $value ) && $value !== '' ) {
+
+                        $text = jpkcom_acf_jobs_plain_text( $value );
+
+                        break;
+
+                    }
+
+                }
+
+                foreach ( [ 'img_left', 'img_right' ] as $sub_field ) {
+
+                    $resolved = jpkcom_acf_jobs_attachment_url( get_sub_field( $sub_field, false ) );
+
+                    if ( $resolved !== null ) {
+
+                        $image = $resolved;
+
+                        break;
+
+                    }
+
+                }
+
+                $layout_rows[] = [
+                    'layout' => is_string( value: $layout_name ) ? $layout_name : '',
+                    'text'   => $text,
+                    'image'  => $image,
+                ];
+
+            }
+
+        }
+
+        $record['detail'] = [
+            'companies'             => $detail_companies,
+            'locations'             => $detail_locations,
+            'salary'                => $salary,
+            'attributes'            => $detail_attributes,
+            'application'           => $application,
+            'layout'                => $layout_rows,
+            'layout_rows_truncated' => $layout_truncated,
+        ];
+
+        return $record;
 
     }
 
