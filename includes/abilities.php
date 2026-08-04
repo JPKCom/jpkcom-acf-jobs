@@ -1216,13 +1216,11 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) 
      * The list of things that can be altered about a clause is not bounded by what
      * anyone thought of; the set of clauses this ability built is.
      *
-     * Committed: every top-level element of meta_query and of tax_query, and the
-     * query vars whose content the response describes — the search term it echoes
-     * back, and the sort it promises. NOT committed are the values that are pinned
-     * after the filter instead (post type, status, password gate, the four
-     * pagination vars, the row count and the projection): re-asserting those makes
-     * the response true, while re-asserting a filter clause would answer a question
-     * the caller never asked.
+     * Committed: every top-level element of meta_query and of tax_query. Those two
+     * structures are the whole of what a callback may contribute, so they are the
+     * whole of what can come back changed — every other query var is simply never
+     * read from the filtered array, which is a stronger guarantee than any
+     * comparison and needs no list of names to hold.
      *
      * @since 1.4.0
      *
@@ -1230,7 +1228,6 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) 
      * @return array {
      *     @type array $meta List of [ 'label' => string, 'canonical' => string ] for meta_query.
      *     @type array $tax  The same for tax_query.
-     *     @type array $vars [ 'label' => string, 'canonical' => string ] keyed by query var.
      * }
      */
     function jpkcom_acf_jobs_ability_query_commitments( array $args ): array {
@@ -1238,7 +1235,6 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) 
         $committed = [
             'meta' => [],
             'tax'  => [],
-            'vars' => [],
         ];
 
         foreach ( [ 'meta' => 'meta_query', 'tax' => 'tax_query' ] as $bucket => $arg_key ) {
@@ -1263,25 +1259,6 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) 
                 ];
 
             }
-
-        }
-
-        // The sort is committed whole rather than by its two directions. Featured
-        // first is a promise of the output schema, it needs meta_key as well as the
-        // meta_value_num component, and the ID tiebreaker is what makes page 1 and
-        // page 2 add up to the result set exactly.
-        foreach ( [ 's' => 'search', 'orderby' => 'order', 'meta_key' => 'order' ] as $var => $label ) {
-
-            if ( ! isset( $args[ $var ] ) ) {
-
-                continue;
-
-            }
-
-            $committed['vars'][ $var ] = [
-                'label'     => $label,
-                'canonical' => jpkcom_acf_jobs_ability_canonical( $args[ $var ] ),
-            ];
 
         }
 
@@ -1320,6 +1297,10 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_divergence' ) )
      * produced by jpkcom_acf_jobs_ability_canonical().
      *
      * @since 1.4.0
+     *
+     * Only the two contributable structures are compared, because they are the only
+     * ones a callback can reach. Everything else the query carries is the array
+     * this ability built, taken from nowhere else.
      *
      * @param array $committed Output of jpkcom_acf_jobs_ability_query_commitments().
      * @param mixed $args      WP_Query arguments as they will reach WP_Query.
@@ -1383,16 +1364,6 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_divergence' ) )
                 }
 
                 unset( $present[ $found ] );
-
-            }
-
-        }
-
-        foreach ( ( $committed['vars'] ?? [] ) as $var => $commitment ) {
-
-            if ( jpkcom_acf_jobs_ability_canonical( $args[ $var ] ?? null ) !== $commitment['canonical'] ) {
-
-                return $commitment['label'];
 
             }
 
@@ -2878,12 +2849,18 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
              * second value to the OR group of `job_type` widened a request for
              * FULL_TIME from 2 jobs to 4 while the response still said FULL_TIME.
              *
-             * Post type, post status, the password gate, the four pagination vars,
-             * `no_found_rows` and `fields` are not committed but re-asserted after
-             * this filter, because for those the response can simply be made true.
-             * A site therefore cannot take the sort back either: `orderby` decides
-             * which slice each page contains, and `filters.order` reports its
-             * direction.
+             * Nothing else a callback returns reaches WP_Query. Not a list of
+             * query vars re-asserted afterwards — those two structures are the
+             * only ones TAKEN from it, so a var it adds, renames or aliases is not
+             * dropped by having been anticipated: it is never carried at all. That
+             * list could not be finished. `posts_per_archive_page` overrides
+             * `posts_per_page` for an archive, `showposts` does the same under a
+             * second name, and `post_password` is preferred over `has_password` by
+             * an if/elseif, which made the re-asserted password gate dead code.
+             * Two of those were found by review and the third by reading
+             * wp-includes/class-wp-query.php, which is the whole argument: a site
+             * therefore cannot take the sort, the search term, the page size, the
+             * projection or the corpus back, whatever it calls them.
              *
              * @since 1.4.0
              *
@@ -2892,45 +2869,27 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
              */
             $filtered = apply_filters( 'jpkcom_acf_jobs_ability_query_args', $args, $input );
 
+            // The two structures a callback contributes, and nothing else. $args is
+            // still the array this ability built: it is never overwritten with the
+            // filtered one, so no query var can arrive through it. A callback that
+            // REMOVED a structure is honoured to the letter — the structure is
+            // dropped here too, and the divergence check below then answers for it,
+            // because a caller was promised those clauses.
             if ( is_array( value: $filtered ) ) {
 
-                $args = $filtered;
+                foreach ( [ 'meta_query', 'tax_query' ] as $structure ) {
+
+                    unset( $args[ $structure ] );
+
+                    if ( array_key_exists( $structure, $filtered ) ) {
+
+                        $args[ $structure ] = $filtered[ $structure ];
+
+                    }
+
+                }
 
             }
-
-            $args['post_type']    = 'job';
-            $args['post_status']  = 'publish';
-            $args['has_password'] = false;
-
-            // The four values that decide the LIMIT, re-asserted for the same
-            // reason as the three above: the response reports page, per_page and
-            // total_pages, and each of these can make that report a lie without
-            // touching a single filter clause. Measured in
-            // wp-includes/class-wp-query.php on the 6.9.4 floor —
-            //   :2805-2808  a numeric `offset` takes precedence over `paged`, so
-            //               page 2 would return page 1's rows.
-            //   :2017-2021  posts_per_page of -1 turns `nopaging` on by itself.
-            //   :2798       a truthy `nopaging` skips the LIMIT clause entirely
-            //               and returns every row while per_page still says 10.
-            $args['posts_per_page'] = $per_page;
-            $args['paged']          = $page;
-            $args['nopaging']       = false;
-
-            // Neither of these is a clause, and neither can be reached by any check
-            // that looks at clauses. Both make the response contradict itself.
-            //   no_found_rows  WP_Query skips set_found_posts() entirely for a
-            //                  truthy value, so found_posts and max_num_pages stay
-            //                  0. Measured on WP 7.0.2 at per_page 3: total 0,
-            //                  total_pages 0, three jobs in the same response.
-            //   fields         core's other projections hand back bare stdClass
-            //                  rows rather than WP_Post objects, which the record
-            //                  loop below cannot read. Measured: total 6 beside an
-            //                  empty jobs list. Pinned rather than accommodated,
-            //                  because the set of projections a reader can survive
-            //                  is another list nobody can finish.
-            $args['no_found_rows'] = false;
-
-            unset( $args['offset'], $args['fields'] );
 
             // The other half, and the one four review rounds could not close by
             // asking better questions. Presence, then compare, then type, then the
@@ -2987,6 +2946,51 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
                 $total       = (int) $first->found_posts;
                 $total_pages = (int) $first->max_num_pages;
+
+            }
+
+            // Everything above decides what to ASK for. This decides whether the
+            // answer may be described the way the response is about to describe it,
+            // and it is the only guard here that cannot be walked past by naming a
+            // query var, because it names none: it reads what came back.
+            //
+            // That distinction is load-bearing rather than belt-and-braces. Nothing
+            // a callback returns reaches WP_Query any more, but pre_get_posts fires
+            // INSIDE WP_Query::get_posts(), receives the query by reference, and
+            // belongs to core rather than to this ability's filter. No argument this
+            // callback sets can stop it. What it can do is refuse to call the result
+            // a page of `per_page` jobs out of `total` when it demonstrably is not.
+            $overrun = '';
+
+            if ( count( $posts ) > $per_page ) {
+
+                // Measured on WP 7.0.2: posts_per_archive_page (:2010) and showposts
+                // (:2006) each rewrite posts_per_page from inside get_posts(), and
+                // nopaging drops the LIMIT altogether. All three arrive here as more
+                // rows than the page that is about to be reported can hold.
+                $overrun = 'the page size';
+
+            } elseif ( $posts !== [] && $total < count( $posts ) ) {
+
+                // no_found_rows makes set_found_posts() return early, so the total
+                // is zero beside a full page of jobs. Measured: total 0, jobs 3.
+                $overrun = 'the result count';
+
+            }
+
+            if ( $overrun !== '' ) {
+
+                jpkcom_acf_jobs_ability_log( 'The job query returned a result ' . $overrun . ' does not describe.' );
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_filter_not_applied',
+                    sprintf(
+                        /* translators: %s: the part of the response that would have been wrong. */
+                        __( 'The job query returned a result that %s of this response does not describe, so no result is returned. Something on this site rewrote the query after it was handed over — pre_get_posts is the usual place — and reporting the numbers anyway would describe the answer as a page it is not.', 'jpkcom-acf-jobs' ),
+                        $overrun
+                    ),
+                    500
+                );
 
             }
 

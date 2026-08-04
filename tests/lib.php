@@ -201,6 +201,17 @@ class WP_Query {
 	public array $query_vars   = [];
 
 	public function __construct( array $args = [] ) {
+		// pre_get_posts fires INSIDE get_posts(), after every caller has finished
+		// inspecting the arguments it passed, and receives the query by reference —
+		// so it can set any query var, including the ones an ability decided for
+		// itself. It is core's own seam and no argument-level guard can close it,
+		// which is exactly why the checks that matter are on what came BACK.
+		$hook = $GLOBALS['jpkcom_test_pre_get_posts'] ?? null;
+
+		if ( null !== $hook ) {
+			$args = $hook( $args );
+		}
+
 		// Core's own anti-DoS rule, modelled rather than described:
 		// wp-includes/class-wp-query.php:866-869, byte-identical in 6.9.4 and
 		// 7.0.2, blanks s when it is not scalar or longer than 1600 BYTES. It runs
@@ -211,6 +222,22 @@ class WP_Query {
 		// was handed.
 		if ( ! is_scalar( $args['s'] ?? '' ) || ( ! empty( $args['s'] ) && strlen( (string) $args['s'] ) > 1600 ) ) {
 			$args['s'] = '';
+		}
+
+		// Two aliases for posts_per_page, both applied inside get_posts() and both
+		// invisible to any guard that re-asserts posts_per_page itself:
+		// class-wp-query.php:2006-2008 (showposts, 7.0.2; :2010 on 6.9.4) and
+		// :2010-2012 (posts_per_archive_page, guarded by is_archive || is_search —
+		// this ability's query is a post type archive, measured). Core assigns them
+		// into $query_vars, which get_posts() holds BY REFERENCE (:1909 / :1913), so
+		// what is recorded below is again what the query executed.
+		if ( isset( $args['showposts'] ) && $args['showposts'] ) {
+			$args['showposts']      = (int) $args['showposts'];
+			$args['posts_per_page'] = $args['showposts'];
+		}
+
+		if ( isset( $args['posts_per_archive_page'] ) && 0 != $args['posts_per_archive_page'] ) {
+			$args['posts_per_page'] = $args['posts_per_archive_page'];
 		}
 
 		$this->query_vars                 = $args;
@@ -237,6 +264,19 @@ class WP_Query {
 
 		if ( isset( $args['post__in'] ) ) {
 			$ids = array_values( array_intersect( $ids, array_map( 'intval', (array) $args['post__in'] ) ) );
+		}
+
+		// class-wp-query.php:2582-2588 is an if/elseif that prefers post_password,
+		// which makes a re-asserted has_password dead code. Only the `if` half is
+		// modelled: the `elseif` is the branch this stub deliberately ignores for the
+		// reason in the class docblock above, and it is the `if` that was invisible.
+		if ( isset( $args['post_password'] ) ) {
+			$ids = array_values(
+				array_filter(
+					$ids,
+					static fn( int $id ): bool => $GLOBALS['jpkcom_test_posts'][ $id ]->post_password === $args['post_password']
+				)
+			);
 		}
 
 		$total = count( $ids );
@@ -305,6 +345,10 @@ class WP_Query {
 }
 
 $GLOBALS['jpkcom_test_queries'] = [];
+
+// One callback, modelling core's pre_get_posts. Null by default, so every
+// existing assertion sees a query nobody rewrote from the inside.
+$GLOBALS['jpkcom_test_pre_get_posts'] = null;
 
 // Post IDs the site visibility rule excludes. Empty by default, so every existing
 // assertion still sees a stub that returns everything of the requested type.

@@ -1039,7 +1039,6 @@ chk(
 // One axis per callback, each dropping only its own clause, so exactly one branch
 // of the post-condition can be the thing that fires.
 $dropped_axes = [
-	'search'         => [ static fn ( array $a ): array => array_diff_key( $a, [ 's' => 0 ] ), [ 'search' => 'zzznope' ] ],
 	'attribute'      => [ static fn ( array $a ): array => array_diff_key( $a, [ 'tax_query' => 0 ] ), [ 'attribute' => [ 'firmenwagen' ] ] ],
 	'include_closed' => [ static fn ( array $a ): array => array_diff_key( $a, [ 'meta_query' => 0 ] ), [ 'include_closed' => false ] ],
 ];
@@ -1065,14 +1064,10 @@ foreach ( $dropped_axes as $axis => $case ) {
 
 }
 
-// Two more doors into the same room, both of which only the post-condition can
-// see: a callback that GROWS the search term past what core will apply, and one
-// that empties the attribute terms while leaving the clause in place.
+// A door only the post-condition can see: a callback that empties the attribute
+// terms while leaving the clause, its taxonomy, its field and its IN operator in
+// place.
 $post_condition_only = [
-	'a search term grown past the limit by a callback' => [
-		static fn ( array $a ): array => array_merge( $a, [ 's' => str_repeat( 'a', 1601 ) ] ),
-		[ 'search' => 'Stelle' ],
-	],
 	'attribute terms emptied by a callback' => [
 		static function ( array $a ): array {
 			if ( isset( $a['tax_query'][0]['terms'] ) ) {
@@ -1254,14 +1249,6 @@ $meaning_hijacks = [
 			return $a;
 		},
 		[ 'attribute' => [ 'firmenwagen' ] ],
-	],
-	'the sort direction reversed' => [
-		static function ( array $a ): array {
-			$a['orderby']['date'] = 'ASC';
-
-			return $a;
-		},
-		[ 'order' => 'DESC' ],
 	],
 ];
 
@@ -1567,7 +1554,6 @@ $permitted_additions = [
 
 		return $a;
 	},
-	'a narrowing query var added beside the clauses' => static fn ( array $a ): array => array_merge( $a, [ 'post__in' => [ 184 ] ] ),
 	// Identity, not ===. WP_Meta_Query does not care in which order a clause
 	// spells its own keys, so neither may this check: a callback that rebuilds a
 	// clause it has read is not one that changed it.
@@ -1606,6 +1592,172 @@ foreach ( $permitted_additions as $label => $callback ) {
 
 unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
 
+echo "\nA callback contributes clauses, and nothing else reaches WP_Query\n";
+
+// The clause half of this guard is identity-based. The half beside it was a list
+// of query vars to re-assert after the filter — post type, status, password gate,
+// the four pagination values, the row count, the projection — and a list is the
+// shape that failed four times over. Two holes were found in it by review and a
+// third by reading wp-includes/class-wp-query.php:
+//
+//   posts_per_archive_page  :2010 overrides posts_per_page for an archive or a
+//                           search, and this query is a post type archive.
+//                           Measured on WP 7.0.2: per_page 3 answered with
+//                           total_pages 1, per_page 3 and all six jobs.
+//   showposts               :2006 does the same thing under a second name. Nobody
+//                           had listed it. Same measurement, same result.
+//   post_password           :2582 is preferred over has_password by an if/elseif,
+//                           so the re-asserted gate was dead code. Measured with
+//                           one job protected: baseline total 5; hijacked
+//                           total 1, total_pages 1, jobs [].
+//
+// So the list is gone. Nothing a callback returns reaches WP_Query except the two
+// clause structures, and those are governed by identity above. The assertions
+// below are therefore not "these three names are handled" — the last one is a var
+// that does not exist, and it is carried no further than the three that do.
+$var_hijacks = [
+	'posts_per_archive_page, an alias for posts_per_page' => [ 'posts_per_archive_page' => 100 ],
+	'showposts, the second alias for the same value'      => [ 'showposts' => 100 ],
+	'post_password, which core prefers over has_password' => [ 'post_password' => 'hunter2' ],
+	'perm, which reopens post_status'                     => [ 'perm' => 'readable' ],
+	'offset, nopaging and a page of its own at once'      => [
+		'offset'   => 5,
+		'nopaging' => true,
+		'paged'    => 7,
+	],
+	'a query var that does not exist at all'              => [ 'jpkcom_invented_query_var' => 'anything' ],
+];
+
+foreach ( $var_hijacks as $label => $addition ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static fn ( array $a ): array => array_merge( $a, $addition );
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$answer = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 2 ] );
+	$ran    = listing_query();
+	$extra  = [];
+
+	// By value, not by key: `paged` is a var the ability sets for itself, so its
+	// presence proves nothing and only its VALUE can show whose it is.
+	foreach ( $addition as $var => $value ) {
+
+		if ( array_key_exists( $var, $ran ) && $ran[ $var ] === $value ) {
+			$extra[] = $var;
+		}
+	}
+
+	chk(
+		"a callback cannot contribute a query var: {$label}",
+		[] === $extra,
+		'Not dropped by having been named — never carried. Carried: ' . implode( ', ', $extra )
+	);
+	chk(
+		"and the response is still about the slice it reports: {$label}",
+		is_array( $answer )
+		&& 2 === ( $answer['per_page'] ?? null )
+		&& 1 === ( $answer['page'] ?? null )
+		&& 2 === ( $answer['total_pages'] ?? null )
+		&& 3 === ( $answer['total'] ?? null ),
+		'per_page, page, total and total_pages are a promise about which slice of the result set '
+		. 'this response is, and every one of these breaks it without touching a clause. Measured '
+		. 'live for two of them: per_page 3 answered with total_pages 1 and all six jobs.'
+	);
+
+}
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+// The route non-carriage cannot close, and the reason the checks that decide the
+// answer are on what came back. pre_get_posts fires inside get_posts(), holds the
+// query by reference and belongs to core, not to this ability's filter — so the
+// slice a response describes has to be verified against the rows the query
+// actually returned rather than against the arguments it was given.
+$outside_hijacks = [
+	'a page size rewritten from inside the query' => [
+		static fn ( array $a ): array => array_merge( $a, [ 'posts_per_archive_page' => 100 ] ),
+		'more rows came back than the page the response describes can hold',
+	],
+	'the row count switched off from inside'      => [
+		static fn ( array $a ): array => array_merge( $a, [ 'no_found_rows' => true ] ),
+		'the total would be smaller than the number of jobs printed beside it',
+	],
+];
+
+foreach ( $outside_hijacks as $label => $case ) {
+
+	$GLOBALS['jpkcom_test_pre_get_posts'] = $case[0];
+	$GLOBALS['jpkcom_test_queries']       = [];
+
+	$outside = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 2 ] );
+
+	chk(
+		"the answer is checked against what came back: {$label}",
+		$outside instanceof WP_Error
+		&& 'jpkcom_acf_jobs_filter_not_applied' === $outside->get_error_code()
+		&& 500 === ( $outside->get_error_data()['status'] ?? null ),
+		$case[1] . ', and no argument this ability sets can prevent a pre_get_posts callback from '
+		. 'doing it. What it can do is refuse to describe the result as something it is not.'
+	);
+
+}
+
+$GLOBALS['jpkcom_test_pre_get_posts'] = null;
+
+// The same rule seen from the other side: what a callback CANNOT take back. Each
+// of these was a refusal while the value was still read from the callback; now
+// the value never leaves the ability, so the query simply runs as built. Both are
+// true statements about the response, and this is the one that costs the caller
+// nothing.
+$reclaim_attempts = [
+	'the sort direction'    => [
+		static function ( array $a ): array {
+			$a['orderby']['date'] = 'ASC';
+
+			return $a;
+		},
+		[ 'order' => 'DESC' ],
+		static fn ( array $q ): bool => 'DESC' === ( $q['orderby']['date'] ?? null ) && 'DESC' === ( $q['orderby']['ID'] ?? null ),
+	],
+	'the featured-first sort key' => [
+		static fn ( array $a ): array => array_diff_key( $a, [ 'meta_key' => 0 ] ),
+		[],
+		static fn ( array $q ): bool => 'job_featured' === ( $q['meta_key'] ?? null ),
+	],
+	'the search term, dropped'    => [
+		static fn ( array $a ): array => array_diff_key( $a, [ 's' => 0 ] ),
+		[ 'search' => 'Stelle' ],
+		static fn ( array $q ): bool => 'Stelle' === ( $q['s'] ?? null ),
+	],
+	'the search term, grown past what core applies' => [
+		static fn ( array $a ): array => array_merge( $a, [ 's' => str_repeat( 'a', 1601 ) ] ),
+		[ 'search' => 'Stelle' ],
+		static fn ( array $q ): bool => 'Stelle' === ( $q['s'] ?? null ),
+	],
+	'the projection'              => [
+		static fn ( array $a ): array => array_merge( $a, [ 'fields' => 'id=>parent' ] ),
+		[],
+		static fn ( array $q ): bool => ! isset( $q['fields'] ),
+	],
+];
+
+foreach ( $reclaim_attempts as $label => $case ) {
+
+	$GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = $case[0];
+	$GLOBALS['jpkcom_test_queries']                                      = [];
+
+	$kept = jpkcom_acf_jobs_ability_query_jobs( $case[1] );
+
+	chk(
+		"a callback cannot take back {$label}",
+		is_array( $kept ) && $case[2]( listing_query() ),
+		'The value the query ran with has to be the one the ability built, and the response '
+		. 'reports it. Executed: ' . json_encode( array_intersect_key( listing_query(), [ 'orderby' => 0, 'meta_key' => 0, 's' => 0, 'fields' => 0 ] ) )
+	);
+
+}
+
+unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
 // Neither of these is a clause, and neither is caught by anything that looks at
 // clauses. Both make the response contradict itself, which is the same defect
 // one layer over: a caller cannot tell that the numbers it is reading are not
@@ -1637,6 +1789,247 @@ chk(
 );
 
 unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
+
+echo "\nThe canonical form, which everything above rests on\n";
+
+/**
+ * Build an array nested to a given depth.
+ *
+ * @param int $depth How many levels to nest.
+ * @return array The nested array.
+ */
+function nested_array( int $depth ): array {
+	$out = [ 'leaf' => 'value' ];
+
+	for ( $i = 0; $i < $depth; $i++ ) {
+		$out = [ $out ];
+	}
+
+	return $out;
+}
+
+/**
+ * Build a meta query with one clause buried at a given depth.
+ *
+ * @param int    $depth How many groups to wrap the clause in.
+ * @param string $key   Meta key the buried clause carries.
+ * @return array The nested meta query.
+ */
+function nested_clause( int $depth, string $key ): array {
+	$out = [ [ 'key' => $key, 'compare' => 'LIKE', 'value' => '"x"' ] ];
+
+	for ( $i = 0; $i < $depth; $i++ ) {
+		$out = [ $out ];
+	}
+
+	return $out;
+}
+
+// Four ways to weaken jpkcom_acf_jobs_ability_canonical() left the suite green,
+// which means the mechanism the whole guard now rests on had no assertion of its
+// own. The properties below are the load-bearing ones, and each is asserted as a
+// property rather than as a literal string, so the form may change spelling and
+// may not change meaning.
+
+// 1. Two structures must never share a canonical. Without the length prefix on
+//    strings, the pair below collides: one clause carrying a single key whose
+//    VALUE contains the separators, and one carrying two keys — the executed
+//    clause has no `key` at all and reads as though it did.
+$smuggled = [ 'key' => 'job_type;s:value=>s:"FULL_TIME"' ];
+$genuine  = [
+	'key'   => 'job_type',
+	'value' => '"FULL_TIME"',
+];
+
+chk(
+	'a value carrying the separators cannot imitate a second key',
+	jpkcom_acf_jobs_ability_canonical( $smuggled ) !== jpkcom_acf_jobs_ability_canonical( $genuine ),
+	'Strings are length-prefixed for exactly this reason. Without it these two produce the same '
+	. 'string, and the collision is in the WIDENING direction: a clause that lost its key would '
+	. 'be accepted as the clause that had one.'
+);
+
+// 2. Scalar types are part of a value. '182' and 182 produce different SQL through
+//    a LIKE comparison, and null, '', 0, false and '0' are five different answers
+//    to "what does this clause compare against".
+$distinct = [
+	'null'         => null,
+	'empty string' => '',
+	'zero int'     => 0,
+	'zero string'  => '0',
+	'false'        => false,
+	'true'         => true,
+	'one int'      => 1,
+	'one string'   => '1',
+	'one float'    => 1.0,
+];
+
+$seen      = [];
+$collision = '';
+
+foreach ( $distinct as $name => $value ) {
+
+	$form = jpkcom_acf_jobs_ability_canonical( $value );
+
+	if ( isset( $seen[ $form ] ) ) {
+		$collision = $seen[ $form ] . ' and ' . $name;
+	}
+
+	$seen[ $form ] = $name;
+
+}
+
+chk(
+	'nine scalars that mean nine different things have nine different forms',
+	'' === $collision,
+	'Collided: ' . $collision
+);
+
+chk(
+	'key order inside a clause is not content',
+	jpkcom_acf_jobs_ability_canonical( [ 'key' => 'job_type', 'compare' => 'LIKE' ] )
+	=== jpkcom_acf_jobs_ability_canonical( [ 'compare' => 'LIKE', 'key' => 'job_type' ] ),
+	'WP_Meta_Query reads a clause by key, so a callback that rebuilds a clause it has read has '
+	. 'not changed it.'
+);
+chk(
+	'list order is',
+	jpkcom_acf_jobs_ability_canonical( [ [ 'a' ], [ 'b' ] ] )
+	!== jpkcom_acf_jobs_ability_canonical( [ [ 'b' ], [ 'a' ] ] ),
+	'Erring towards refusing a query the ability did build, never towards accepting one it did '
+	. 'not.'
+);
+chk(
+	'an object is not the array of the same properties',
+	jpkcom_acf_jobs_ability_canonical( (object) [ 'key' => 'job_type' ] )
+	!== jpkcom_acf_jobs_ability_canonical( [ 'key' => 'job_type' ] ),
+	'WP_Meta_Query does not read an object clause the way it reads an array one.'
+);
+chk(
+	'the recursion is bounded and does not throw',
+	is_string( jpkcom_acf_jobs_ability_canonical( nested_array( 40 ) ) ),
+	'A callback may return anything, and unbounded recursion on a deep array is a stack overflow '
+	. 'no ability callback may risk.'
+);
+chk(
+	'and the walk really stops rather than merely surviving',
+	jpkcom_acf_jobs_ability_canonical( nested_array( 200 ) ) === jpkcom_acf_jobs_ability_canonical( nested_array( 400 ) ),
+	'Below the limit two structures become indistinguishable, which is what "bounded" costs and '
+	. 'the only mechanical evidence that the bound exists — a walk that ran to the bottom would '
+	. 'tell 200 levels from 400. It cannot be exploited against a commitment: the deepest fragment '
+	. 'this ability builds is a clause inside a group, so anything deep enough to be truncated '
+	. 'already differs from it far higher up.'
+);
+
+echo "\nThe branches the guards decide on\n";
+
+// Six branches of the two guard helpers had no assertion at all: each was a
+// mutation that left the suite green. They are pure functions, so they are
+// asserted directly rather than through a callback that has to reach them.
+$built_args = jpkcom_acf_jobs_build_job_query_args(
+	[
+		'post_status' => 'publish',
+		'order'       => 'DESC',
+		'attribute'   => [ 20 ],
+	]
+);
+
+$built_args['orderby']['ID'] = 'DESC';
+
+chk(
+	'the precondition passes the query the builder actually builds',
+	'' === jpkcom_acf_jobs_ability_unbacked_claim( $built_args, [ 'the site visibility rule' => 'job_featured' ], true, '', 'DESC' ),
+	'Without this every assertion below is satisfied by a helper that refuses everything.'
+);
+chk(
+	'a query with no meta_query at all is refused by name',
+	'the site visibility rule' === jpkcom_acf_jobs_ability_unbacked_claim( array_diff_key( $built_args, [ 'meta_query' => 0 ] ), [], false, '', 'DESC' )
+);
+chk(
+	'a tax clause with an emptied terms list backs no attribute claim',
+	'attribute' === jpkcom_acf_jobs_ability_unbacked_claim(
+		array_merge( $built_args, [ 'tax_query' => [ [ 'taxonomy' => 'job-attribute', 'field' => 'term_id', 'terms' => [], 'operator' => 'IN' ] ] ] ),
+		[],
+		true,
+		'',
+		'DESC'
+	),
+	'WP_Tax_Query answers an empty terms list with 1=0, so the result stays honest — but naming '
+	. 'the attribute as applied when it never ran is not.'
+);
+
+$order_cases = [
+	'orderby is not an array'      => array_merge( $built_args, [ 'orderby' => 'date' ] ),
+	'the date component is gone'   => array_merge( $built_args, [ 'orderby' => [ 'ID' => 'DESC' ] ] ),
+	'the tiebreaker is gone'       => array_merge( $built_args, [ 'orderby' => [ 'date' => 'DESC' ] ] ),
+	'a direction points the other way' => array_merge( $built_args, [ 'orderby' => [ 'date' => 'ASC', 'ID' => 'DESC' ] ] ),
+	'a direction is not a scalar'  => array_merge( $built_args, [ 'orderby' => [ 'date' => [ 'DESC' ], 'ID' => 'DESC' ] ] ),
+];
+
+foreach ( $order_cases as $label => $case ) {
+
+	chk(
+		"the sort promise is unbacked when {$label}",
+		'order' === jpkcom_acf_jobs_ability_unbacked_claim( $case, [], false, '', 'DESC' ),
+		'filters.order reports the direction back, and the ID tiebreaker is what makes page 1 and '
+		. 'page 2 add up to the result set exactly. A non-scalar direction must not be cast — that '
+		. 'throws, and a Throwable out of an ability callback is an uncaught fatal on the floor.'
+	);
+
+}
+
+$two_alike = [
+	'meta' => [
+		[ 'label' => 'job_type', 'canonical' => jpkcom_acf_jobs_ability_canonical( [ 'key' => 'job_type' ] ) ],
+		[ 'label' => 'job_type', 'canonical' => jpkcom_acf_jobs_ability_canonical( [ 'key' => 'job_type' ] ) ],
+	],
+	'tax'  => [],
+];
+
+chk(
+	'two identical commitments need two elements to keep them',
+	'' !== jpkcom_acf_jobs_ability_query_divergence( $two_alike, [ 'meta_query' => [ [ 'key' => 'job_type' ] ] ] ),
+	'A commitment is consumed once it is matched. Without that, one surviving clause would '
+	. 'satisfy every commitment that looks like it, and a callback could collapse two axes into '
+	. 'one and be told nothing.'
+);
+chk(
+	'and two elements do keep them',
+	'' === jpkcom_acf_jobs_ability_query_divergence( $two_alike, [ 'meta_query' => [ [ 'key' => 'job_type' ], [ 'key' => 'job_type' ] ] ] )
+);
+$not_arrays = [
+	'a string'  => 'not an array',
+	'an int'    => 42,
+	'null'      => null,
+	'an object' => (object) [ 'meta_query' => [ [ 'key' => 'job_type' ] ] ],
+];
+
+foreach ( $not_arrays as $label => $case ) {
+
+	chk(
+		"arguments that are not an array are a divergence, not a pass: {$label}",
+		'' !== jpkcom_acf_jobs_ability_query_divergence( $two_alike, $case ),
+		'is_array() is the first question, and answering "nothing diverged" for a non-array would '
+		. 'be the one wrong answer this whole guard exists to prevent. The object is the case that '
+		. 'makes the guard load-bearing rather than tidy: indexing one that implements no '
+		. 'ArrayAccess is an Error, and a Throwable out of an ability callback is an uncaught '
+		. 'fatal on the 6.9 floor.'
+	);
+
+}
+
+chk(
+	'a clause buried deeper than the walk goes is not reported as present',
+	false === jpkcom_acf_jobs_ability_has_meta_clause( nested_clause( 30, 'job_type' ), 'job_type' ),
+	'The depth limit exists so a rewritten argument cannot overflow the stack. It has to fail '
+	. 'CLOSED: reporting a clause nobody can reach as present would back a claim the query does '
+	. 'not carry.'
+);
+chk(
+	'and one within reach is',
+	true === jpkcom_acf_jobs_ability_has_meta_clause( nested_clause( 3, 'job_type' ), 'job_type' ),
+	'Without this the assertion above is satisfied by a helper that always says no.'
+);
 
 echo "\nA request the site's own query builder cannot express\n";
 
@@ -2339,34 +2732,36 @@ chk(
 );
 
 // What the verdict is NOT: agreement with whatever query-jobs happens to return on
-// a site that filters that response. A callback narrowing the listing must not be
-// able to change an answer about the site's own rule.
-// The base rule returns this job, so the only thing that can move the two answers
-// apart here is the filter.
+// a site that filters that response. The filter must not reach the query that
+// decides the verdict at all — asserted on the query that ran rather than on a
+// narrowed listing, because query-jobs no longer carries a query var a callback
+// hands it and post__in would never have arrived either way.
 $GLOBALS['jpkcom_test_meta_rows'][184] = [ 'job_featured' ];
 $GLOBALS['jpkcom_test_fields'][184]    = [];
 $GLOBALS['jpkcom_test_unlisted']       = [];
+$GLOBALS['jpkcom_test_queries']        = [];
 
 $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] = static function ( array $args ): array {
-	$args['post__in'] = [ 999999 ];
+	$args['post__in']   = [ 999999 ];
+	$args['meta_query'] = [];
 
 	return $args;
 };
 
-$filtered_listing = jpkcom_acf_jobs_ability_query_jobs( [ 'per_page' => 50 ] );
-$verdict_stands   = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+$verdict_stands = jpkcom_acf_jobs_ability_get_job( [ 'id' => 184 ] );
+$verdict_ran    = $GLOBALS['jpkcom_test_queries'][0] ?? [];
 
 unset( $GLOBALS['jpkcom_test_filters']['jpkcom_acf_jobs_ability_query_args'] );
 
 chk(
-	'a site filter narrows query-jobs without moving the verdict get-job reports',
-	is_array( $filtered_listing )
-	&& ! in_array( 184, array_column( $filtered_listing['jobs'] ?? [], 'id' ), true )
-	&& is_array( $verdict_stands ) && true === ( $verdict_stands['listed'] ?? null ),
+	'the filter never reaches the query the verdict comes from',
+	is_array( $verdict_stands ) && true === ( $verdict_stands['listed'] ?? null )
+	&& [ 184 ] === ( $verdict_ran['post__in'] ?? null )
+	&& is_array( $verdict_ran['meta_query'] ?? null ) && [] !== $verdict_ran['meta_query'],
 	'jpkcom_acf_jobs_ability_query_args exists so a site can shape what query-jobs lists. Applying '
 	. 'it to a verdict ABOUT the site\'s rule would let a callback make that verdict disagree with '
-	. 'the rule it reports on. So listed answers for the base visibility rule and says so in its '
-	. 'schema — it does not promise to match a filtered response.'
+	. 'the rule it reports on. The callback above empties the rule and redirects the lookup; '
+	. 'neither may show up in the query that answers listed.'
 );
 
 // The mirror image: the rule returns the job while the PHP reading found a reason
