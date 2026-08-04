@@ -119,4 +119,88 @@ chk(
 	'get_the_title() prepends "Protected:" while ACF hands out the full salary and address.'
 );
 
+echo "\nNormalisers\n";
+
+chk( 'normalisers exist', function_exists( 'jpkcom_acf_jobs_normalise_choices' ) && function_exists( 'jpkcom_acf_jobs_normalise_date' ) );
+
+chk(
+	'ACF choice pairs survive intact',
+	jpkcom_acf_jobs_normalise_choices( [ [ 'value' => 'FULL_TIME', 'label' => 'Vollzeit' ] ] ) === [ [ 'value' => 'FULL_TIME', 'label' => 'Vollzeit' ] ]
+);
+chk(
+	'raw meta strings are accepted too',
+	jpkcom_acf_jobs_normalise_choices( [ 'FULL_TIME' ] ) === [ [ 'value' => 'FULL_TIME', 'label' => 'FULL_TIME' ] ],
+	'A theme may replace acf-field_groups.php through the override system, after which '
+	. 'ACF falls back to the raw meta and the value arrives as a bare string.'
+);
+chk( 'a scalar becomes a one-element list', jpkcom_acf_jobs_normalise_choices( 'INTERN' ) === [ [ 'value' => 'INTERN', 'label' => 'INTERN' ] ] );
+chk( 'null becomes an empty list', jpkcom_acf_jobs_normalise_choices( null ) === [] );
+chk( 'false becomes an empty list', jpkcom_acf_jobs_normalise_choices( false ) === [] );
+chk( 'garbage becomes an empty list', jpkcom_acf_jobs_normalise_choices( [ [ 'nonsense' => 1 ] ] ) === [] );
+
+chk( 'a single choice unwraps', jpkcom_acf_jobs_normalise_choice( [ 'value' => 'EUR', 'label' => '€' ] ) === [ 'value' => 'EUR', 'label' => '€' ] );
+chk( 'a single choice from a bare string', jpkcom_acf_jobs_normalise_choice( 'MONTH' ) === [ 'value' => 'MONTH', 'label' => 'MONTH' ] );
+chk( 'an empty single choice is null', jpkcom_acf_jobs_normalise_choice( '' ) === null );
+
+chk( 'a stored Ymd date normalises', jpkcom_acf_jobs_normalise_date( '20251130' ) === '2025-11-30' );
+chk( 'an already formatted date survives', jpkcom_acf_jobs_normalise_date( '2025-11-30' ) === '2025-11-30' );
+chk(
+	'an unparseable date is null, not a fatal',
+	jpkcom_acf_jobs_normalise_date( 'n/a' ) === null,
+	'schema.php:71 does date( "Y-m-d", strtotime( $x ) ). Under strict_types strtotime() '
+	. 'returning false makes date() throw a TypeError, which on the WP 6.9 floor is an '
+	. 'uncaught fatal inside an ability callback.'
+);
+chk( 'an empty date is null', jpkcom_acf_jobs_normalise_date( '' ) === null );
+chk( 'a non-string date is null', jpkcom_acf_jobs_normalise_date( [ 'x' ] ) === null );
+
+chk( 'br markup becomes newlines', jpkcom_acf_jobs_plain_text( 'a<br />b' ) === "a\nb" );
+chk( 'tags are stripped', jpkcom_acf_jobs_plain_text( '<p>hello <b>world</b></p>' ) === 'hello world' );
+chk( 'a non-string is an empty string', jpkcom_acf_jobs_plain_text( null ) === '' );
+chk(
+	'shortcodes are left inert, not executed',
+	jpkcom_acf_jobs_plain_text( 'before [contact-form-7 id="1"] after' ) === 'before [contact-form-7 id="1"] after',
+	'The normaliser must not expand anything. Execution is what get_field()\'s formatted '
+	. 'mode does, and what the reader exists to avoid.'
+);
+
+echo "\nRelated posts\n";
+
+chk( 'a WP_Post projects to id and title only', jpkcom_acf_jobs_normalise_related( [ new WP_Post( 182, 'Testfirma GmbH', 'publish' ) ] ) === [ [ 'id' => 182, 'title' => 'Testfirma GmbH' ] ] );
+chk(
+	'a draft related post is dropped',
+	jpkcom_acf_jobs_normalise_related( [ new WP_Post( 5, 'Unannounced GmbH', 'draft' ) ] ) === [],
+	'ACF resolves post_object fields through acf_get_posts() with post_status any.'
+);
+chk(
+	'a bare id is re-resolved, not dereferenced',
+	jpkcom_acf_jobs_normalise_related( [ 182 ] ) === [ [ 'id' => 182, 'title' => 'Testfirma GmbH' ] ],
+	'When the _job_company key reference is missing — the case wpml-acf-field-keys-fix.php '
+	. 'exists to repair — get_field() returns raw IDs and every renderer in this repo '
+	. 'dereferences ->ID on an int.'
+);
+chk( 'an unresolvable id is skipped', jpkcom_acf_jobs_normalise_related( [ 99999 ] ) === [] );
+chk( 'a non-array is an empty list', jpkcom_acf_jobs_normalise_related( false ) === [] );
+
+echo "\nReader gate\n";
+
+chk( 'a published job resolves', jpkcom_acf_jobs_get_job_data( 184 ) !== [] );
+chk(
+	'a draft job does not resolve',
+	jpkcom_acf_jobs_get_job_data( 5 ) === [],
+	'A bare int would otherwise read the meta of an unannounced opening.'
+);
+chk(
+	'another post type does not resolve',
+	jpkcom_acf_jobs_get_job_data( 700 ) === [],
+	'Without a post_type gate the reader is a title oracle over every private post on the site.'
+);
+chk(
+	'a password-protected job does not resolve',
+	jpkcom_acf_jobs_get_job_data( 701 ) === [],
+	'get_the_title() prepends "Protected:" while ACF returns the salary and address in full.'
+);
+chk( 'a nonexistent id does not resolve', jpkcom_acf_jobs_get_job_data( 999999 ) === [] );
+chk( 'id 0 does not resolve', jpkcom_acf_jobs_get_job_data( 0 ) === [] );
+
 summary();

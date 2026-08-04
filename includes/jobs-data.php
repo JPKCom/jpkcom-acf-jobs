@@ -208,3 +208,277 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_build_job_query_args' ) ) {
     }
 
 }
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_choices' ) ) {
+
+    /**
+     * Normalise an ACF choice-list value to {value,label} pairs.
+     *
+     * A checkbox with return_format 'array' yields [ ['value'=>…, 'label'=>…], … ].
+     * The same field yields bare strings when ACF falls back to the raw meta, which
+     * happens whenever the field group is not registered — a theme replacing
+     * acf-field_groups.php through the override system is enough. Both shapes are
+     * the contract, not a defensive afterthought.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Raw ACF value.
+     * @return array List of [ 'value' => string, 'label' => string ].
+     */
+    function jpkcom_acf_jobs_normalise_choices( mixed $value ): array {
+
+        if ( is_scalar( value: $value ) ) {
+
+            $value = [ $value ];
+
+        }
+
+        if ( ! is_array( value: $value ) ) {
+
+            return [];
+
+        }
+
+        $out = [];
+
+        foreach ( $value as $item ) {
+
+            if ( is_array( value: $item ) && isset( $item['value'] ) && is_scalar( value: $item['value'] ) ) {
+
+                $label = ( isset( $item['label'] ) && is_scalar( value: $item['label'] ) ) ? (string) $item['label'] : (string) $item['value'];
+
+                $out[] = [
+                    'value' => (string) $item['value'],
+                    'label' => $label,
+                ];
+
+                continue;
+
+            }
+
+            if ( is_scalar( value: $item ) && (string) $item !== '' ) {
+
+                $out[] = [
+                    'value' => (string) $item,
+                    'label' => (string) $item,
+                ];
+
+            }
+
+        }
+
+        return $out;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_choice' ) ) {
+
+    /**
+     * Normalise a single-choice ACF value (button_group, select) to one pair.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Raw ACF value.
+     * @return array|null [ 'value' => string, 'label' => string ], or null when empty.
+     */
+    function jpkcom_acf_jobs_normalise_choice( mixed $value ): ?array {
+
+        if ( is_array( value: $value ) && isset( $value['value'] ) ) {
+
+            $value = [ $value ];
+
+        }
+
+        $pairs = jpkcom_acf_jobs_normalise_choices( $value );
+
+        return $pairs[0] ?? null;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_date' ) ) {
+
+    /**
+     * Normalise a stored date to Y-m-d.
+     *
+     * ACF stores date fields as Ymd and formats them on read, so both spellings
+     * reach this function depending on whether the field's key reference row exists.
+     * Anything else yields null rather than a guess.
+     *
+     * Deliberately not written as date( 'Y-m-d', strtotime( $raw ) ), the form used in
+     * includes/schema.php:71: under strict_types a false from strtotime() makes date()
+     * throw a TypeError, and on the WP 6.9 floor a Throwable out of an ability callback
+     * is an uncaught fatal.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $raw Stored value.
+     * @return string|null Date as Y-m-d, or null.
+     */
+    function jpkcom_acf_jobs_normalise_date( mixed $raw ): ?string {
+
+        if ( ! is_string( value: $raw ) || $raw === '' ) {
+
+            return null;
+
+        }
+
+        foreach ( [ 'Ymd', 'Y-m-d' ] as $format ) {
+
+            $date = DateTimeImmutable::createFromFormat( $format, $raw );
+
+            if ( $date instanceof DateTimeImmutable && $date->format( $format ) === $raw ) {
+
+                return $date->format( 'Y-m-d' );
+
+            }
+
+        }
+
+        return null;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_plain_text' ) ) {
+
+    /**
+     * Reduce stored markup to plain text without executing anything.
+     *
+     * job_short_description is a textarea with new_lines => 'br', so its stored value
+     * is HTML. This turns it back into text. It expands nothing: shortcode expansion
+     * is exactly what get_field()'s formatted mode does and what every caller of this
+     * function exists to avoid.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Stored value.
+     * @return string Plain text, empty when the value was not a string.
+     */
+    function jpkcom_acf_jobs_plain_text( mixed $value ): string {
+
+        if ( ! is_string( value: $value ) ) {
+
+            return '';
+
+        }
+
+        $value = preg_replace( '#<br\s*/?>#i', "\n", $value );
+
+        return wp_strip_all_tags( (string) $value );
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_normalise_related' ) ) {
+
+    /**
+     * Project ACF post-object values to {id,title}, dropping anything unpublished.
+     *
+     * Never returns a WP_Post. WP_Post implements no JsonSerializable and exposes
+     * post_password, post_content and post_status as public properties, so encoding
+     * one would publish a related company's plaintext password. ACF resolves
+     * post_object fields through acf_get_posts() with post_status 'any', so drafts
+     * and private records genuinely arrive here.
+     *
+     * Bare integers are accepted and re-resolved: when a translation's ACF key
+     * reference row is missing — the case includes/wpml-acf-field-keys-fix.php exists
+     * to repair — get_field() returns raw IDs, and every renderer in this repo
+     * dereferences ->ID on them.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Raw ACF value.
+     * @return array List of [ 'id' => int, 'title' => string ].
+     */
+    function jpkcom_acf_jobs_normalise_related( mixed $value ): array {
+
+        if ( $value instanceof WP_Post || is_scalar( value: $value ) ) {
+
+            $value = [ $value ];
+
+        }
+
+        if ( ! is_array( value: $value ) ) {
+
+            return [];
+
+        }
+
+        $out = [];
+
+        foreach ( $value as $item ) {
+
+            $post = $item instanceof WP_Post ? $item : get_post( absint( $item ) );
+
+            if ( ! $post instanceof WP_Post || $post->post_status !== 'publish' ) {
+
+                continue;
+
+            }
+
+            $out[] = [
+                'id'    => (int) $post->ID,
+                'title' => (string) get_the_title( $post ),
+            ];
+
+        }
+
+        return $out;
+
+    }
+
+}
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_get_job_data' ) ) {
+
+    /**
+     * Read one job as a JSON-serialisable array.
+     *
+     * The gate is the first act, because no field reader in this plugin has one:
+     * schema.php checks the post type, nothing anywhere checks the status, and the
+     * existing readers are safe only because the shortcode hands them posts a
+     * post_type/post_status query already filtered. A function taking a bare int
+     * inherits none of that, and current_user_can( 'read' ) is every logged-in user.
+     *
+     * Returns [] for "does not exist" and for "not readable" alike, so the ability
+     * on top of it cannot be used to probe which IDs exist.
+     *
+     * @since 1.4.0
+     *
+     * @param int  $post_id Job post ID.
+     * @param bool $full    Whether to include the detail fields (§5.3 of the spec).
+     * @return array The record, or [] when the job is not readable.
+     */
+    function jpkcom_acf_jobs_get_job_data( int $post_id, bool $full = false ): array {
+
+        if ( $post_id < 1 || ! function_exists( function: 'get_field' ) ) {
+
+            return [];
+
+        }
+
+        $post = get_post( $post_id );
+
+        if ( ! $post instanceof WP_Post ) {
+
+            return [];
+
+        }
+
+        if ( $post->post_type !== 'job' || $post->post_status !== 'publish' || $post->post_password !== '' ) {
+
+            return [];
+
+        }
+
+        return [ 'id' => (int) $post->ID, 'title' => (string) get_the_title( $post ) ];
+
+    }
+
+}

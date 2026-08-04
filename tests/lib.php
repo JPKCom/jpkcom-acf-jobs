@@ -74,6 +74,66 @@ function absint( mixed $maybeint ): int {
 	return abs( (int) $maybeint );
 }
 
+/**
+ * Stand-in for WP_Post, carrying only the properties the reader is allowed to touch.
+ */
+class WP_Post {
+	public int $ID;
+	public string $post_title;
+	public string $post_status;
+	public string $post_type;
+	public string $post_password;
+
+	public function __construct( int $id, string $title, string $status, string $type = 'job_company', string $password = '' ) {
+		$this->ID            = $id;
+		$this->post_title    = $title;
+		$this->post_status   = $status;
+		$this->post_type     = $type;
+		$this->post_password = $password;
+	}
+}
+
+$GLOBALS['jpkcom_test_posts'] = [
+	184 => new WP_Post( 184, 'Stelle 01', 'publish', 'job' ),
+	182 => new WP_Post( 182, 'Testfirma GmbH', 'publish' ),
+	5   => new WP_Post( 5, 'Unannounced GmbH', 'draft', 'job' ),
+	700 => new WP_Post( 700, 'A page', 'publish', 'page' ),
+	701 => new WP_Post( 701, 'Secret job', 'publish', 'job', 'hunter2' ),
+];
+
+function get_post( mixed $id = null ): ?WP_Post {
+	return $GLOBALS['jpkcom_test_posts'][ (int) $id ] ?? null;
+}
+
+function get_the_title( mixed $post = null ): string {
+	$p = is_object( $post ) ? $post : get_post( $post );
+	return $p instanceof WP_Post ? $p->post_title : '';
+}
+
+function get_field( string $selector, mixed $post_id = false, bool $format_value = true, bool $escape_html = false ): mixed {
+	return null;
+}
+
+function get_permalink( mixed $post = null ): string {
+	return 'https://example.test/job/' . ( is_object( $post ) ? $post->ID : (int) $post ) . '/';
+}
+
+function get_the_date( string $format = '', mixed $post = null ): string {
+	return '2026-01-10';
+}
+
+function get_the_terms( mixed $post, string $taxonomy ): array|false {
+	return false;
+}
+
+function is_wp_error( mixed $thing ): bool {
+	return false;
+}
+
 function wp_strip_all_tags( string $text, bool $remove_breaks = false ): string {
 	return trim( strip_tags( $text ) );
+}
+
+function wp_get_attachment_image_src( int $id, string $size = 'thumbnail' ): array|false {
+	return false;
 }
