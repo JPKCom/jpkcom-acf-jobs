@@ -4,7 +4,7 @@
   "slug": "jpkcom-acf-jobs",
   "version": "1.4.0",
   "download_url": "https://github.com/JPKCom/jpkcom-acf-jobs/releases/download/v1.4.0/jpkcom-acf-jobs.zip",
-  "checksum_sha256": "c8e667c992c2e65b9fc124ca812d86a6e873dc4c9e50f069308274985b2db92c",
+  "checksum_sha256": "98f8b34a966e52f43e4ea588af10aa4a82fd7cdc7539c5fa288fc932760fb851",
   "requires": "6.9",
   "tested": "7.1",
   "requires_php": "8.3",
