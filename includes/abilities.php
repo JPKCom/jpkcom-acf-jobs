@@ -670,6 +670,119 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_visibility_counts' ) 
 
 }
 
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_validate_input_keys' ) ) {
+
+    /**
+     * Refuse a top-level input key the ability does not declare.
+     *
+     * Neither input schema declares additionalProperties, so an unrecognised key
+     * reaches the callback and is simply not read. The observable result was the
+     * complete unfiltered corpus behind an HTTP 200, with `filters` correctly
+     * omitting what it had not applied and `unknown` empty - so the caller had to
+     * notice an absence to notice the failure, and one that trusts `total` reports
+     * the whole corpus as a filtered answer.
+     *
+     * Two routes led there and both are common. The output schema of query-jobs
+     * instructed the model to send a work_type filter that has never existed as an
+     * input, and a single transposed letter in a real axis behaved identically.
+     *
+     * @since 1.4.0
+     *
+     * @param array<string, mixed> $input   Raw ability input.
+     * @param string[]             $allowed Declared input keys.
+     * @return true|WP_Error True when every key is declared, WP_Error otherwise.
+     */
+    function jpkcom_acf_jobs_ability_validate_input_keys( array $input, array $allowed ): true|WP_Error {
+
+        $unknown = [];
+
+        foreach ( array_keys( $input ) as $key ) {
+
+            if ( ! in_array( needle: (string) $key, haystack: $allowed, strict: true ) ) {
+
+                $unknown[] = (string) $key;
+
+            }
+
+        }
+
+        if ( $unknown === [] ) {
+
+            return true;
+
+        }
+
+        return jpkcom_acf_jobs_ability_error(
+            'jpkcom_acf_jobs_unknown_input_key',
+            sprintf(
+                /* translators: 1: comma-separated rejected keys, 2: comma-separated accepted keys. */
+                __( 'Unknown input key: %1$s. This ability accepts: %2$s. An axis it does not declare is not applied, so answering the request would mean returning an unfiltered result set that looks like a filtered one.', 'jpkcom-acf-jobs' ),
+                implode( ', ', $unknown ),
+                implode( ', ', $allowed )
+            ),
+            400
+        );
+
+    }
+
+}
+
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_normalise_bool' ) ) {
+
+    /**
+     * Read a boolean the way a GET query string can actually express one.
+     *
+     * Mirrors core's rest_sanitize_boolean() rather than inventing a set: those are
+     * the spellings every other WordPress REST endpoint accepts, so a caller that
+     * has learned one surface has learned this one. Anything outside them comes
+     * back unchanged, so the caller still gets the 400 - widening what is accepted
+     * must not turn into guessing what was meant.
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $value Raw input value.
+     * @return mixed A bool when the value has a boolean reading, the input otherwise.
+     */
+    function jpkcom_acf_jobs_ability_normalise_bool( mixed $value ): mixed {
+
+        if ( is_bool( value: $value ) ) {
+
+            return $value;
+
+        }
+
+        if ( is_int( value: $value ) && ( $value === 0 || $value === 1 ) ) {
+
+            return 1 === $value;
+
+        }
+
+        if ( is_string( value: $value ) ) {
+
+            $normalised = strtolower( trim( $value ) );
+
+            if ( in_array( needle: $normalised, haystack: [ 'true', '1', 'yes', 'on' ], strict: true ) ) {
+
+                return true;
+
+            }
+
+            if ( in_array( needle: $normalised, haystack: [ 'false', '0', 'no', 'off', '' ], strict: true ) ) {
+
+                return false;
+
+            }
+
+        }
+
+        return $value;
+
+    }
+
+}
+
+
 if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_clamp_per_page' ) ) {
 
     /**
@@ -1497,7 +1610,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
             'properties' => [
                 'value' => [
                     'type'        => 'string',
-                    'description' => __( 'Stable value. This is the only form accepted as filter input.', 'jpkcom-acf-jobs' ),
+                    'description' => __( 'Stable, locale-independent value. Note there is no work_type filter on query-jobs — this field reports what a job says, it cannot be used to search for it.', 'jpkcom-acf-jobs' ),
                 ],
                 'label' => [
                     'type'        => 'string',
@@ -1640,7 +1753,16 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     // rather than [], because PHP serialises an empty array as a
                     // JSON array and the MCP Adapter passes the schema on raw.
                     'default'    => jpkcom_acf_jobs_ability_json_object( [] ),
-                    'properties' => [],
+                    // Wrapped for the same reason as `default` directly above, and it is
+                    // the more important of the two: core's REST list controller repairs an
+                    // empty `default` on its way out, but nothing repairs `properties`, and
+                    // the MCP adapter publishes get_input_schema() verbatim as the tool's
+                    // inputSchema. "properties": [] fails the metaschema every major
+                    // tool-calling API applies, so a client that validates before offering a
+                    // tool drops list-filters — and one that rejects the whole tools/list on a
+                    // single bad entry drops query-jobs and get-job with it, which are the two
+                    // abilities list-filters exists to supply with vocabulary.
+                    'properties' => jpkcom_acf_jobs_ability_json_object( [] ),
                 ],
 
                 'output_schema' => [
@@ -1776,7 +1898,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                         ],
                         'search'         => [
                             'type'        => 'string',
-                            'description' => __( 'Free-text search across job titles and job content.', 'jpkcom-acf-jobs' ),
+                            'description' => __( 'Free-text search over the job TITLE only. It is WordPress core search, which reads post_title, post_excerpt and post_content — and this plugin stores every piece of job text in ACF fields instead, with post_content empty, so a term appearing in a summary, in the page content, in the application text or in a company or location name will NOT be found here and an empty result here is not evidence that nothing matches. To search those, filter by the axes that are indexed: job_type, company, location and attribute. Call jpkcom-acf-jobs/list-filters for their values.', 'jpkcom-acf-jobs' ),
                         ],
                         'include_closed' => [
                             'type'        => 'boolean',
@@ -2521,9 +2643,31 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs_inner' ) )
 
         }
 
+        $keys_valid = jpkcom_acf_jobs_ability_validate_input_keys(
+            is_array( value: $input ) ? $input : [],
+            [ 'job_type', 'company', 'location', 'attribute', 'search', 'include_closed', 'page', 'per_page', 'order' ]
+        );
+
+        if ( $keys_valid instanceof WP_Error ) {
+
+            return $keys_valid;
+
+        }
+
         $include_closed = true;
 
         if ( isset( $input['include_closed'] ) ) {
+
+            // The run route is GET-only, because readonly is true, and GET carries
+            // strings. A strict is_bool() therefore refused the ONLY switch that
+            // changes which jobs come back, for every REST caller, including one
+            // sending the schema's own declared default - and the error named a form
+            // the caller had no way to produce, so its correction loop could not
+            // terminate: measured retrying true, "true", 1 and on, all 400, with POST
+            // answering 405. The spellings accepted here are core's own
+            // rest_sanitize_boolean set, so the REST and MCP consumers stop
+            // disagreeing about what this ability can do.
+            $input['include_closed'] = jpkcom_acf_jobs_ability_normalise_bool( $input['include_closed'] );
 
             if ( ! is_bool( value: $input['include_closed'] ) ) {
 

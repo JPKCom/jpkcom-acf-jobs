@@ -136,7 +136,10 @@ foreach ( [ 'jpkcom-acf-jobs/list-filters', 'jpkcom-acf-jobs/query-jobs', 'jpkco
 
 	chk(
 		"{$name} declares no lang input",
-		! array_key_exists( 'lang', $defs[ $name ]['input_schema']['properties'] ?? [] ),
+		// Cast because an ability with no input properties declares them as a
+		// stdClass, so that the published schema encodes as {} rather than as the
+		// [] that violates its own "type": "object".
+		! array_key_exists( 'lang', (array) ( $defs[ $name ]['input_schema']['properties'] ?? [] ) ),
 		'Nothing in this release can switch WPML\'s language context, so a declared lang '
 		. 'parameter is a false statement in the schema: a client sending lang=fr would '
 		. 'receive German and have no way to notice.'
@@ -3523,6 +3526,144 @@ function the_verdict_query_calls_the_builder(): void {
 }
 
 the_verdict_query_calls_the_builder();
+
+// ---------------------------------------------------------------------------
+// What the surface declares and what it will accept must be the same thing
+// ---------------------------------------------------------------------------
+
+$d = jpkcom_acf_jobs_get_ability_definitions();
+
+// 1. An input schema that is not valid JSON Schema. The helper for exactly this
+//    hazard exists in this file and was applied to `default` — the one key core's
+//    REST list controller already repairs — and not to `properties`, the one key
+//    only the plugin can repair. The MCP adapter publishes get_input_schema()
+//    verbatim, so a client that validates a tool's inputSchema before offering it
+//    rejects list-filters, and a client that rejects the whole tools/list on one
+//    bad entry loses query-jobs and get-job with it — the two abilities whose
+//    vocabulary list-filters exists to supply.
+$lf_schema = json_encode( $d['jpkcom-acf-jobs/list-filters']['input_schema'] );
+
+chk(
+	'list-filters declares properties as an object, not an empty array',
+	str_contains( (string) $lf_schema, '"properties":{}' ),
+	'"properties": [] violates the metaschema every major tool-calling API applies. PHP encodes '
+	. 'an empty array as [], so the empty case has to be wrapped — this is the same defect the '
+	. 'json_object() helper was written for, one key along.'
+);
+
+foreach ( $d as $name => $def ) {
+	foreach ( [ 'default', 'properties' ] as $key ) {
+		if ( ! array_key_exists( $key, $def['input_schema'] ?? [] ) ) {
+			continue;
+		}
+
+		chk(
+			"{$name}: input_schema {$key} survives json_encode as an object",
+			str_contains( (string) json_encode( $def['input_schema'] ), '"' . $key . '":{' )
+				|| [] !== ( $def['input_schema'][ $key ] ),
+			'Every object-typed key in a published schema has to be checked, not just the one '
+			. 'that was reported. An empty one encodes as [] and contradicts its own type.'
+		);
+	}
+}
+
+// 2. The only switch that changes which jobs come back could not be sent at all.
+//    The run route is GET-only because readonly is true, GET carries strings, and
+//    the callback demanded a strict bool — so the declared default itself was a
+//    400, and the message named a form the caller had no way to produce. An agent
+//    retries true, "true", 1, on and exhausts its budget: the correction loop
+//    cannot terminate. Measured: all four spellings 400, POST 405.
+foreach ( [ 'true' => true, '1' => true, 'false' => false, '0' => false ] as $sent => $meant ) {
+	$answer = jpkcom_acf_jobs_ability_query_jobs( [ 'include_closed' => $sent ] );
+
+	chk(
+		"include_closed accepts the string \"{$sent}\" that GET can actually carry",
+		is_array( $answer ) && $meant === ( $answer['filters']['include_closed'] ?? null ),
+		'A boolean the only supported method cannot express is not a parameter, it is a trap. '
+		. 'These are core\'s own rest_sanitize_boolean spellings, so the two consumers stop '
+		. 'disagreeing about what the ability can do.'
+	);
+}
+
+chk(
+	'a real boolean still works, for the MCP consumer that can send one',
+	is_array( $ic = jpkcom_acf_jobs_ability_query_jobs( [ 'include_closed' => false ] ) )
+		&& false === ( $ic['filters']['include_closed'] ?? null )
+);
+
+chk(
+	'and a value that means nothing is still refused',
+	jpkcom_acf_jobs_ability_query_jobs( [ 'include_closed' => 'perhaps' ] ) instanceof WP_Error,
+	'Widening the accepted spellings must not turn into accepting anything. "perhaps" has no '
+	. 'boolean reading and guessing one would be worse than the 400.'
+);
+
+// 3. search is WP_Query's `s`: post_title, post_excerpt, post_content. Every field
+//    this plugin holds job text in lives in ACF meta and post_content is empty on
+//    its own fixtures, so "job content" named a corpus that does not exist. A model
+//    asked "which job mentions a company car" got total 0 with unknown {} — and the
+//    unknown description tells it that an empty result is honest. Four jobs matched.
+$search_desc = $d['jpkcom-acf-jobs/query-jobs']['input_schema']['properties']['search']['description'] ?? '';
+
+chk(
+	'the search description does not claim to reach job content',
+	! str_contains( (string) $search_desc, 'job content' ),
+	'The one phrase that would have prevented the wrong answer — that search covers titles — '
+	. 'is the phrase the description replaced with a broader claim.'
+);
+
+chk(
+	'and it says where the job text actually is',
+	str_contains( (string) $search_desc, 'attribute' ) || str_contains( (string) $search_desc, 'ACF' )
+		|| str_contains( (string) $search_desc, 'title' ),
+	'A caller told what search does NOT cover still needs to be told which axis does.'
+);
+
+// 4. The output schema instructs the model to send a work_type filter, and the
+//    input schema has no such property. An unrecognised axis was swallowed whole:
+//    same 200, same total as an unfiltered call, unknown {}. A model that trusts
+//    total reports the entire corpus as "7 remote-work jobs".
+$unknown_axis = jpkcom_acf_jobs_ability_query_jobs( [ 'work_type' => [ 'TELECOMMUTE' ] ] );
+
+chk(
+	'an input axis that does not exist is refused rather than ignored',
+	$unknown_axis instanceof WP_Error,
+	'Returning the unfiltered corpus behind a 200 is the worst of the three possible answers: '
+	. 'the caller cannot tell it from a successful filter.'
+);
+
+chk(
+	'that refusal is a caller mistake and names the axes that do exist',
+	$unknown_axis instanceof WP_Error
+		&& 400 === ( $unknown_axis->get_error_data()['status'] ?? null )
+		&& str_contains( $unknown_axis->get_error_message(), 'work_type' ),
+	'Trap 10: a caller mistake is 400. And the message has to name the rejected key, or the '
+	. 'correction loop has nothing to work with.'
+);
+
+chk(
+	'a typo in a real axis is refused too',
+	jpkcom_acf_jobs_ability_query_jobs( [ 'compnay' => [ 182 ] ] ) instanceof WP_Error,
+	'A single transposed letter had the same silent outcome as a missing feature.'
+);
+
+chk(
+	'the documented axes all still pass together',
+	! ( jpkcom_acf_jobs_ability_query_jobs(
+		[ 'job_type' => [ 'FULL_TIME' ], 'page' => 1, 'per_page' => 5, 'order' => 'ASC', 'include_closed' => true ]
+	) instanceof WP_Error ),
+	'A guard that rejects the documented input would be worse than the defect it closes.'
+);
+
+chk(
+	'the output no longer advertises an input axis that does not exist',
+	! str_contains(
+		(string) json_encode( $d['jpkcom-acf-jobs/query-jobs']['output_schema'] ),
+		'only form accepted as filter input'
+	),
+	'"This is the only form accepted as filter input" sat on work_type.value, which is not an '
+	. 'input at all. The wording is what put the caller there.'
+);
 
 // ---------------------------------------------------------------------------
 // The visibility counts must come from the rule, not from a paraphrase of it

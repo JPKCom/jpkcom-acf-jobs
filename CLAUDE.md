@@ -557,6 +557,34 @@ shipped once before in `jpkcom-post-filter`. The guard executes each ability wit
 and with the value read out of its own registration array — a guard built from a hand-rolled
 `stdClass` or from `null` alone would have stayed green.
 
+**13. The declaration and the reachable surface have to be the same thing.** Four defects in 1.4.0
+were one class: something the schema said that the surface would not do.
+
+- **`include_closed` could not be sent at all.** `readonly => true` makes the run route GET-only, GET
+  carries strings, and the callback demanded a strict `bool` — so the schema's own declared default was
+  a 400 whose message named a form the caller had no way to produce. An agent retries `true`, `"true"`,
+  `1`, `on` and exhausts its budget; the correction loop cannot terminate. It now accepts core's
+  `rest_sanitize_boolean()` spellings and nothing wider, so a value with no boolean reading is still a
+  400. **Any future boolean input has this problem on day one.**
+- **`"properties": []` is not valid JSON Schema.** `jpkcom_acf_jobs_ability_json_object()` had been
+  applied to `default` — the one key core's REST list controller already repairs — and not to
+  `properties`, the one key only the plugin can. The MCP adapter publishes `get_input_schema()`
+  verbatim, so a client validating a tool's inputSchema drops `list-filters`, and one that rejects the
+  whole `tools/list` on a single bad entry loses the other two with it. The guard now checks **every**
+  object-typed key of every published schema, not the one that was reported.
+- **`search` described a corpus that does not exist.** It is `WP_Query`'s `s` — `post_title`,
+  `post_excerpt`, `post_content` — and this plugin holds every piece of job text in ACF meta with
+  `post_content` empty. "Free-text search across job titles and job content" made a model report that
+  no job mentions a company car when four do. The description now says what it does not reach and names
+  the axes that are indexed.
+- **An undeclared axis was swallowed.** Same 200, same total as an unfiltered call, `unknown: {}` — and
+  the *output* schema instructed the model to send a `work_type` filter that has never been an input.
+  `jpkcom_acf_jobs_ability_validate_input_keys()` refuses any key the ability does not declare, with a
+  400 naming it.
+
+When adding an input: send it over the GET route before believing the schema, and check that no output
+description advertises an axis the input schema does not have.
+
 ### Exposure
 
 Three independent switches in `meta`: `show_in_rest`, `public` (WP 7.1; inert passthrough on 6.9/7.0),
