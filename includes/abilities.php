@@ -1360,7 +1360,23 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) 
             'scalars' => [],
         ];
 
-        foreach ( [ 's' => 'the search term', 'meta_key' => 'the ordering key' ] as $var => $label ) {
+        // `meta_key` only. `s` was committed here for one commit and had to come out:
+        // WP_Query rewrites it IN PLACE between the commitment and the post-run read
+        // - class-wp-query.php:1429 does stripslashes( $query_vars['s'] ), the same
+        // line on 6.9.4 and 7.0.3, plus a conditional urldecode and a CR/LF strip. So
+        // a search term carrying a backslash (a Windows path, a regex-looking term, a
+        // pasted value) came back different through no fault of any site callback and
+        // answered HTTP 500, blaming one that did not exist. `search` is declared as a
+        // bare string with no pattern, so that input is well-formed by this plugin's
+        // own contract - the guard was refusing legitimate calls, which is worse than
+        // the hole it closed, because that hole needs a third-party callback and this
+        // needed only a caller.
+        //
+        // Reimplementing core's three transformations here would make the comparison
+        // work until the next WordPress release changes one of them, silently. That is
+        // the paraphrase trap this file already records twice. So `s` is NOT verified
+        // after the run, and the docblock on the site filter no longer claims it is.
+        foreach ( [ 'meta_key' => 'the ordering key' ] as $var => $label ) {
 
             if ( isset( $args[ $var ] ) && is_scalar( value: $args[ $var ] ) ) {
 

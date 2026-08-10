@@ -541,10 +541,14 @@ it does not merge — deleted every clause while the argument array still held t
 `filters.job_type` still `["FULL_TIME"]`, no job_type LIKE in the executed statement.
 
 **What this does NOT close, and why nothing here will.** A callback that rewrites `paged`, `offset`,
-`orderby` or the page size produces a response whose numbers are internally plausible and whose window
+`orderby`, the page size **or the search term `s`** produces a response whose numbers are internally plausible and whose window
 is not the one reported: page 1 returning page 3's rows, a shifted offset making rows unreachable
 through any page number, `orderby => rand` making three pages yield seven distinct jobs out of nine
-while every page insists the set is complete. None of those are clauses, and the two "read what came
+while every page insists the set is complete. `s` is on that list for a different reason than the rest: it IS checkable in principle, but WP_Query
+rewrites it in place (`class-wp-query.php:1429`, `stripslashes`, same line on 6.9.4 and 7.0.3, plus a
+conditional urldecode and a CR/LF strip), so comparing it after the run refused legitimate terms —
+any backslash — with a 500 blaming a site callback that did not exist. Reimplementing those three
+transformations would hold until the next release changed one, silently. None of those are clauses, and the two "read what came
 back" checks — more rows than the page can hold, or a total smaller than the jobs beside it — are
 blind to all of them by construction.
 

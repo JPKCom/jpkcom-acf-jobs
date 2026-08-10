@@ -3527,6 +3527,27 @@ function the_verdict_query_calls_the_builder(): void {
 
 the_verdict_query_calls_the_builder();
 
+// A search term core itself rewrites must not be read as a site callback tampering.
+// WP_Query::parse_search() does stripslashes( $query_vars['s'] ) in place
+// (class-wp-query.php:1429, same line on 6.9.4 and 7.0.3), plus a conditional
+// urldecode and a CR/LF strip. Committing `s` and comparing it after the run
+// therefore turned any backslash-bearing term — a Windows path, a regex-looking
+// term, a pasted value — into HTTP 500 with a message blaming a site callback that
+// did not exist. `search` is a bare string with no pattern in the published schema,
+// so that input is well-formed by this plugin's own contract.
+foreach ( [ 'Stelle', 'C:\\path', 'a\\b', "O'Brien", 'a"b', "line\r\nbreak", '%20', 'ü ö ß' ] as $term ) {
+	$answer = jpkcom_acf_jobs_ability_query_jobs( [ 'search' => $term ] );
+
+	chk(
+		'a search term the schema allows is answered, not refused: ' . json_encode( $term ),
+		! ( $answer instanceof WP_Error ),
+		'A guard that refuses legitimate input is worse than the hole it closes: that hole needs '
+		. 'a third-party pre_get_posts, this needed only a caller. Reimplementing core\'s three '
+		. 'normalisations here would work until the next release changed one, silently — so `s` is '
+		. 'deliberately NOT verified after the run, and the docblock no longer claims it is.'
+	);
+}
+
 // ---------------------------------------------------------------------------
 // The clause guarantee has to be checked against what RAN, not what was passed
 // ---------------------------------------------------------------------------
