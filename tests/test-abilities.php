@@ -3617,27 +3617,51 @@ $d = jpkcom_acf_jobs_get_ability_definitions();
 $lf_schema = json_encode( $d['jpkcom-acf-jobs/list-filters']['input_schema'] );
 
 chk(
-	'list-filters declares properties as an object, not an empty array',
-	str_contains( (string) $lf_schema, '"properties":{}' ),
-	'"properties": [] violates the metaschema every major tool-calling API applies. PHP encodes '
-	. 'an empty array as [], so the empty case has to be wrapped — this is the same defect the '
-	. 'json_object() helper was written for, one key along.'
+	'list-filters declares no properties key at all, and refuses extras',
+	! str_contains( (string) $lf_schema, '"properties"' )
+		&& str_contains( (string) $lf_schema, '"additionalProperties":false' ),
+	'This assertion used to demand "properties":{} — an empty stdClass — which is what made any '
+	. 'unauthenticated request carrying any input key answer HTTP 500: core does an array offset '
+	. 'on that value inside rest_validate_object_value_from_schema(), and an array offset on a '
+	. 'plain object is a hard Error in PHP 8. stdClass PLUS additionalProperties:false still '
+	. 'fatals; omitting the key is the only combination measured to yield a clean WP_Error. The '
+	. 'previous version of this check did not merely miss the defect, it mandated it.'
 );
 
 foreach ( $d as $name => $def ) {
-	foreach ( [ 'default', 'properties' ] as $key ) {
-		if ( ! array_key_exists( $key, $def['input_schema'] ?? [] ) ) {
-			continue;
-		}
+	// This assertion used to check the ENCODED SHAPE of the schema — that
+	// `properties` serialised as {} rather than []. It passed, 489 green, while
+	// the release answered HTTP 500 to any unauthenticated request carrying any
+	// input key: the stdClass that produces "{}" is an array offset target inside
+	// core's rest_validate_object_value_from_schema(), and an array offset on a
+	// plain object is a hard Error in PHP 8. The guard did not merely miss the
+	// defect, it MANDATED the shape that caused it.
+	//
+	// So the question is no longer what the schema looks like. It is whether the
+	// ability answers an unknown key with a value.
+	$probe = null;
+	$threw = false;
 
-		chk(
-			"{$name}: input_schema {$key} survives json_encode as an object",
-			str_contains( (string) json_encode( $def['input_schema'] ), '"' . $key . '":{' )
-				|| [] !== ( $def['input_schema'][ $key ] ),
-			'Every object-typed key in a published schema has to be checked, not just the one '
-			. 'that was reported. An empty one encodes as [] and contradicts its own type.'
-		);
+	try {
+		$probe = call_user_func( $def['execute_callback'], [ 'zzz_no_such_key' => 1 ] );
+	} catch ( Throwable $e ) {
+		$threw = true;
 	}
+
+	chk(
+		"{$name}: an unknown input key produces a value, not a Throwable",
+		! $threw,
+		'The failure this replaces happened inside check_ability_permissions(), two frames '
+		. 'above jpkcom_acf_jobs_ability_boundary(), which is therefore structurally unable to '
+		. 'catch it — and it needed no credentials.'
+	);
+
+	chk(
+		"{$name}: and that value is a refusal the caller can act on",
+		$probe instanceof WP_Error && 400 === ( $probe->get_error_data()['status'] ?? null ),
+		'An unknown key must be a caller error naming what was rejected, on every ability — a '
+		. 'guard on one of three is a trap.'
+	);
 }
 
 // 2. The only switch that changes which jobs come back could not be sent at all.

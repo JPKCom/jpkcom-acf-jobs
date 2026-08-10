@@ -1346,10 +1346,29 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_commitments' ) 
      */
     function jpkcom_acf_jobs_ability_query_commitments( array $args ): array {
 
+        // The two scalars belong here because the docblock on the site filter has
+        // always claimed them - "each element of meta_query and of tax_query, the
+        // search term s, and the whole orderby together with the meta_key it needs"
+        // - and they were never recorded. Measured: a pre_get_posts rewriting s
+        // turned 6 matches into 1 with filters.search still naming the original
+        // term, and rewriting meta_key took the corpus from 8 to 0. Both change
+        // WHICH jobs match, so neither belongs with the window-only cases the file
+        // documents as not closed.
         $committed = [
-            'meta' => [],
-            'tax'  => [],
+            'meta'    => [],
+            'tax'     => [],
+            'scalars' => [],
         ];
+
+        foreach ( [ 's' => 'the search term', 'meta_key' => 'the ordering key' ] as $var => $label ) {
+
+            if ( isset( $args[ $var ] ) && is_scalar( value: $args[ $var ] ) ) {
+
+                $committed['scalars'][ $var ] = [ 'label' => $label, 'value' => (string) $args[ $var ] ];
+
+            }
+
+        }
 
         foreach ( [ 'meta' => 'meta_query', 'tax' => 'tax_query' ] as $bucket => $arg_key ) {
 
@@ -1425,6 +1444,18 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_divergence' ) )
         if ( ! is_array( value: $args ) ) {
 
             return 'the whole query';
+
+        }
+
+        foreach ( $committed['scalars'] ?? [] as $var => $commitment ) {
+
+            $ran = $args[ $var ] ?? null;
+
+            if ( ! is_scalar( value: $ran ) || (string) $ran !== $commitment['value'] ) {
+
+                return $commitment['label'];
+
+            }
 
         }
 
@@ -1753,16 +1784,26 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     // rather than [], because PHP serialises an empty array as a
                     // JSON array and the MCP Adapter passes the schema on raw.
                     'default'    => jpkcom_acf_jobs_ability_json_object( [] ),
-                    // Wrapped for the same reason as `default` directly above, and it is
-                    // the more important of the two: core's REST list controller repairs an
-                    // empty `default` on its way out, but nothing repairs `properties`, and
-                    // the MCP adapter publishes get_input_schema() verbatim as the tool's
-                    // inputSchema. "properties": [] fails the metaschema every major
-                    // tool-calling API applies, so a client that validates before offering a
-                    // tool drops list-filters — and one that rejects the whole tools/list on a
-                    // single bad entry drops query-jobs and get-job with it, which are the two
-                    // abilities list-filters exists to supply with vocabulary.
-                    'properties' => jpkcom_acf_jobs_ability_json_object( [] ),
+                    // NO `properties` key at all, and additionalProperties => false.
+                    //
+                    // Declaring it as an empty stdClass so the schema would encode as
+                    // {} was worse than the [] it replaced: core's
+                    // rest_validate_object_value_from_schema() does
+                    // `isset( $args['properties'][ $property ] )` (rest-api.php:2410 on
+                    // 7.0.3, :2397 on 6.9.4), and an array offset on a plain object is a
+                    // hard Error in PHP 8. Measured: any request carrying any input key,
+                    // WITH NO CREDENTIALS, answered HTTP 500 - the failure happens inside
+                    // check_ability_permissions(), two frames above the boundary, so
+                    // jpkcom_acf_jobs_ability_boundary() is structurally unable to catch
+                    // it. Over MCP it surfaced as isError "Cannot use object of type
+                    // stdClass as array".
+                    //
+                    // stdClass PLUS additionalProperties => false still fatals - measured
+                    // twice, and live against a foreign ability shipping exactly that
+                    // pair. Omitting the key is the only combination that yields a clean
+                    // WP_Error, and additionalProperties => false is what makes an
+                    // unknown key a 400 rather than something ignored.
+                    'additionalProperties' => false,
                 ],
 
                 'output_schema' => [
@@ -2176,6 +2217,19 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters_inner' )
      * @return array|WP_Error The filter vocabulary, or an error.
      */
     function jpkcom_acf_jobs_ability_list_filters_inner( mixed $input = null ): array|WP_Error {
+
+        // Every ability, not one of three: a guard on a subset is a trap, because a
+        // caller that learned the refusal on query-jobs assumes it everywhere.
+        $keys_valid = jpkcom_acf_jobs_ability_validate_input_keys(
+            is_array( value: $input ) ? $input : [],
+            []
+        );
+
+        if ( $keys_valid instanceof WP_Error ) {
+
+            return $keys_valid;
+
+        }
 
         if ( ! function_exists( function: 'get_field' ) ) {
 
@@ -3641,13 +3695,47 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job_inner' ) ) {
 
             $record = jpkcom_acf_jobs_get_job_data( $id, true );
 
-        } catch ( \Throwable $e ) {
+        } catch ( \Throwable $detail_error ) {
 
-            jpkcom_acf_jobs_ability_log(
-                'A stored value of job ' . $id . ' could not be read: ' . $e->getMessage()
-            );
+            // The DETAIL read failed. The compact fields are read before it and are
+            // a different set — job_layout_content and the two salary select
+            // sub-fields are touched only when $full is true — so a non-scalar in
+            // one of those made get-job answer "that id does not resolve to a job
+            // that can be read" about a job query-jobs was listing at that same
+            // moment with a complete, correct record. No fatal, but a wrong answer,
+            // and indistinguishable from an id that names nothing.
+            //
+            // Falling back to the compact record with a stated reason discloses
+            // nothing: query-jobs publishes that record for this job anyway, so the
+            // id was already public. The detail block already suppresses itself with
+            // a named reason for three states whose pages do not render; an
+            // unreadable stored value is a fourth.
+            // If even the compact read throws, the job genuinely is unreadable and
+            // the shared not-found answer below is the right one — the same answer
+            // an id naming nothing gets, which is what keeps this from being a probe.
+            try {
 
-            $record = [];
+                $record = jpkcom_acf_jobs_get_job_data( $id, false );
+
+            } catch ( \Throwable $compact_error ) {
+
+                jpkcom_acf_jobs_ability_log(
+                    'A stored value of job ' . $id . ' could not be read: ' . $compact_error->getMessage()
+                );
+
+                $record = [];
+
+            }
+
+            if ( is_array( value: $record ) && $record !== [] ) {
+
+                $record['detail_omitted_reason'] = 'unreadable';
+
+                jpkcom_acf_jobs_ability_log(
+                    'The detail data of job ' . $id . ' could not be read: ' . $detail_error->getMessage()
+                );
+
+            }
 
         }
 
