@@ -255,10 +255,12 @@ if ( function_exists( 'jpkcom_acf_jobs_ability_list_filters' ) ) {
 	);
 
 	chk(
-		'list-filters runs the visibility query and the three count queries',
-		4 === count( $job_queries ),
-		'One bounded pass over the listed jobs, plus published_total, hidden_missing_featured '
-		. 'and hidden_expired.'
+		'list-filters runs the visibility query and the two count queries',
+		3 === count( $job_queries ),
+		'One bounded pass over the listed jobs, plus published_total and the count of jobs '
+		. 'carrying a job_featured row. It was four: hidden_missing_featured and hidden_expired '
+		. 'each had their own query, and the second of them was the paraphrase of the rule that '
+		. 'disagreed with it. Both are differences now, so one query fewer answers more.'
 	);
 
 	foreach ( $job_queries as $i => $q ) {
@@ -492,10 +494,11 @@ chk(
 );
 
 chk(
-	'a page-1 call runs one listing query and the two visibility counts',
-	3 === count( recorded_queries( 'job' ) ),
-	'Nothing here may cost a query per returned job, and the visibility counts are the two '
-	. 'the output schema declares.'
+	'a page-1 call runs exactly one listing query',
+	1 === count( recorded_queries( 'job' ) ),
+	'Nothing here may cost a query per returned job. It was three: the site-wide visibility '
+	. 'counts ran on every call and were reported beside a filtered total they said nothing '
+	. 'about. They belong to list-filters and are gone from here.'
 );
 
 chk(
@@ -569,9 +572,10 @@ chk(
 	is_array( $result ) && 'https://example.test/jobs/' === ( $result['archive_url'] ?? null )
 );
 chk(
-	'the visibility block reports both shortfall causes',
-	is_array( $result ) && is_int( $result['visibility']['hidden_missing_featured'] ?? null )
-	&& is_int( $result['visibility']['hidden_expired'] ?? null )
+	'query-jobs reports no visibility block at all',
+	is_array( $result ) && ! array_key_exists( 'visibility', $result ),
+	'Site-wide counts beside a filtered total were added by the reader and turned into jobs '
+	. 'that do not exist. The block lives on list-filters, which is asserted separately.'
 );
 
 echo "\nCalling an ability with no input at all\n";
@@ -829,9 +833,10 @@ chk(
 );
 chk(
 	'an axis that resolves to nothing runs no listing query',
-	2 === count( recorded_queries( 'job' ) ),
+	0 === count( recorded_queries( 'job' ) ),
 	'Passing an empty clause list to the builder would drop the clause and return every job — '
-	. 'the exact bug this ability exists to avoid. Only the two visibility counts remain.'
+	. 'the exact bug this ability exists to avoid. Nothing else runs on this path now that the '
+	. 'site-wide visibility counts have moved to list-filters.'
 );
 
 $GLOBALS['jpkcom_test_queries'] = [];
@@ -942,7 +947,7 @@ $page2 = jpkcom_acf_jobs_ability_query_jobs( [ 'page' => 2, 'per_page' => 2 ] );
 
 chk(
 	'a page that still has posts runs exactly one listing query',
-	3 === count( recorded_queries( 'job' ) ),
+	1 === count( recorded_queries( 'job' ) ),
 	'Dropping the $query->posts === [] half of the guard doubles the query count of every '
 	. 'paginated call.'
 );
@@ -966,7 +971,7 @@ chk( 'it echoes the requested page back', is_array( $page3 ) && 3 === ( $page3['
 chk( 'and it returns no jobs', is_array( $page3 ) && [] === ( $page3['jobs'] ?? null ) );
 chk(
 	'the recovery costs exactly one extra query',
-	4 === count( recorded_queries( 'job' ) ),
+	2 === count( recorded_queries( 'job' ) ),
 	'One re-run for page 1, on that path only.'
 );
 
@@ -3518,6 +3523,124 @@ function the_verdict_query_calls_the_builder(): void {
 }
 
 the_verdict_query_calls_the_builder();
+
+// ---------------------------------------------------------------------------
+// The visibility counts must come from the rule, not from a paraphrase of it
+// ---------------------------------------------------------------------------
+//
+// hidden_expired used to be its own meta_query: job_featured EXISTS AND
+// job_expiry_date < today, with a comment claiming it was "the mirror image of
+// the visibility rule's". It was not. The rule's expiry clause is an OR group —
+// >= today, OR the row is absent, OR the value is the empty string — and the
+// count carried only the first branch negated. MariaDB casts '' to '0000-00-00',
+// which is less than today, so every job whose expiry date is EMPTY was counted
+// as expired while the same response listed it. Empty is the ordinary case: ACF
+// stores '' once the date field has been saved and cleared. Measured on test2,
+// that was 2 of 2 jobs, and list-filters reported 25 listed + 13 expired against
+// 37 published — a partition the output schema promises is exact.
+//
+// This is the same lesson trap 7 already records for `listed`: a PHP or SQL
+// paraphrase of the rule disagrees with the rule. The fix is not a better
+// paraphrase. Among jobs that have the job_featured row, expiry is the ONLY other
+// exclusion the rule applies, so the count is a difference and no second
+// implementation of the expiry semantics exists to disagree with the first.
+//
+// No stub can reproduce the original defect — it lives in MariaDB's cast of an
+// empty string — so what is asserted here is the structural property that makes
+// it impossible: no query issued for the counts mentions job_expiry_date at all.
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+// The fixture's own answer to "how many published jobs carry a job_featured
+// row" is whatever the stub yields; the assertions below are about the
+// arithmetic around it, so they read it rather than assume it.
+$with_featured = ( new WP_Query(
+	[
+		'post_type'     => 'job',
+		'post_status'   => 'publish',
+		'has_password'  => false,
+		'fields'        => 'ids',
+		'posts_per_page' => 1,
+		'no_found_rows' => false,
+		'meta_query'    => [ [ 'key' => 'job_featured', 'compare' => 'EXISTS' ] ],
+	]
+) )->found_posts;
+
+$GLOBALS['jpkcom_test_queries'] = [];
+
+$vis = jpkcom_acf_jobs_ability_visibility_counts( $with_featured + 2, $with_featured - 1 );
+
+$expiry_clauses = 0;
+
+foreach ( recorded_queries( 'job' ) as $args ) {
+	if ( str_contains( json_encode( $args['meta_query'] ?? [] ), 'job_expiry_date' ) ) {
+		$expiry_clauses++;
+	}
+}
+
+chk(
+	'the visibility counts issue no expiry comparison of their own',
+	0 === $expiry_clauses,
+	'A second SQL statement of "expired" is what produced the wrong count, and any rewrite of '
+	. 'it would be a third. The rule already answers this question; the counts subtract.'
+);
+
+chk(
+	'hidden_expired is the shortfall among jobs that have the featured row',
+	1 === ( $vis['hidden_expired'] ?? null ),
+	'One fewer job is listed than carries the featured row, so exactly one is held back by '
+	. 'expiry — derived from the rule rather than re-derived beside it.'
+);
+
+chk(
+	'hidden_missing_featured is the rest of the shortfall',
+	2 === ( $vis['hidden_missing_featured'] ?? null ),
+	'10 published, 8 with the featured row. Two independent causes exclude a job with no '
+	. 'job_featured row — the EXISTS clause and the meta_key used for ordering — so this '
+	. 'number cannot be read off the listing query either.'
+);
+
+chk(
+	'and the two causes partition the shortfall exactly, as the schema promises',
+	( $with_featured + 2 ) === ( $with_featured - 1 )
+		+ ( $vis['hidden_missing_featured'] ?? -1 )
+		+ ( $vis['hidden_expired'] ?? -1 ),
+	'published_total - listed_total - hidden_missing_featured - hidden_expired must be 0. It '
+	. 'used to go negative, which is what an agent computing the residual would have seen.'
+);
+
+// The block is a statement about the site, and it belongs on the site-level
+// ability. Sitting next to a filtered total it invited exactly one misreading,
+// measured at every filter: total moved 12 -> 6 -> 2 -> 0 while visibility never
+// moved at all, so a model adds the two and reports jobs that do not exist. No
+// wording fixes that reliably, because the numbers are simply about something
+// else. list-filters carries the same block, correctly worded, and a caller has
+// to call it anyway to learn the filter vocabulary.
+
+$listing_now = jpkcom_acf_jobs_ability_query_jobs( null );
+
+chk(
+	'query-jobs no longer carries a site-wide visibility block beside a filtered total',
+	is_array( $listing_now ) && ! array_key_exists( 'visibility', $listing_now ),
+	'It never moved with the filters, while its own schema called it "excluded from this '
+	. 'answer". Removing it costs nothing: 1.4.0 has never shipped.'
+);
+
+$defs = jpkcom_acf_jobs_get_ability_definitions();
+
+chk(
+	'and its output schema does not promise one either',
+	! isset( $defs['jpkcom-acf-jobs/query-jobs']['output_schema']['properties']['visibility'] ),
+	'A schema that declares a field the response never sends is the same defect pointing the '
+	. 'other way.'
+);
+
+chk(
+	'list-filters still reports it, where it is a statement about the site',
+	isset( $defs['jpkcom-acf-jobs/list-filters']['output_schema']['properties']['visibility'] ),
+	'The audit of the visibility rule is worth having — on the ability whose whole answer is '
+	. 'site-level, and whose wording already said so.'
+);
 
 // ---------------------------------------------------------------------------
 // A stored value ACF cannot read must not take the ability down

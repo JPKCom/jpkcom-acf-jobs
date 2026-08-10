@@ -621,47 +621,48 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_visibility_counts' ) 
      *     @type int $hidden_expired          Published jobs whose expiry date has passed.
      * }
      */
-    function jpkcom_acf_jobs_ability_visibility_counts(): array {
+    function jpkcom_acf_jobs_ability_visibility_counts( int $published_total, int $listed_total ): array {
 
+        // Jobs that clear the first half of the rule: they carry a job_featured
+        // row. Among these, the expiry OR-group is the ONLY remaining reason the
+        // rule can hold a job back, so both shortfall causes are differences and
+        // neither needs a second statement of what "expired" means.
+        //
+        // That second statement is what this function used to contain, and it was
+        // wrong. It compared job_expiry_date < today and called itself "the mirror
+        // image of the visibility rule's". The rule's clause is an OR group - at or
+        // after today, OR no row at all, OR the empty string - and negating only its
+        // first branch is not its complement. MariaDB casts '' to '0000-00-00',
+        // which is less than any real date, so every job whose expiry date had been
+        // saved and cleared - the ordinary case, since ACF writes '' rather than
+        // deleting the row - was counted as expired in the same response that listed
+        // it. Measured on the floor instance: 2 of 2 jobs, and a partition the output
+        // schema calls exact summing past the corpus size.
+        //
+        // This is trap 7 again, one field along: the rule answers, a paraphrase of
+        // the rule disagrees with it. Do not reintroduce a comparison here.
+        $with_featured = jpkcom_acf_jobs_ability_count_query(
+            [
+                'post_type'    => 'job',
+                'post_status'  => 'publish',
+                'has_password' => false,
+                'meta_query'   => [
+                    [
+                        'key'     => 'job_featured',
+                        'compare' => 'EXISTS',
+                    ],
+                ],
+            ]
+        );
+
+        // max() rather than a bare subtraction: the three inputs are three separate
+        // queries and a job saved between them would otherwise produce a negative
+        // count, which is the shape of wrongness this whole change exists to remove.
         return [
 
-            'hidden_missing_featured' => jpkcom_acf_jobs_ability_count_query(
-                [
-                    'post_type'    => 'job',
-                    'post_status'  => 'publish',
-                    'has_password' => false,
-                    'meta_query'   => [
-                        [
-                            'key'     => 'job_featured',
-                            'compare' => 'NOT EXISTS',
-                        ],
-                    ],
-                ]
-            ),
+            'hidden_missing_featured' => max( 0, $published_total - $with_featured ),
 
-            // The date comparison is the mirror image of the visibility rule's:
-            // the same raw column, the same DATE cast, and the same site-timezone
-            // today.
-            'hidden_expired' => jpkcom_acf_jobs_ability_count_query(
-                [
-                    'post_type'    => 'job',
-                    'post_status'  => 'publish',
-                    'has_password' => false,
-                    'meta_query'   => [
-                        'relation' => 'AND',
-                        [
-                            'key'     => 'job_featured',
-                            'compare' => 'EXISTS',
-                        ],
-                        [
-                            'key'     => 'job_expiry_date',
-                            'value'   => current_time( 'Y-m-d' ),
-                            'compare' => '<',
-                            'type'    => 'DATE',
-                        ],
-                    ],
-                ]
-            ),
+            'hidden_expired'          => max( 0, $with_featured - $listed_total ),
 
         ];
 
@@ -1834,22 +1835,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                         'archive_url' => [
                             'type'        => 'string',
                             'description' => __( 'Public job archive URL. Empty when the site owner has disabled the archive, in which case that address answers with a redirect to a configured target instead of a job list.', 'jpkcom-acf-jobs' ),
-                        ],
-                        'visibility'  => [
-                            'type'        => 'object',
-                            'description' => __( 'Published jobs excluded from this answer by the site visibility rule rather than by the filters.', 'jpkcom-acf-jobs' ),
-                            'properties'  => [
-                                'hidden_missing_featured' => [
-                                    'type'        => 'integer',
-                                    'description' => __( 'Published jobs carrying no job_featured value at all, which excludes them from every listing.', 'jpkcom-acf-jobs' ),
-                                ],
-                                'hidden_expired'          => [
-                                    'type'        => 'integer',
-                                    'description' => __( 'Published jobs whose expiry date has passed.', 'jpkcom-acf-jobs' ),
-                                ],
-                            ],
-                        ],
-                        'language'    => $language_schema,
+                        ],                        'language'    => $language_schema,
                         'jobs'        => [
                             'type'        => 'array',
                             'description' => __( 'The matching jobs for the requested page.', 'jpkcom-acf-jobs' ),
@@ -2347,7 +2333,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters_inner' )
 
         // Shared with query-jobs, which declares the same two numbers. Each cause
         // needs its own query; see jpkcom_acf_jobs_ability_visibility_counts().
-        $hidden = jpkcom_acf_jobs_ability_visibility_counts();
+        $hidden = jpkcom_acf_jobs_ability_visibility_counts( $published_total, $listed_total );
 
         return [
             'job_types'      => $job_types,
@@ -3096,7 +3082,6 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs_inner' ) )
             'per_page'    => $per_page,
             'total_pages' => $total_pages,
             'archive_url' => $archive_url,
-            'visibility'  => jpkcom_acf_jobs_ability_visibility_counts(),
             'language'    => jpkcom_acf_jobs_ability_language(),
             'jobs'        => $jobs,
             'unreadable_total' => $unreadable,

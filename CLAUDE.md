@@ -486,8 +486,38 @@ listed; a missing row is not; `get_field()` cannot tell those apart.
 
 **8. Two independent causes exclude a job with no `job_featured` row.** The `EXISTS` clause *and*
 `meta_key => 'job_featured'` for the ordering, whose `postmeta.meta_key = 'job_featured'` condition
-lands in the `WHERE` clause. Removing one of them changes nothing. `hidden_missing_featured` therefore
-needs its own query.
+lands in the `WHERE` clause. Removing one of them changes nothing, which is why the count of jobs that
+carry the row cannot be read off the listing query and needs one of its own.
+
+**8a. Both visibility counts are DIFFERENCES, and reintroducing a comparison is the bug.** Trap 7 says
+the rule answers `listed`. The same applies one field along: `hidden_expired` used to be its own
+`meta_query` — `job_featured EXISTS AND job_expiry_date < today` — carrying a comment claiming it was
+"the mirror image of the visibility rule's". It was not. The rule's expiry clause is an **OR group**
+(at or after today, OR no row, OR the empty string), and negating only its first branch is not its
+complement. MariaDB casts `''` to `'0000-00-00'`, which is less than any real date, so **every job
+whose expiry date had been saved and cleared was counted as expired in the same response that listed
+it** — and `''` is the ordinary case, because ACF writes it rather than deleting the row. Measured on
+the floor: 2 of 2 jobs, and 25 listed + 13 expired against 37 published, against a schema that calls
+the partition exact.
+
+Among jobs carrying the `job_featured` row, expiry is the only remaining exclusion, so:
+
+```
+hidden_expired          = ( published + featured row ) − listed
+hidden_missing_featured = published − ( published + featured row )
+```
+
+Both derived from the rule, no second statement of what "expired" means, and the partition holds by
+construction. `tests/test-abilities.php` fails the build if any query issued for the counts mentions
+`job_expiry_date` at all — no stub can reproduce the original defect, because it lives in MariaDB's
+cast, so the guard is the structural property that makes it impossible.
+
+**8b. `query-jobs` carries no `visibility` block.** It did, and the numbers were site-wide while the
+schema called them "excluded from **this answer**". Measured: `total` moved 12 → 6 → 2 → 0 across
+filters while `visibility` never moved at all, so a reader adding the two reported jobs that do not
+exist, with an error that grows with the rest of the site. No wording fixes that — the numbers are
+about something else. The block belongs to `list-filters`, whose whole answer is site-level and whose
+wording already said so, and which a caller has to call anyway to learn the filter vocabulary.
 
 **9. The site filter contributes `meta_query` and `tax_query`, and nothing else is read.** This is the
 important one, and it took five attempts to get right. `jpkcom_acf_jobs_ability_query_args` runs, but
