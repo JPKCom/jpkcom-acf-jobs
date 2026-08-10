@@ -414,10 +414,39 @@ function get_the_title( mixed $post = null ): string {
 // null ACF returns for an unset field.
 $GLOBALS['jpkcom_test_fields'] = [];
 
+/**
+ * A stored value whose shape ACF cannot read.
+ *
+ * Seed one of these instead of a value and the reader below throws, the way ACF
+ * itself does: a postmeta row holding a nested array or an object reaches
+ * acf_maybe_get( $field['choices'], $value ) and raises
+ * "Cannot access offset of type array in isset or empty". Measured on the 6.9.4
+ * floor from a checkbox (class-acf-field-checkbox.php:562), a select
+ * (class-acf-field-select.php:710) and flexible content
+ * (acf_field_flexible_content->load_value()).
+ *
+ * The throw belongs in the stub rather than in the plugin because that is where
+ * it belongs in production: the plugin never sees the corrupt value, ACF throws
+ * while reading it. Any guard written on the plugin's side of that call — a
+ * shape check before reading, or the file's "read unformatted" rule — cannot see
+ * it, which is precisely why this class needs a boundary and not a filter.
+ */
+final class JPKCom_Test_Unreadable_Value {
+	public function __construct( public readonly string $message = 'Cannot access offset of type array in isset or empty' ) {}
+}
+
+function jpkcom_test_throw_if_unreadable( mixed $value ): mixed {
+	if ( $value instanceof JPKCom_Test_Unreadable_Value ) {
+		throw new TypeError( $value->message );
+	}
+
+	return $value;
+}
+
 function get_field( string $selector, mixed $post_id = false, bool $format_value = true, bool $escape_html = false ): mixed {
 	$fields = $GLOBALS['jpkcom_test_fields'][ (int) $post_id ] ?? [];
 
-	return $fields[ $selector ] ?? null;
+	return jpkcom_test_throw_if_unreadable( $fields[ $selector ] ?? null );
 }
 
 // The job_type vocabulary as the ACF field definition supplies it, which is where
@@ -543,6 +572,12 @@ $GLOBALS['jpkcom_test_row_loop'] = null;
 
 function have_rows( string $selector, mixed $post_id = false ): bool {
 	$key = (int) $post_id . '|' . $selector;
+
+	// have_rows() reaches ACF's LOAD path, not its format path — it has no
+	// formatted/unformatted argument at all — so corrupt flexible-content meta
+	// throws here even though every read in this plugin passes false. Seeding an
+	// unreadable value under jpkcom_test_rows models that.
+	jpkcom_test_throw_if_unreadable( $GLOBALS['jpkcom_test_rows'][ (int) $post_id ][ $selector ] ?? null );
 
 	if ( ( $GLOBALS['jpkcom_test_row_loop']['key'] ?? null ) !== $key ) {
 		$GLOBALS['jpkcom_test_row_loop'] = [

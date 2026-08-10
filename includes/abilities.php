@@ -1855,6 +1855,10 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                             'description' => __( 'The matching jobs for the requested page.', 'jpkcom-acf-jobs' ),
                             'items'       => $job_schema,
                         ],
+                        'unreadable_total' => [
+                            'type'        => 'integer',
+                            'description' => __( 'How many jobs on THIS page held a stored value that could not be read and were therefore left out of "jobs". Normally 0. A non-zero count means the site has corrupt data for those jobs — an importer, a migration or a translation copy is the usual cause — and it is recorded here rather than passed over in silence, because a shorter list with no explanation reads as "these are all the jobs". Which jobs they were is deliberately not disclosed; the site error log has the ids. The count describes this page only, not the site.', 'jpkcom-acf-jobs' ),
+                        ],
                     ],
                 ],
 
@@ -2043,7 +2047,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
 
 }
 
-if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters_inner' ) ) {
 
     /**
      * Execute callback for jpkcom-acf-jobs/list-filters.
@@ -2063,7 +2067,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
      * @param mixed $input Validated ability input. This ability takes none.
      * @return array|WP_Error The filter vocabulary, or an error.
      */
-    function jpkcom_acf_jobs_ability_list_filters( mixed $input = null ): array|WP_Error {
+    function jpkcom_acf_jobs_ability_list_filters_inner( mixed $input = null ): array|WP_Error {
 
         if ( ! function_exists( function: 'get_field' ) ) {
 
@@ -2367,7 +2371,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
 
 }
 
-if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs_inner' ) ) {
 
     /**
      * Execute callback for jpkcom-acf-jobs/query-jobs.
@@ -2418,7 +2422,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
      * @param mixed $input Validated ability input.
      * @return array|WP_Error The result set, or an error.
      */
-    function jpkcom_acf_jobs_ability_query_jobs( mixed $input = null ): array|WP_Error {
+    function jpkcom_acf_jobs_ability_query_jobs_inner( mixed $input = null ): array|WP_Error {
 
         if ( ! function_exists( function: 'get_field' ) ) {
 
@@ -2720,6 +2724,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
         $total       = 0;
         $total_pages = 0;
         $jobs        = [];
+        $unreadable  = 0;
 
         if ( ! $exhausted ) {
 
@@ -3020,7 +3025,35 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
 
                 }
 
-                $record = jpkcom_acf_jobs_get_job_data( $job_id, false );
+                // The read is wrapped because the throw is not ours and cannot be
+                // prevented from here: a postmeta row whose serialized value holds a
+                // non-scalar - what an importer, a migration, one UPDATE or a WPML
+                // base64 round trip writes - makes ACF itself raise a TypeError while
+                // reading it, from acf_maybe_get() for checkbox and select and from
+                // acf_field_flexible_content->load_value() for layout content. No
+                // shape check on this side of the call can see it, and the file's
+                // "read unformatted" rule does not reach it either: have_rows() has no
+                // formatted argument at all.
+                //
+                // Skipping the one job keeps the page answering. Measured before this
+                // guard on a checksum-verified 6.9.4 core: one such row made query-jobs
+                // a blank 500 for every caller with no input at all, on whichever page
+                // the job fell, permanently.
+                try {
+
+                    $record = jpkcom_acf_jobs_get_job_data( $job_id, false );
+
+                } catch ( \Throwable $e ) {
+
+                    $unreadable++;
+
+                    jpkcom_acf_jobs_ability_log(
+                        'A stored value of job ' . $job_id . ' could not be read: ' . $e->getMessage()
+                    );
+
+                    continue;
+
+                }
 
                 // [] means the reader's own gate refused the job. The query should
                 // not have returned it, but a widened query filter is exactly the
@@ -3066,6 +3099,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
             'visibility'  => jpkcom_acf_jobs_ability_visibility_counts(),
             'language'    => jpkcom_acf_jobs_ability_language(),
             'jobs'        => $jobs,
+            'unreadable_total' => $unreadable,
         ];
 
     }
@@ -3292,7 +3326,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_detail_page_renders' ) ) {
 
 }
 
-if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job_inner' ) ) {
 
     /**
      * Execute callback for jpkcom-acf-jobs/get-job.
@@ -3328,7 +3362,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
      * @param mixed $input Validated ability input.
      * @return array|WP_Error The job record, or an error.
      */
-    function jpkcom_acf_jobs_ability_get_job( mixed $input = null ): array|WP_Error {
+    function jpkcom_acf_jobs_ability_get_job_inner( mixed $input = null ): array|WP_Error {
 
         if ( ! function_exists( function: 'get_field' ) ) {
 
@@ -3421,7 +3455,25 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
         // An unresolvable id lands here as 0, which the reader's own gate refuses
         // exactly as it refuses a draft — one code path, one answer, and no branch
         // above it that could be timed apart.
-        $record = jpkcom_acf_jobs_get_job_data( $id, true );
+        // A stored value ACF cannot read is deliberately answered as "not readable",
+        // identically to an id naming nothing at all. Giving corruption its own
+        // error would repair one defect by reopening another: the whole point of
+        // the shared answer below is that no logged-in user can use this ability to
+        // find out which post IDs the site holds, and "this id exists but its data
+        // is broken" is exactly that disclosure.
+        try {
+
+            $record = jpkcom_acf_jobs_get_job_data( $id, true );
+
+        } catch ( \Throwable $e ) {
+
+            jpkcom_acf_jobs_ability_log(
+                'A stored value of job ' . $id . ' could not be read: ' . $e->getMessage()
+            );
+
+            $record = [];
+
+        }
 
         if ( ! is_array( value: $record ) || $record === [] ) {
 
@@ -3563,6 +3615,129 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_register_abilities' ) ) {
     }
 
 }
+
+
+// ---------------------------------------------------------------------------
+// The callback boundary
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_boundary' ) ) {
+    /**
+     * Run an ability body and convert any Throwable into a WP_Error
+     *
+     * The declared floor is WordPress 6.9, which has no Throwable-to-WP_Error
+     * wrapper - that landed in 7.0 - so an exception escaping a callback there is
+     * an uncaught fatal: a blank 500 with no body, no code and nothing a client
+     * can act on, triggerable by any logged-in subscriber. This file's own docblock
+     * already promises that every callback returns a WP_Error rather than throwing.
+     * Until this function existed, that promise covered the plugin's own arithmetic
+     * and not the reads.
+     *
+     * It is a boundary rather than a set of shape checks on purpose. The throw
+     * happens INSIDE ACF while it reads - acf_maybe_get() for checkbox and select,
+     * acf_field_flexible_content->load_value() for layout content - so nothing on
+     * this side of the call can inspect the value first, the file's "read
+     * unformatted" rule does not reach the load path, and the set of shapes ACF
+     * cannot tolerate belongs to ACF and changes with it. An enumeration of fields
+     * or of corrupt shapes would be the same mistake the query post-condition made
+     * four times before it was replaced by one rule that needs no list.
+     *
+     * The two paths that can degrade instead of failing do so before reaching here:
+     * query-jobs skips the unreadable job and counts it, and get-job answers as it
+     * does for an id that resolves to nothing. This catches what neither foresaw.
+     *
+     * The message is deliberately generic. The exception text used to reach every
+     * logged-in subscriber over REST and every MCP client as an isError block, and a
+     * raw PHP engine string is neither something a caller can act on nor something a
+     * site owner wants published; it goes to the log instead.
+     *
+     * @since 1.4.0
+     *
+     * @param callable $body     The ability body to run.
+     * @param string   $ability  Ability name, for the log line.
+     * @return array<string, mixed>|WP_Error The body's result, or an error.
+     */
+    function jpkcom_acf_jobs_ability_boundary( callable $body, string $ability ): array|WP_Error {
+
+        try {
+
+            return $body();
+
+        } catch ( \Throwable $e ) {
+
+            jpkcom_acf_jobs_ability_log(
+                $ability . ' failed while reading stored data: ' . $e->getMessage()
+            );
+
+            // A site-side data condition, not a caller mistake: no change to the
+            // request fixes it, so a 4xx would send an agent into a correction loop
+            // that cannot terminate. rest_ensure_response() defaults to 500 without
+            // data[status], but silently - set on purpose so the intent survives.
+            return jpkcom_acf_jobs_ability_error(
+                'jpkcom_acf_jobs_read_failed',
+                __( 'This site holds a stored value for one of the requested jobs that cannot be read. This is a data condition on the site, not a problem with the request, so repeating the call unchanged will not help; the details are in the site error log. Other jobs are unaffected.', 'jpkcom-acf-jobs' ),
+                500
+            );
+
+        }
+
+    }
+}
+
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters' ) ) {
+    /**
+     * list-filters, behind the callback boundary
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $input Validated ability input.
+     * @return array<string, mixed>|WP_Error The vocabulary, or an error.
+     */
+    function jpkcom_acf_jobs_ability_list_filters( mixed $input = null ): array|WP_Error {
+        return jpkcom_acf_jobs_ability_boundary(
+            static fn(): array|WP_Error => jpkcom_acf_jobs_ability_list_filters_inner( $input ),
+            'jpkcom-acf-jobs/list-filters'
+        );
+    }
+}
+
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs' ) ) {
+    /**
+     * query-jobs, behind the callback boundary
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $input Validated ability input.
+     * @return array<string, mixed>|WP_Error The listing, or an error.
+     */
+    function jpkcom_acf_jobs_ability_query_jobs( mixed $input = null ): array|WP_Error {
+        return jpkcom_acf_jobs_ability_boundary(
+            static fn(): array|WP_Error => jpkcom_acf_jobs_ability_query_jobs_inner( $input ),
+            'jpkcom-acf-jobs/query-jobs'
+        );
+    }
+}
+
+
+if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job' ) ) {
+    /**
+     * get-job, behind the callback boundary
+     *
+     * @since 1.4.0
+     *
+     * @param mixed $input Validated ability input.
+     * @return array<string, mixed>|WP_Error The record, or an error.
+     */
+    function jpkcom_acf_jobs_ability_get_job( mixed $input = null ): array|WP_Error {
+        return jpkcom_acf_jobs_ability_boundary(
+            static fn(): array|WP_Error => jpkcom_acf_jobs_ability_get_job_inner( $input ),
+            'jpkcom-acf-jobs/get-job'
+        );
+    }
+}
+
 
 add_action( 'wp_abilities_api_categories_init', 'jpkcom_acf_jobs_register_ability_category' );
 add_action( 'wp_abilities_api_init', 'jpkcom_acf_jobs_register_abilities' );

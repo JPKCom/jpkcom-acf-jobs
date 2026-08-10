@@ -3519,4 +3519,157 @@ function the_verdict_query_calls_the_builder(): void {
 
 the_verdict_query_calls_the_builder();
 
+// ---------------------------------------------------------------------------
+// A stored value ACF cannot read must not take the ability down
+// ---------------------------------------------------------------------------
+//
+// The throw happens INSIDE ACF, while it reads: acf_maybe_get() for checkbox and
+// select, acf_field_flexible_content->load_value() for layout content. Nothing on
+// the plugin's side of that call can inspect the value first, and the file's
+// "read unformatted" rule does not help — have_rows() has no formatted argument
+// at all. So the class cannot be closed by checking shapes; it is closed by not
+// letting a Throwable leave a callback, which is the wrapper core only gained in
+// 7.0 and this plugin's declared 6.9 floor therefore has to bring itself.
+//
+// Measured on a checksum-verified 6.9.4 core: one postmeta row holding
+// [['FULL_TIME']] made query-jobs a blank 500 for every caller with no input at
+// all, permanently, on whichever page the job fell — page 1 answering 200 and
+// page 3 answering 500 on the same corpus.
+
+$GLOBALS['jpkcom_test_posts'][ 8801 ] = new WP_Post( 8801, 'Readable job', 'publish', 'job' );
+$GLOBALS['jpkcom_test_posts'][ 8802 ] = new WP_Post( 8802, 'Corrupt job', 'publish', 'job' );
+
+$GLOBALS['jpkcom_test_fields'][ 8801 ] = [ 'job_featured' => 1 ];
+$GLOBALS['jpkcom_test_fields'][ 8802 ] = [
+	'job_featured' => 1,
+	// What an importer, a migration or one UPDATE writes, and what CLAUDE.md
+	// already warns a WPML base64 round trip produces.
+	'job_type'     => new JPKCom_Test_Unreadable_Value(),
+];
+
+$threw    = false;
+$listing  = null;
+
+try {
+	$listing = jpkcom_acf_jobs_ability_query_jobs( null );
+} catch ( Throwable $e ) {
+	$threw = true;
+}
+
+chk(
+	'query-jobs does not throw when a job on the page cannot be read',
+	! $threw,
+	'On the declared 6.9 floor there is no Throwable-to-WP_Error wrapper in core, so an '
+	. 'exception out of an ability callback is an uncaught fatal: a blank 500 with no body, '
+	. 'no code and nothing an agent can act on, triggerable by any logged-in subscriber.'
+);
+
+chk(
+	'and it still answers, rather than failing the whole call',
+	is_array( $listing ),
+	'One corrupt row must not remove the ability for the whole corpus. The failure follows '
+	. 'whichever page the job falls on, so a paginating client hits a wall it cannot skip.'
+);
+
+$returned_ids = is_array( $listing ) ? array_column( $listing['jobs'] ?? [], 'id' ) : [];
+
+chk(
+	'the readable job beside it is still returned',
+	in_array( 8801, $returned_ids, true ),
+	'Degrading the corrupt record is only worth doing if the rest of the page survives it.'
+);
+
+chk(
+	'the unreadable job is left out rather than half-built',
+	! in_array( 8802, $returned_ids, true ),
+	'A partial record would be a job whose type silently disappeared — a wrong answer is '
+	. 'worse than a missing one, because nothing marks it as wrong.'
+);
+
+chk(
+	'and the answer says how many it dropped',
+	1 === ( $listing['unreadable_total'] ?? null ),
+	'Silently omitting rows reads as "these are all the jobs". The count is scoped to this '
+	. 'answer, not to the site, and it names no ID — which one it was is exactly what must '
+	. 'not be disclosed, see the get-job assertion below.'
+);
+
+// get-job must answer identically for "corrupt" and for "does not exist". The
+// gate's guarantee is that the two are indistinguishable, so the ability cannot
+// be used to find out which IDs are real.
+$unknown_id = jpkcom_acf_jobs_ability_get_job( [ 'id' => 987654 ] );
+$corrupt_id = jpkcom_acf_jobs_ability_get_job( [ 'id' => 8802 ] );
+
+chk(
+	'get-job on an unreadable job answers exactly as it does on an unknown id',
+	$unknown_id instanceof WP_Error
+		&& $corrupt_id instanceof WP_Error
+		&& $unknown_id->get_error_code() === $corrupt_id->get_error_code()
+		&& $unknown_id->get_error_message() === $corrupt_id->get_error_message(),
+	'"Does not exist" and "not readable" return the same thing so get-job cannot be used to '
+	. 'probe which IDs exist. Giving corrupt rows their own error would repair one defect by '
+	. 'reopening another.'
+);
+
+chk(
+	'get-job does not throw on an unreadable job',
+	$corrupt_id instanceof WP_Error,
+	'It has to come back as a value rather than as a Throwable, whatever the value says.'
+);
+
+// The boundary itself. list-filters has no per-job guard — it reads the company
+// and location fields of every job to build its vocabulary — so it is where an
+// unforeseen throw actually lands, and it is the right probe for the backstop.
+// The backstop exists precisely for paths nobody enumerated; testing it through
+// a path we did enumerate would prove less than it appears to.
+$GLOBALS['jpkcom_test_fields'][ 184 ]['job_company'] = new JPKCom_Test_Unreadable_Value( 'boundary probe' );
+
+$threw_list = false;
+$filters    = null;
+
+try {
+	$filters = jpkcom_acf_jobs_ability_list_filters( null );
+} catch ( Throwable $e ) {
+	$threw_list = true;
+}
+
+chk(
+	'list-filters does not throw when a stored value cannot be read',
+	! $threw_list,
+	'This is the path with no per-job guard, so it is the one the callback boundary has to '
+	. 'catch. On 6.9 an escaping Throwable is a blank 500; the guarantee the file\'s own '
+	. 'docblock already makes — "every callback returns a WP_Error rather than throwing" — '
+	. 'was not true before this.'
+);
+
+chk(
+	'and it reports a server-side condition rather than a caller mistake',
+	$filters instanceof WP_Error
+		&& 500 === ( $filters->get_error_data()['status'] ?? null ),
+	'A corrupt stored value is the site\'s problem and no change to the request fixes it, so '
+	. '400 would send an agent into a correction loop that cannot terminate. Without '
+	. 'data[status] rest_ensure_response() defaults to 500 anyway — but silently, so the '
+	. 'status is set on purpose to survive a refactor.'
+);
+
+chk(
+	'the message does not hand back the raw engine string',
+	$filters instanceof WP_Error
+		&& ! str_contains( $filters->get_error_message(), 'Cannot access offset' )
+		&& ! str_contains( $filters->get_error_message(), 'boundary probe' ),
+	'Before this, the exception text reached any logged-in subscriber over REST and every '
+	. 'MCP client as an isError block. A PHP engine message is not something a caller can '
+	. 'act on and not something a site owner wants published.'
+);
+
+unset( $GLOBALS['jpkcom_test_fields'][ 184 ]['job_company'] );
+
+unset(
+	$GLOBALS['jpkcom_test_posts'][ 8801 ],
+	$GLOBALS['jpkcom_test_posts'][ 8802 ],
+	$GLOBALS['jpkcom_test_fields'][ 8801 ],
+	$GLOBALS['jpkcom_test_fields'][ 8802 ],
+	$GLOBALS['jpkcom_test_fields'][ 184 ]['job_type']
+);
+
 summary();
