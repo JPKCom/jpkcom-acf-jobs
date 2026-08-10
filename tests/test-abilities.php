@@ -3527,6 +3527,29 @@ function the_verdict_query_calls_the_builder(): void {
 
 the_verdict_query_calls_the_builder();
 
+// STRUCTURAL: `s` must not be a commitment at all. The eight terms below are a
+// regression net, but a net made of examples goes stale — core applies FOUR
+// transformations to `s` (blanking over 1600 bytes at class-wp-query.php:868,
+// stripslashes at :1429, a conditional urldecode at :1431, a CR/LF strip at
+// :1434) and any list of sample terms covers the ones someone thought of. What
+// cannot go stale is that the value is never compared after the run.
+$s_committed = jpkcom_acf_jobs_ability_query_commitments( [ 's' => 'anything', 'meta_key' => 'job_featured' ] );
+
+chk(
+	'`s` is not recorded as a commitment',
+	! isset( $s_committed['scalars']['s'] ),
+	'Core rewrites s in place between the commitment and the post-run read, so comparing it '
+	. 'refused legitimate terms with a 500 blaming a site callback that did not exist. '
+	. 'Reimplementing the four transformations would hold until a release changed one, silently.'
+);
+
+chk(
+	'`meta_key` still is — core does not rewrite it',
+	isset( $s_committed['scalars']['meta_key'] ),
+	'Verified against class-wp-query.php: no assignment to meta_key anywhere in it. Dropping '
+	. 'both would have given away the half that works.'
+);
+
 // A search term core itself rewrites must not be read as a site callback tampering.
 // WP_Query::parse_search() does stripslashes( $query_vars['s'] ) in place
 // (class-wp-query.php:1429, same line on 6.9.4 and 7.0.3), plus a conditional
