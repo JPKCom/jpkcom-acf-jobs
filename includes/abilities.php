@@ -3064,6 +3064,53 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs_inner' ) )
 
             $query = new WP_Query( $args );
 
+            // The same question, asked of the artifact that can answer it.
+            //
+            // The check above reads $args, and pre_get_posts fires INSIDE
+            // get_posts(): it holds the query by reference, and WP_Query::set()
+            // replaces rather than merges, so a site callback doing
+            // $q->set( 'meta_query', ... ) without an is_main_query() guard removed
+            // every clause this ability built while the argument array it was handed
+            // still contained them. Measured on WP 7.0.2: HTTP 200,
+            // filters.job_type still ["FULL_TIME"], no job_type LIKE and no expiry
+            // clause in the executed statement, and both "read what came back"
+            // checks passing by construction - 5 rows is not more than a page of 5,
+            // and a total of 42 is not less than 5.
+            //
+            // $query->query_vars is assigned after the hook has run, so it is what
+            // the query actually asked. Deliberately the SAME comparison rather than
+            // a new one: four earlier attempts each enumerated a property of a clause
+            // and each was broken one layer deeper, and the fifth deleted the list in
+            // favour of one question - is the query that ran the query this ability
+            // built. That question was simply being asked of the wrong array.
+            //
+            // KNOWN LIMIT, stated rather than papered over: this closes the clause
+            // route. A callback that rewrites `paged`, `offset`, `orderby` or the
+            // page size still produces a response whose numbers are internally
+            // plausible and whose window is not the one reported. Those are not
+            // clauses and no comparison here can see them; see CLAUDE.md point 9 for
+            // why the answer to that is a corrected claim and not a fourth, fifth
+            // and sixth check.
+            $executed = jpkcom_acf_jobs_ability_query_divergence( $committed, $query->query_vars );
+
+            if ( $executed !== '' ) {
+
+                jpkcom_acf_jobs_ability_log(
+                    'The ' . $executed . ' filter did not survive into the query that ran.'
+                );
+
+                return jpkcom_acf_jobs_ability_error(
+                    'jpkcom_acf_jobs_filter_not_applied',
+                    sprintf(
+                        /* translators: %s: name of the filter axis. */
+                        __( 'The "%s" filter was accepted, but the query this site executed is not the one this ability built, so no result is returned. A site callback may add to that query and may not alter what it already asks. An unfiltered list is deliberately not sent in its place: it would be presented as a filtered answer.', 'jpkcom-acf-jobs' ),
+                        $executed
+                    ),
+                    500
+                );
+
+            }
+
             $posts       = is_array( value: $query->posts ) ? $query->posts : [];
             $total       = (int) $query->found_posts;
             $total_pages = (int) $query->max_num_pages;

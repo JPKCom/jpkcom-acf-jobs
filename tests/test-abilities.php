@@ -3528,6 +3528,79 @@ function the_verdict_query_calls_the_builder(): void {
 the_verdict_query_calls_the_builder();
 
 // ---------------------------------------------------------------------------
+// The clause guarantee has to be checked against what RAN, not what was passed
+// ---------------------------------------------------------------------------
+//
+// jpkcom_acf_jobs_ability_query_divergence() compares the committed clauses
+// against $args — before new WP_Query( $args ). pre_get_posts fires INSIDE
+// get_posts(), holds the query by reference, and WP_Query::set() replaces rather
+// than merges, so a site callback that does $q->set( 'meta_query', ... ) without
+// an is_main_query() guard removed every clause the ability built and the check
+// above could not see it. Measured: HTTP 200, filters.job_type still
+// ["FULL_TIME"], the executed statement carrying no job_type LIKE and no expiry
+// clause, and both "read what came back" checks passing by construction —
+// count(posts) 5 is not greater than per_page 5, and total 42 is not less than 5.
+// That is verbatim the defect the feature exists to prevent.
+//
+// The fix is the same comparison against the query object's own query_vars after
+// the run, which do reflect the hook. Not a new mechanism and not a list of vars
+// to watch: the previous four attempts each enumerated a property and each was
+// broken one layer deeper, and the fifth replaced the list with one question —
+// is the query that ran the query this ability built. This asks that question of
+// the right artifact.
+
+$GLOBALS['jpkcom_test_pre_get_posts'] = static function ( array $args ): array {
+	// The ordinary additive idiom, without an is_main_query() guard. A benign
+	// site snippet, not a misbehaving plugin — the plugin's own archive.php
+	// registers a callback of this shape.
+	$args['meta_query'] = [ [ 'key' => 'something_else', 'compare' => 'EXISTS' ] ];
+
+	return $args;
+};
+
+$hijacked = jpkcom_acf_jobs_ability_query_jobs( [ 'job_type' => [ 'FULL_TIME' ], 'per_page' => 5 ] );
+
+$GLOBALS['jpkcom_test_pre_get_posts'] = null;
+
+chk(
+	'a pre_get_posts that replaces meta_query is refused, not answered',
+	$hijacked instanceof WP_Error,
+	'Answering would hand an MCP client the whole corpus labelled as a filtered result. The '
+	. 'existing argument-level check passes here by construction, because the argument array '
+	. 'it inspects is not what ran.'
+);
+
+chk(
+	'and it is reported as a site condition the caller cannot fix',
+	$hijacked instanceof WP_Error
+		&& 500 === ( $hijacked->get_error_data()['status'] ?? null )
+		&& 'jpkcom_acf_jobs_filter_not_applied' === $hijacked->get_error_code(),
+	'Same code and status as the argument-level divergence: it is the same guarantee failing, '
+	. 'and nothing the caller sends can cause or avoid it.'
+);
+
+$GLOBALS['jpkcom_test_pre_get_posts'] = static function ( array $args ): array {
+	// Adding is explicitly allowed — the contract is that a site may add to the
+	// query and may not alter what it already asks.
+	$args['meta_query'][] = [ 'key' => 'extra', 'compare' => 'EXISTS' ];
+
+	return $args;
+};
+
+$added = jpkcom_acf_jobs_ability_query_jobs( [ 'job_type' => [ 'FULL_TIME' ], 'per_page' => 5 ] );
+
+$GLOBALS['jpkcom_test_pre_get_posts'] = null;
+
+chk(
+	'a pre_get_posts that only ADDS a clause is still answered',
+	is_array( $added ),
+	'The guarantee is that the ability\'s own clauses survive unchanged, not that the site may '
+	. 'not participate. A guard that refused any site callback would break the documented '
+	. 'jpkcom_acf_jobs_ability_query_args contract as a side effect.'
+);
+
+
+// ---------------------------------------------------------------------------
 // What the surface declares and what it will accept must be the same thing
 // ---------------------------------------------------------------------------
 

@@ -533,8 +533,29 @@ reading `WP_Query::get_posts()` shows 34 vars that assign over another. Deleting
 extending it. **Do not reintroduce an enumeration here.**
 
 `pre_get_posts` is the one route non-carriage cannot close — it fires inside `get_posts()` and holds
-the query by reference. Two checks therefore read what came *back* and name no variable: more rows
-than the reported page can hold, or a total smaller than the jobs beside it.
+the query by reference. The clause guarantee is therefore checked **twice with the same comparison**:
+once against the arguments, and once against `$query->query_vars` after the run, which is what the
+query actually asked. Asking the second time is not a second mechanism; the first version asked the
+right question of the wrong array, and a callback replacing `meta_query` — `WP_Query::set()` replaces,
+it does not merge — deleted every clause while the argument array still held them. Measured: HTTP 200,
+`filters.job_type` still `["FULL_TIME"]`, no job_type LIKE in the executed statement.
+
+**What this does NOT close, and why nothing here will.** A callback that rewrites `paged`, `offset`,
+`orderby` or the page size produces a response whose numbers are internally plausible and whose window
+is not the one reported: page 1 returning page 3's rows, a shifted offset making rows unreachable
+through any page number, `orderby => rand` making three pages yield seven distinct jobs out of nine
+while every page insists the set is complete. None of those are clauses, and the two "read what came
+back" checks — more rows than the page can hold, or a total smaller than the jobs beside it — are
+blind to all of them by construction.
+
+Three checks were considered and rejected, on purpose. Comparing every query var after the run fails
+because `WP_Query` legitimately rewrites its own (`showposts` → `posts_per_page`, `paged`
+normalisation, `orderby` defaults), which is what broke the earlier attempts. Arithmetic
+self-consistency (`total_pages === ceil( total / per_page )`) catches exactly one of the five measured
+cases. And a check per case is the pattern this file's own history names as the most expensive mistake
+of the release. **So `filters` in the response describes the REQUEST, not the executed query, and a
+site whose callbacks rewrite paging or ordering gets an answer whose window this ability cannot
+vouch for.** That is the honest statement, and it belongs in the schema rather than in a fourth guard.
 
 **10. A caller mistake is 400; a site misconfiguration is 500.** The REST run controller returns the
 `WP_Error` verbatim and `rest_ensure_response()` defaults to **500** without `data['status']`. That
