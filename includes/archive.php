@@ -40,40 +40,16 @@ add_action( 'pre_get_posts', function( $query ): void {
 
     if ( ! is_admin() && $query->is_main_query() && is_post_type_archive( 'job' ) ) {
 
-        $meta_query = [
-            'relation' => 'AND',
-            [
-                'key'     => 'job_featured',
-                'compare' => 'EXISTS',
-            ],
-            [
-                'relation' => 'OR',
-                [
-                    'key'     => 'job_expiry_date',
-                    // Site timezone, not UTC - see shortcodes.php for the rationale.
-                    'value'   => current_time( 'Y-m-d' ),
-                    'compare' => '>=',
-                    'type'    => 'DATE',
-                ],
-                [
-                    'key'     => 'job_expiry_date',
-                    'compare' => 'NOT EXISTS',
-                ],
-                [
-                    'key'     => 'job_expiry_date',
-                    'value'   => '',
-                    'compare' => '=',
-                ],
-            ],
-        ];
+        // The rule itself lives in includes/jobs-data.php, shared with the
+        // [jpkcom_acf_jobs_list] shortcode and the Abilities API. No post_status is
+        // set here on purpose: a front-end main query defers to core visibility, so
+        // an editor still sees their own drafts and private jobs where core allows
+        // it. Only the shortcode and the abilities pin 'publish'.
+        $shared = jpkcom_acf_jobs_build_job_query_args();
 
-        $query->set( 'meta_query', $meta_query );
-
-        $query->set( 'meta_key', 'job_featured' );
-        $query->set( 'orderby', [
-            'meta_value_num' => 'DESC',
-            'date'           => 'DESC',
-        ] );
+        $query->set( 'meta_query', $shared['meta_query'] );
+        $query->set( 'meta_key', $shared['meta_key'] );
+        $query->set( 'orderby', $shared['orderby'] );
     }
 
 });

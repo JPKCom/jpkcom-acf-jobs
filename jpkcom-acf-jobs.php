@@ -3,7 +3,7 @@
 Plugin Name: JPKCom ACF Jobs
 Plugin URI: https://github.com/JPKCom/jpkcom-acf-jobs
 Description: Job application plugin for ACF
-Version: 1.3.11
+Version: 1.4.0
 Author: Jean Pierre Kolb <jpk@jpkc.com>
 Author URI: https://www.jpkc.com/
 Contributors: JPKCom
@@ -13,7 +13,7 @@ Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
 Network: true
-Stable tag: 1.3.11
+Stable tag: 1.4.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: jpkcom-acf-jobs
@@ -32,7 +32,7 @@ if ( ! defined( constant_name: 'WPINC' ) ) {
  * @since 1.0.0
  */
 if ( ! defined( 'JPKCOM_ACFJOBS_VERSION' ) ) {
-	define( 'JPKCOM_ACFJOBS_VERSION', '1.3.11' );
+	define( 'JPKCOM_ACFJOBS_VERSION', '1.4.0' );
 }
 
 if ( ! defined( 'JPKCOM_ACFJOBS_BASENAME' ) ) {
@@ -45,6 +45,10 @@ if ( ! defined( 'JPKCOM_ACFJOBS_PLUGIN_PATH' ) ) {
 
 if ( ! defined( 'JPKCOM_ACFJOBS_PLUGIN_URL' ) ) {
 	define( 'JPKCOM_ACFJOBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+}
+
+if ( ! defined( 'JPKCOM_ACFJOBS_ABILITIES' ) ) {
+	define( 'JPKCOM_ACFJOBS_ABILITIES', true );
 }
 
 
@@ -320,6 +324,40 @@ $jpkcomAcfJobSchema = jpkcom_acfjobs_locate_file( filename: 'schema.php' );
 if ( $jpkcomAcfJobSchema ) {
 
     require_once $jpkcomAcfJobSchema;
+
+}
+
+
+/**
+ * Load job data access
+ *
+ * Provides the shared visibility rule and the job reader used by the shortcode,
+ * the archive query and the Abilities API.
+ *
+ * @since 1.4.0
+ */
+$jpkcomAcfJobData = jpkcom_acfjobs_locate_file( filename: 'jobs-data.php' );
+
+if ( $jpkcomAcfJobData ) {
+
+    require_once $jpkcomAcfJobData;
+
+}
+
+
+/**
+ * Load Abilities API integration
+ *
+ * Registers the read-only job abilities for MCP clients, REST automation and the
+ * WordPress AI client. Loaded after jobs-data.php, which it reads through.
+ *
+ * @since 1.4.0
+ */
+$jpkcomAcfJobAbilities = jpkcom_acfjobs_locate_file( filename: 'abilities.php' );
+
+if ( $jpkcomAcfJobAbilities ) {
+
+    require_once $jpkcomAcfJobAbilities;
 
 }
 
