@@ -90,3 +90,44 @@ all ACF fields of a post with Bootstrap 5 markup.</h4>
 group query. If empty, ‘current_post_type’ is used.</p>
 <div class="sourceCode" id="cb4"><pre
 class="sourceCode php"><code class="sourceCode php"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>jpkcom_render_acf_fields()<span class="ot">;</span></span></code></pre></div>
+<h3 id="abilities-api-since-1.4.0">Abilities API (since 1.4.0)</h3>
+<p>The plugin registers three <strong>read-only</strong> WordPress
+Abilities, so AI assistants, MCP clients and REST automation can query
+your job listings as structured data instead of scraping the page:</p>
+<ul>
+<li><code>jpkcom-acf-jobs/list-filters</code> — which job types,
+companies, locations and job attributes exist on this site, so a caller
+can filter with real values instead of guessing</li>
+<li><code>jpkcom-acf-jobs/query-jobs</code> — a filtered, paginated list
+of jobs</li>
+<li><code>jpkcom-acf-jobs/get-job</code> — one job in full</li>
+</ul>
+<p>Who can use them, and what they see:</p>
+<ul>
+<li>Access requires a <strong>logged-in user</strong> with the
+<code>read</code> capability — that includes subscribers. Anonymous
+requests are rejected.</li>
+<li>Only <strong>published</strong> jobs are ever returned, and only
+those your site’s own listing shows. The abilities apply exactly the
+same visibility rule as the <code>/jobs/</code> archive and the
+<code>[jpkcom_acf_jobs_list]</code> shortcode.</li>
+<li>Detailed fields — salary, postal address, application details, the
+full job description — are returned <strong>only for jobs whose detail
+page a visitor could actually open</strong>. A job that redirects to an
+external application URL, an expired job and a password-protected job
+all have no public detail page, so those fields are withheld and the
+reason is stated in the response.</li>
+<li>Note that WordPress lists the abilities themselves — their names,
+descriptions and parameter definitions — to any logged-in user. That is
+core behaviour, not a setting of this plugin.</li>
+</ul>
+<p>To switch the feature off entirely, add this to
+<code>wp-config.php</code>:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">define</span>( <span class="st">&#39;JPKCOM_ACFJOBS_ABILITIES&#39;</span><span class="ot">,</span> <span class="kw">false</span> )<span class="ot">;</span></span></code></pre></div>
+<p>To keep the abilities but restrict who may run them, raise the
+required capability:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_ability_capability&#39;</span><span class="ot">,</span> <span class="kw">static</span> <span class="kw">function</span> ( <span class="va">$capability</span> ) {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">&#39;edit_posts&#39;</span><span class="ot">;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>} )<span class="ot">;</span></span></code></pre></div>

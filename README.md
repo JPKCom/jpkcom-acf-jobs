@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.3.11  
+**Version:** 1.4.0  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.3.11  
+**Stable tag:** 1.4.0  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -98,6 +98,44 @@ All shortcode attributes are optional.
 
 ```php
 jpkcom_render_acf_fields();
+```
+
+### Abilities API (since 1.4.0)
+
+The plugin registers three **read-only** WordPress Abilities, so AI assistants, MCP clients and REST
+automation can query your job listings as structured data instead of scraping the page:
+
+- `jpkcom-acf-jobs/list-filters` — which job types, companies, locations and job attributes exist on
+  this site, so a caller can filter with real values instead of guessing
+- `jpkcom-acf-jobs/query-jobs` — a filtered, paginated list of jobs
+- `jpkcom-acf-jobs/get-job` — one job in full
+
+Who can use them, and what they see:
+
+- Access requires a **logged-in user** with the `read` capability — that includes subscribers. Anonymous
+  requests are rejected.
+- Only **published** jobs are ever returned, and only those your site's own listing shows. The abilities
+  apply exactly the same visibility rule as the `/jobs/` archive and the `[jpkcom_acf_jobs_list]`
+  shortcode.
+- Detailed fields — salary, postal address, application details, the full job description — are returned
+  **only for jobs whose detail page a visitor could actually open**. A job that redirects to an external
+  application URL, an expired job and a password-protected job all have no public detail page, so those
+  fields are withheld and the reason is stated in the response.
+- Note that WordPress lists the abilities themselves — their names, descriptions and parameter
+  definitions — to any logged-in user. That is core behaviour, not a setting of this plugin.
+
+To switch the feature off entirely, add this to `wp-config.php`:
+
+```php
+define( 'JPKCOM_ACFJOBS_ABILITIES', false );
+```
+
+To keep the abilities but restrict who may run them, raise the required capability:
+
+```php
+add_filter( 'jpkcom_acf_jobs_ability_capability', static function ( $capability ) {
+    return 'edit_posts';
+} );
 ```
 
 ## FAQ
@@ -317,6 +355,24 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.4.0
+* Added: three read-only WordPress Abilities — `jpkcom-acf-jobs/list-filters`, `jpkcom-acf-jobs/query-jobs` and `jpkcom-acf-jobs/get-job` — so AI assistants, MCP clients and REST automation can read your job listings as structured data instead of scraping the page. They are on by default for logged-in users with the `read` capability and can be switched off with `define( 'JPKCOM_ACFJOBS_ABILITIES', false )`; see the Abilities API section above
+* Added: `jpkcom_acf_jobs_ability_meta`, `jpkcom_acf_jobs_ability_capability` and `jpkcom_acf_jobs_ability_query_args` filters, so a site can change which abilities are exposed, who may run them, and what their query contains
+* Added: the abilities return only jobs your site's own listing shows, and withhold salary, address and application details for jobs that have no public detail page — one that redirects to an external application URL, one that has expired, or one that is password-protected
+* Added: `includes/jobs-data.php`, which now holds the job visibility rule that previously existed as three separate copies — in the `[jpkcom_acf_jobs_list]` shortcode, in the job archive query, and about to become a fourth. The shortcode and the archive return exactly what they returned before; this was verified by comparing the generated SQL, the returned post IDs and the rendered HTML before and after the change
+* Hardened: a single job whose stored data is corrupt — the usual causes are an import, a migration or a translation copy — no longer takes the whole listing down. It used to make the query answer with a blank server error for every caller, on whichever page that job fell, until someone repaired the data. The job is now left out of the list, the rest of the page answers normally, and the response says how many were left out
+* Hardened: asking for one job whose *detail* data is unreadable now returns that job's summary with a stated reason instead of claiming the job does not exist — which it did while the listing was showing that same job
+* Fixed: the visibility figures beside the filter list were wrong on any site whose jobs have no expiry date, which is the ordinary case once the date field has been saved and cleared. Every such job was counted as expired while the same response listed it, so the numbers could add up to more jobs than the site has. They are now derived from the listing rule itself and add up exactly
+* Changed: the job query no longer returns a site-wide visibility block beside a filtered result. The figures never changed with the filters, so reading them next to a filtered total suggested jobs that do not exist. They remain on the filter-list ability, where they describe the site
+* Fixed: `include_closed` — the only switch that changes which jobs come back — could not be sent over the REST route at all, because that route accepts only GET and the parameter demanded a strict true/false. It now accepts the same spellings every other WordPress REST endpoint does
+* Fixed: the filter-list ability published an input description that is not valid JSON Schema, which made strict AI clients reject the tool — and with it the other two, since a client that refuses one entry can refuse the whole list. A later attempt at that fix briefly made any request with an unrecognised parameter answer with a server error, without credentials; both are closed
+* Fixed: a parameter the abilities do not accept — a typo, or a filter sent at the wrong nesting level — used to be ignored silently, so the answer was every job on the site presented as a filtered result. All three abilities now refuse it and name what they accept
+* Fixed: the search description promised to cover job content. It searches titles only, because this plugin stores job text in ACF fields; a search that found nothing was being read as proof that no such job exists. The description now says what it does not reach and points at the filters that do
+* Hardened: if another plugin alters the job query after this one has built it, the abilities now detect that the query which ran is not the query they built and refuse to answer, rather than returning an unfiltered list labelled as a filtered one. What they cannot detect — a plugin that changes only paging, ordering or the search term — is documented rather than implied
+* Added: `tools/seed-jobs.php` and `tools/unseed-jobs.php` for creating and removing the edge-case job fixtures a test installation needs
+* Fixed: the source-level guards in `tests/test-conventions.php` matched only one spelling of the date rule, so `gmdate( 'Y-m-d' )` and `date( 'Y-m-d', $timestamp )` both slipped past although each carries the timezone bug the rule exists to prevent. They also scanned `includes/` alone, and the taxonomy guard could not see the `'taxonomy' => '…'` array form. All three gaps are closed
+* Note for developers: reading an ACF wysiwyg field with the default two-argument `get_field()` runs WordPress's shortcode and oEmbed pipeline, which for a job description containing a bare URL performs an outbound HTTP request and creates a database row. Every long-form field in this plugin is now read unformatted, and a test fails the build if that changes. `CLAUDE.md` documents this and eleven further traps in detail
 
 ### 1.3.11
 * Fixed: the debug schema template printed an untranslated German sentence after the translated parse-error message; it now prints the translated message alone, escaped with `esc_html__()`

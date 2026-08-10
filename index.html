@@ -97,7 +97,7 @@
 <strong>Plugin URI:</strong>
 https://github.com/JPKCom/jpkcom-acf-jobs<br />
 <strong>Description:</strong> Job application plugin for ACF<br />
-<strong>Version:</strong> 1.3.11<br />
+<strong>Version:</strong> 1.4.0<br />
 <strong>Author:</strong> Jean Pierre Kolb <a href="mailto:jpk@jpkc.com"
 class="email">jpk@jpkc.com</a><br />
 <strong>Author URI:</strong> https://www.jpkc.com/<br />
@@ -109,7 +109,7 @@ acf-quickedit-fields<br />
 <strong>Tested up to:</strong> 7.1<br />
 <strong>Requires PHP:</strong> 8.3<br />
 <strong>Network:</strong> true<br />
-<strong>Stable tag:</strong> 1.3.11<br />
+<strong>Stable tag:</strong> 1.4.0<br />
 <strong>License:</strong> GPL-2.0-or-later<br />
 <strong>License URI:</strong>
 https://www.gnu.org/licenses/gpl-2.0.html<br />
@@ -209,6 +209,47 @@ all ACF fields of a post with Bootstrap 5 markup.</h4>
 group query. If empty, ‘current_post_type’ is used.</p>
 <div class="sourceCode" id="cb4"><pre
 class="sourceCode php"><code class="sourceCode php"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>jpkcom_render_acf_fields()<span class="ot">;</span></span></code></pre></div>
+<h3 id="abilities-api-since-1.4.0">Abilities API (since 1.4.0)</h3>
+<p>The plugin registers three <strong>read-only</strong> WordPress
+Abilities, so AI assistants, MCP clients and REST automation can query
+your job listings as structured data instead of scraping the page:</p>
+<ul>
+<li><code>jpkcom-acf-jobs/list-filters</code> — which job types,
+companies, locations and job attributes exist on this site, so a caller
+can filter with real values instead of guessing</li>
+<li><code>jpkcom-acf-jobs/query-jobs</code> — a filtered, paginated list
+of jobs</li>
+<li><code>jpkcom-acf-jobs/get-job</code> — one job in full</li>
+</ul>
+<p>Who can use them, and what they see:</p>
+<ul>
+<li>Access requires a <strong>logged-in user</strong> with the
+<code>read</code> capability — that includes subscribers. Anonymous
+requests are rejected.</li>
+<li>Only <strong>published</strong> jobs are ever returned, and only
+those your site’s own listing shows. The abilities apply exactly the
+same visibility rule as the <code>/jobs/</code> archive and the
+<code>[jpkcom_acf_jobs_list]</code> shortcode.</li>
+<li>Detailed fields — salary, postal address, application details, the
+full job description — are returned <strong>only for jobs whose detail
+page a visitor could actually open</strong>. A job that redirects to an
+external application URL, an expired job and a password-protected job
+all have no public detail page, so those fields are withheld and the
+reason is stated in the response.</li>
+<li>Note that WordPress lists the abilities themselves — their names,
+descriptions and parameter definitions — to any logged-in user. That is
+core behaviour, not a setting of this plugin.</li>
+</ul>
+<p>To switch the feature off entirely, add this to
+<code>wp-config.php</code>:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">define</span>( <span class="st">&#39;JPKCOM_ACFJOBS_ABILITIES&#39;</span><span class="ot">,</span> <span class="kw">false</span> )<span class="ot">;</span></span></code></pre></div>
+<p>To keep the abilities but restrict who may run them, raise the
+required capability:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_ability_capability&#39;</span><span class="ot">,</span> <span class="kw">static</span> <span class="kw">function</span> ( <span class="va">$capability</span> ) {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">&#39;edit_posts&#39;</span><span class="ot">;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>} )<span class="ot">;</span></span></code></pre></div>
 <h2 id="faq">FAQ</h2>
 <h3 id="why-do-i-need-advanced-custom-fields-pro">Why do I need Advanced
 Custom Fields Pro?</h3>
@@ -269,34 +310,34 @@ active).</p>
 site-wide customization.</p>
 <h3 id="how-to-overwrite-functional-libraries">How to overwrite
 functional libraries?</h3>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode php"><code class="sourceCode php"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add new path for overwrites of functional libraries</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acfjobs_file_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$filename</span> ) {</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-overrides/&#39;</span> <span class="op">.</span> <span class="va">$filename</span> )<span class="ot">;</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
-<h3 id="how-to-overwrite-template-paths-programmatically">How to
-overwrite template paths programmatically?</h3>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode php"><code class="sourceCode php"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add a new path, for example from the child theme or custom directory</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_template_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$template_name</span> ) {</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-templates/jpkcom-acf-jobs/&#39;</span> <span class="op">.</span> <span class="va">$template_name</span> )<span class="ot">;</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode php"><code class="sourceCode php"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Last chance to dynamically overwrite template path</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add new path for overwrites of functional libraries</span></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_final_template&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$template</span> ) {</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ( is_singular( <span class="st">&#39;job&#39;</span> ) ) {</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/special/single-job-custom.php&#39;</span><span class="ot">;</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$template</span><span class="ot">;</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>})<span class="ot">;</span></span></code></pre></div>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acfjobs_file_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$filename</span> ) {</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-overrides/&#39;</span> <span class="op">.</span> <span class="va">$filename</span> )<span class="ot">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
+<h3 id="how-to-overwrite-template-paths-programmatically">How to
+overwrite template paths programmatically?</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Add a new path, for example from the child theme or custom directory</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_template_paths&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="va">$template_name</span> ) {</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">array_unshift</span>( <span class="va">$paths</span><span class="ot">,</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/custom-templates/jpkcom-acf-jobs/&#39;</span> <span class="op">.</span> <span class="va">$template_name</span> )<span class="ot">;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$paths</span><span class="ot">;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>}<span class="ot">,</span> <span class="dv">10</span><span class="ot">,</span> <span class="dv">2</span> )<span class="ot">;</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">/**</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * Last chance to dynamically overwrite template path</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>add_filter( <span class="st">&#39;jpkcom_acf_jobs_final_template&#39;</span><span class="ot">,</span> <span class="kw">function</span>( <span class="va">$template</span> ) {</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ( is_singular( <span class="st">&#39;job&#39;</span> ) ) {</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cn">WP_CONTENT_DIR</span> <span class="op">.</span> <span class="st">&#39;/special/single-job-custom.php&#39;</span><span class="ot">;</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">$template</span><span class="ot">;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>})<span class="ot">;</span></span></code></pre></div>
 <h3 id="how-do-plugin-updates-work">How do plugin updates work?</h3>
 <p>The plugin uses a secure GitHub-based update system. When a new
 version is released:</p>
@@ -387,9 +428,9 @@ Releases page</a></li>
 </ol>
 <h3 id="method-3-github-clone-for-developers">Method 3: GitHub Clone
 (For Developers)</h3>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/wordpress/wp-content/plugins/</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/JPKCom/jpkcom-acf-jobs.git</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /path/to/wordpress/wp-content/plugins/</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/JPKCom/jpkcom-acf-jobs.git</span></code></pre></div>
 <p>Then activate the plugin in the WordPress admin panel.</p>
 <h3 id="post-installation-steps">Post-Installation Steps</h3>
 <ol type="1">
@@ -440,7 +481,101 @@ your theme supports Bootstrap 5 markup, or customize the templates -
 Enable <code>WP_DEBUG</code> to load debug templates for
 troubleshooting</p>
 <h2 id="changelog">Changelog</h2>
-<h3 id="section">1.3.11</h3>
+<h3 id="section">1.4.0</h3>
+<ul>
+<li>Added: three read-only WordPress Abilities —
+<code>jpkcom-acf-jobs/list-filters</code>,
+<code>jpkcom-acf-jobs/query-jobs</code> and
+<code>jpkcom-acf-jobs/get-job</code> — so AI assistants, MCP clients and
+REST automation can read your job listings as structured data instead of
+scraping the page. They are on by default for logged-in users with the
+<code>read</code> capability and can be switched off with
+<code>define( 'JPKCOM_ACFJOBS_ABILITIES', false )</code>; see the
+Abilities API section above</li>
+<li>Added: <code>jpkcom_acf_jobs_ability_meta</code>,
+<code>jpkcom_acf_jobs_ability_capability</code> and
+<code>jpkcom_acf_jobs_ability_query_args</code> filters, so a site can
+change which abilities are exposed, who may run them, and what their
+query contains</li>
+<li>Added: the abilities return only jobs your site’s own listing shows,
+and withhold salary, address and application details for jobs that have
+no public detail page — one that redirects to an external application
+URL, one that has expired, or one that is password-protected</li>
+<li>Added: <code>includes/jobs-data.php</code>, which now holds the job
+visibility rule that previously existed as three separate copies — in
+the <code>[jpkcom_acf_jobs_list]</code> shortcode, in the job archive
+query, and about to become a fourth. The shortcode and the archive
+return exactly what they returned before; this was verified by comparing
+the generated SQL, the returned post IDs and the rendered HTML before
+and after the change</li>
+<li>Hardened: a single job whose stored data is corrupt — the usual
+causes are an import, a migration or a translation copy — no longer
+takes the whole listing down. It used to make the query answer with a
+blank server error for every caller, on whichever page that job fell,
+until someone repaired the data. The job is now left out of the list,
+the rest of the page answers normally, and the response says how many
+were left out</li>
+<li>Hardened: asking for one job whose <em>detail</em> data is
+unreadable now returns that job’s summary with a stated reason instead
+of claiming the job does not exist — which it did while the listing was
+showing that same job</li>
+<li>Fixed: the visibility figures beside the filter list were wrong on
+any site whose jobs have no expiry date, which is the ordinary case once
+the date field has been saved and cleared. Every such job was counted as
+expired while the same response listed it, so the numbers could add up
+to more jobs than the site has. They are now derived from the listing
+rule itself and add up exactly</li>
+<li>Changed: the job query no longer returns a site-wide visibility
+block beside a filtered result. The figures never changed with the
+filters, so reading them next to a filtered total suggested jobs that do
+not exist. They remain on the filter-list ability, where they describe
+the site</li>
+<li>Fixed: <code>include_closed</code> — the only switch that changes
+which jobs come back — could not be sent over the REST route at all,
+because that route accepts only GET and the parameter demanded a strict
+true/false. It now accepts the same spellings every other WordPress REST
+endpoint does</li>
+<li>Fixed: the filter-list ability published an input description that
+is not valid JSON Schema, which made strict AI clients reject the tool —
+and with it the other two, since a client that refuses one entry can
+refuse the whole list. A later attempt at that fix briefly made any
+request with an unrecognised parameter answer with a server error,
+without credentials; both are closed</li>
+<li>Fixed: a parameter the abilities do not accept — a typo, or a filter
+sent at the wrong nesting level — used to be ignored silently, so the
+answer was every job on the site presented as a filtered result. All
+three abilities now refuse it and name what they accept</li>
+<li>Fixed: the search description promised to cover job content. It
+searches titles only, because this plugin stores job text in ACF fields;
+a search that found nothing was being read as proof that no such job
+exists. The description now says what it does not reach and points at
+the filters that do</li>
+<li>Hardened: if another plugin alters the job query after this one has
+built it, the abilities now detect that the query which ran is not the
+query they built and refuse to answer, rather than returning an
+unfiltered list labelled as a filtered one. What they cannot detect — a
+plugin that changes only paging, ordering or the search term — is
+documented rather than implied</li>
+<li>Added: <code>tools/seed-jobs.php</code> and
+<code>tools/unseed-jobs.php</code> for creating and removing the
+edge-case job fixtures a test installation needs</li>
+<li>Fixed: the source-level guards in
+<code>tests/test-conventions.php</code> matched only one spelling of the
+date rule, so <code>gmdate( 'Y-m-d' )</code> and
+<code>date( 'Y-m-d', $timestamp )</code> both slipped past although each
+carries the timezone bug the rule exists to prevent. They also scanned
+<code>includes/</code> alone, and the taxonomy guard could not see the
+<code>'taxonomy' =&gt; '…'</code> array form. All three gaps are
+closed</li>
+<li>Note for developers: reading an ACF wysiwyg field with the default
+two-argument <code>get_field()</code> runs WordPress’s shortcode and
+oEmbed pipeline, which for a job description containing a bare URL
+performs an outbound HTTP request and creates a database row. Every
+long-form field in this plugin is now read unformatted, and a test fails
+the build if that changes. <code>CLAUDE.md</code> documents this and
+eleven further traps in detail</li>
+</ul>
+<h3 id="section-1">1.3.11</h3>
 <ul>
 <li>Fixed: the debug schema template printed an untranslated German
 sentence after the translated parse-error message; it now prints the
@@ -457,7 +592,7 @@ repository are now English throughout, and the developer notes in
 <code>CLAUDE.md</code> were translated and trimmed. No effect on the
 shipped plugin</li>
 </ul>
-<h3 id="section-1">1.3.10</h3>
+<h3 id="section-2">1.3.10</h3>
 <ul>
 <li>Changed: <code>Tested up to</code> raised to WordPress 7.1</li>
 <li>Changed: the bundled updater’s runtime floor now matches the
@@ -471,14 +606,14 @@ and <code>tested</code> now say 6.9 and 7.1. They only apply when the
 README metadata cannot be read, but a stale fallback would have
 published a minimum the plugin no longer supports</li>
 </ul>
-<h3 id="section-2">1.3.9</h3>
+<h3 id="section-3">1.3.9</h3>
 <ul>
 <li>Changed: the plugin banners
 (<code>assets/banner-1544x500.avif</code>,
 <code>assets/banner-772x250.avif</code>) are now a plain
 <code>#3c4955</code> surface with no lettering</li>
 </ul>
-<h3 id="section-3">1.3.8</h3>
+<h3 id="section-4">1.3.8</h3>
 <ul>
 <li>Fixed: the attributes partial looked terms up under
 <code>job_attribute</code>, the field name, instead of
@@ -501,7 +636,7 @@ three fields the list shortcode filters is taxonomy-backed, so the
 switch made in <code>jpkcom-acf-references</code> does not apply
 here</li>
 </ul>
-<h3 id="section-4">1.3.7</h3>
+<h3 id="section-5">1.3.7</h3>
 <ul>
 <li><strong>Fixed:</strong> job expiry was compared against the UTC
 date. WordPress sets the PHP timezone to UTC, so
@@ -532,7 +667,7 @@ pull request</li>
 &amp; Correctness section it was missing — the only JPKCom plugin
 without one</li>
 </ul>
-<h3 id="section-5">1.3.6</h3>
+<h3 id="section-6">1.3.6</h3>
 <ul>
 <li>Security: update packages are now verified <em>before</em>
 installation — the verified file is handed to WordPress instead of being
@@ -557,7 +692,7 @@ instead of being retried on every admin request</li>
 <li>Added: CI workflow on every pull request (PHP lint, named-argument
 check, YAML validation, action-pinning guard)</li>
 </ul>
-<h3 id="section-6">1.3.5</h3>
+<h3 id="section-7">1.3.5</h3>
 <ul>
 <li>Fixed broken <code>&lt;main&gt;</code> element in the single job
 template: it was closed immediately after opening, leaving the entire
@@ -567,14 +702,14 @@ end of the template</li>
 passed the ACF field array where an attachment ID is expected, which
 could render an unrelated image before every company logo</li>
 </ul>
-<h3 id="section-7">1.3.4</h3>
+<h3 id="section-8">1.3.4</h3>
 <ul>
 <li>Raised the minimum WordPress version to 6.9 and “Tested up to” to
 WordPress 7.0</li>
 <li>Switched license metadata to the SPDX identifier
 <code>GPL-2.0-or-later</code> with the HTTPS license URI</li>
 </ul>
-<h3 id="section-8">1.3.3</h3>
+<h3 id="section-9">1.3.3</h3>
 <ul>
 <li>Security: prevent JSON-LD script-tag breakout (stored XSS) in
 JobPosting schema output (<code>JSON_HEX_TAG | JSON_HEX_AMP</code>, plus
@@ -594,7 +729,7 @@ completing the <code>no_update</code> transient entry
 (<code>new_version</code>, <code>package</code>, <code>tested</code>,
 <code>requires_php</code>)</li>
 </ul>
-<h3 id="section-9">1.3.2</h3>
+<h3 id="section-10">1.3.2</h3>
 <ul>
 <li>Fixed missing output escaping across all templates and debug
 templates (<code>esc_html__()</code>, <code>esc_html()</code>,
@@ -608,135 +743,135 @@ longer rendered when no previous/next post exists</li>
 <li>Fixed pagination template: archive URL now escaped with
 <code>esc_url()</code></li>
 </ul>
-<h3 id="section-10">1.3.1</h3>
+<h3 id="section-11">1.3.1</h3>
 <ul>
 <li>Fixed updater checksum verification failing on manual ZIP uploads
 (local file path instead of URL)</li>
 <li>Fixed release ZIP missing top-level directory, causing WordPress to
 not recognize the update</li>
 </ul>
-<h3 id="section-11">1.3.0</h3>
+<h3 id="section-12">1.3.0</h3>
 <ul>
 <li>Added archiv redirect options</li>
 </ul>
-<h3 id="section-12">1.2.5</h3>
+<h3 id="section-13">1.2.5</h3>
 <ul>
 <li>Added translation for “job_type”</li>
 </ul>
-<h3 id="section-13">1.2.4</h3>
+<h3 id="section-14">1.2.4</h3>
 <ul>
 <li>Added translations for ES, FR, HU, IT and PL</li>
 </ul>
-<h3 id="section-14">1.2.3</h3>
+<h3 id="section-15">1.2.3</h3>
 <ul>
 <li>Added check for “SitePress” class</li>
 </ul>
-<h3 id="section-15">1.2.2</h3>
+<h3 id="section-16">1.2.2</h3>
 <ul>
 <li>Fix for incorrect database content caused by WPML</li>
 </ul>
-<h3 id="section-16">1.2.1</h3>
+<h3 id="section-17">1.2.1</h3>
 <ul>
 <li>Fix for incorrect database content caused by WPML</li>
 </ul>
-<h3 id="section-17">1.2.0</h3>
+<h3 id="section-18">1.2.0</h3>
 <ul>
 <li>Security enhancement</li>
 <li>AI support</li>
 </ul>
-<h3 id="section-18">1.1.12</h3>
+<h3 id="section-19">1.1.12</h3>
 <ul>
 <li>Added WPML support</li>
 </ul>
-<h3 id="section-19">1.1.11</h3>
+<h3 id="section-20">1.1.11</h3>
 <ul>
 <li>Improvements to jpkcom_acfjobs_textdomain()</li>
 </ul>
-<h3 id="section-20">1.1.10</h3>
+<h3 id="section-21">1.1.10</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-21">1.1.9</h3>
+<h3 id="section-22">1.1.9</h3>
 <ul>
 <li>“display_name” for update-core.php</li>
 </ul>
-<h3 id="section-22">1.1.8</h3>
+<h3 id="section-23">1.1.8</h3>
 <ul>
 <li>“display_name” for plugin-install.php</li>
 </ul>
-<h3 id="section-23">1.1.7</h3>
+<h3 id="section-24">1.1.7</h3>
 <ul>
 <li>New namespace for updater</li>
 </ul>
-<h3 id="section-24">1.1.6</h3>
+<h3 id="section-25">1.1.6</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-25">1.1.5</h3>
+<h3 id="section-26">1.1.5</h3>
 <ul>
 <li>Plugin icon support</li>
 </ul>
-<h3 id="section-26">1.1.4</h3>
+<h3 id="section-27">1.1.4</h3>
 <ul>
 <li>Plugin details</li>
 </ul>
-<h3 id="section-27">1.1.3</h3>
+<h3 id="section-28">1.1.3</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-28">1.1.2</h3>
+<h3 id="section-29">1.1.2</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-29">1.1.1</h3>
+<h3 id="section-30">1.1.1</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-30">1.1.0</h3>
+<h3 id="section-31">1.1.0</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-31">1.0.9</h3>
+<h3 id="section-32">1.0.9</h3>
 <ul>
 <li>Removed plugin dependency</li>
 </ul>
-<h3 id="section-32">1.0.8</h3>
+<h3 id="section-33">1.0.8</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 <li>Improvements to plugin JSON</li>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-33">1.0.7</h3>
+<h3 id="section-34">1.0.7</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 <li>Bugfix plugin JSON</li>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-34">1.0.6</h3>
+<h3 id="section-35">1.0.6</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-35">1.0.5</h3>
+<h3 id="section-36">1.0.5</h3>
 <ul>
 <li>Bugfix plugin JSON</li>
 </ul>
-<h3 id="section-36">1.0.4</h3>
+<h3 id="section-37">1.0.4</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-37">1.0.3</h3>
+<h3 id="section-38">1.0.3</h3>
 <ul>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-38">1.0.2</h3>
+<h3 id="section-39">1.0.2</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-39">1.0.1</h3>
+<h3 id="section-40">1.0.1</h3>
 <ul>
 <li>GitHub workflow</li>
 </ul>
-<h3 id="section-40">1.0.0</h3>
+<h3 id="section-41">1.0.0</h3>
 <ul>
 <li>Initial Release</li>
 </ul>
