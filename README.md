@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.5.4  
+**Version:** 1.5.5  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.5.4  
+**Stable tag:** 1.5.5  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -119,8 +119,15 @@ Who can use them, and what they see:
   shortcode.
 - Detailed fields — salary, postal address, application details, the full job description — are returned
   **only for jobs whose detail page a visitor could actually open**. A job that redirects to an external
-  application URL, an expired job and a password-protected job all have no public detail page, so those
-  fields are withheld and the reason is stated in the response.
+  application URL and an expired job have no public detail page, so those fields are withheld and the
+  reason is stated in the response.
+- A **password-protected** job is a different case and is not covered by the point above: it is not
+  trimmed, it is not returned at all. `query-jobs` omits it from the results, `list-filters` does not
+  count it when building the filter vocabulary, and `get-job` answers for it with the same message and
+  the same 404 it gives an ID that names nothing — deliberately identical, so that the abilities cannot
+  be used to work out which post IDs the site holds. Note that the `/jobs/` archive and the
+  `[jpkcom_acf_jobs_list]` shortcode *do* list such a job, in WordPress' usual protected form, so this
+  is the one place where the abilities are narrower than the site's own listing.
 - Note that WordPress lists the abilities themselves — their names, descriptions and parameter
   definitions — to any logged-in user. That is core behaviour, not a setting of this plugin.
 
@@ -356,6 +363,10 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 ## Changelog
 
+### 1.5.5
+
+* Fixed: the 1.4.0 release note and the Abilities API section both listed a password-protected job alongside a redirecting one and an expired one, as a job whose detailed fields are withheld. That understated what actually happens. A redirecting or expired job **is** returned, as a summary, with the reason stated. A password-protected job is not returned at all: `query-jobs` omits it, `list-filters` does not count it, and `get-job` answers with the same message and the same 404 it gives an id that names nothing — deliberately identical, so the abilities cannot be used to work out which post IDs the site holds. Both places have been corrected, and the documentation now also records that the `/jobs/` archive and the `[jpkcom_acf_jobs_list]` shortcode *do* list such a job, which makes this the one point where the abilities are narrower than the site's own listing. No code is affected — the behaviour was always this; only its description was wrong
+
 ### 1.5.4
 * Added: the updater's four security messages are now translated in all seven languages — German, Spanish, French, Hungarian, Italian and Polish. These are the messages a site owner sees when an update is refused because its checksum does not match or cannot be checked at all, so they are exactly the ones that should not appear in a foreign language
 * Changed: the five translations without a `.po` — Spanish, French, Hungarian, Italian, Polish — were extended directly in their PHP translation file, the format WordPress loads first and the one they were written in. Their existing entries are untouched, verified entry by entry
@@ -385,7 +396,7 @@ This plugin is **network-compatible**. To install on a multisite network:
 ### 1.4.0
 * Added: three read-only WordPress Abilities — `jpkcom-acf-jobs/list-filters`, `jpkcom-acf-jobs/query-jobs` and `jpkcom-acf-jobs/get-job` — so AI assistants, MCP clients and REST automation can read your job listings as structured data instead of scraping the page. They are on by default for logged-in users with the `read` capability and can be switched off with `define( 'JPKCOM_ACFJOBS_ABILITIES', false )`; see the Abilities API section above
 * Added: `jpkcom_acf_jobs_ability_meta`, `jpkcom_acf_jobs_ability_capability` and `jpkcom_acf_jobs_ability_query_args` filters, so a site can change which abilities are exposed, who may run them, and what their query contains
-* Added: the abilities return only jobs your site's own listing shows, and withhold salary, address and application details for jobs that have no public detail page — one that redirects to an external application URL, one that has expired, or one that is password-protected
+* Added: the abilities return only jobs your site's own listing shows, and withhold salary, address and application details for jobs that have no public detail page — one that redirects to an external application URL, or one that has expired. **This entry as originally published also named password-protected jobs here. That was wrong: such a job is not trimmed, it is not returned at all, by any of the three abilities; see 1.5.5**
 * Added: `includes/jobs-data.php`, which now holds the job visibility rule that previously existed as three separate copies — in the `[jpkcom_acf_jobs_list]` shortcode, in the job archive query, and about to become a fourth. The shortcode and the archive return exactly what they returned before; this was verified by comparing the generated SQL, the returned post IDs and the rendered HTML before and after the change
 * Hardened: a single job whose stored data is corrupt — the usual causes are an import, a migration or a translation copy — no longer takes the whole listing down. It used to make the query answer with a blank server error for every caller, on whichever page that job fell, until someone repaired the data. The job is now left out of the list, the rest of the page answers normally, and the response says how many were left out
 * Hardened: asking for one job whose *detail* data is unreadable now returns that job's summary with a stated reason instead of claiming the job does not exist — which it did while the listing was showing that same job
