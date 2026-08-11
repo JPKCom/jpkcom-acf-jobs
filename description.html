@@ -114,9 +114,20 @@ same visibility rule as the <code>/jobs/</code> archive and the
 <li>Detailed fields — salary, postal address, application details, the
 full job description — are returned <strong>only for jobs whose detail
 page a visitor could actually open</strong>. A job that redirects to an
-external application URL, an expired job and a password-protected job
-all have no public detail page, so those fields are withheld and the
-reason is stated in the response.</li>
+external application URL and an expired job have no public detail page,
+so those fields are withheld and the reason is stated in the
+response.</li>
+<li>A <strong>password-protected</strong> job is a different case and is
+not covered by the point above: it is not trimmed, it is not returned at
+all. <code>query-jobs</code> omits it from the results,
+<code>list-filters</code> does not count it when building the filter
+vocabulary, and <code>get-job</code> answers for it with the same
+message and the same 404 it gives an ID that names nothing —
+deliberately identical, so that the abilities cannot be used to work out
+which post IDs the site holds. Note that the <code>/jobs/</code> archive
+and the <code>[jpkcom_acf_jobs_list]</code> shortcode <em>do</em> list
+such a job, in WordPress’ usual protected form, so this is the one place
+where the abilities are narrower than the site’s own listing.</li>
 <li>Note that WordPress lists the abilities themselves — their names,
 descriptions and parameter definitions — to any logged-in user. That is
 core behaviour, not a setting of this plugin.</li>
