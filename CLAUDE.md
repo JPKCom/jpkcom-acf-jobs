@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a WordPress plugin called **JPKCom ACF Jobs** - a job application system built on Advanced Custom Fields Pro. It provides custom post types (jobs, locations, companies), custom taxonomies, and a complete template system for displaying job listings with Schema.org markup.
 
 **Requirements:**
-- WordPress 6.9+
+- WordPress 7.0+
 - PHP 8.3+
 - Advanced Custom Fields Pro (required dependency)
 - ACF Quick Edit Fields (required dependency)
@@ -455,8 +455,9 @@ back-references to every linked job regardless of status, so a generic read of a
 bypasses the entire visibility rule.
 
 **5. Never write `date( 'Y-m-d', strtotime( $x ) )`.** That is `schema.php:71`, and under
-`strict_types` a `false` from `strtotime()` makes `date()` throw a `TypeError`, which on the 6.9 floor
-is an uncaught fatal. `jpkcom_acf_jobs_normalise_date()` uses `DateTimeImmutable::createFromFormat()`
+`strict_types` a `false` from `strtotime()` makes `date()` throw a `TypeError` — an uncaught fatal on
+the pre-7.0 floor this plugin used to declare, and a 500 on the 7.0 floor it declares now.
+`jpkcom_acf_jobs_normalise_date()` uses `DateTimeImmutable::createFromFormat()`
 with a round-trip check — and that check is load-bearing: without it `'20251340'` becomes 2026-02-09
 and `'20259999'` becomes 2033-06-07. It is wrapped in `try/catch` because a NUL byte in the stored
 value makes `createFromFormat()` throw `ValueError`, and MySQL `longtext` stores NUL.
@@ -610,9 +611,42 @@ were one class: something the schema said that the surface would not do.
 When adding an input: send it over the GET route before believing the schema, and check that no output
 description advertises an axis the input schema does not have.
 
+**14. The guard reached two abilities of three, and the suite could not see it** (fixed in 1.5.0).
+`get-job` answered **HTTP 200** to any undeclared input key while `query-jobs` and `list-filters`
+answered **400** to the same key — measured over the REST route on WP 7.0.3. The comment at the
+`list-filters` call site already said what was wrong: *"Every ability, not one of three: a guard on a
+subset is a trap, because a caller that learned the refusal on query-jobs assumes it everywhere."*
+The code stood in the trap its own comment described, for a whole release.
+
+Why nothing caught it: **every assertion written for the guard was written against an ability that
+had it.** A per-case test cannot find the case it was not written for. The two checks added in 1.5.0
+are structural instead — one asserts that *every* ability callback body calls
+`jpkcom_acf_jobs_ability_validate_input_keys()`, the other compares
+`JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS` against the `properties` of every registered schema. Both were
+proved by mutation: removing the guard reddens exactly the first, drifting the constant exactly the
+second.
+
+On `get-job` the damage was bounded — the answer is determined by `id`, so an ignored key cannot
+widen a result set the way it can on `query-jobs`. The defect was the inconsistency, and that is
+enough: a caller calibrates its expectations on the abilities that refuse.
+
+**15. `additionalProperties => false` on a schema WITH `properties` is safe — and still the wrong
+tool here.** Measured on 7.0.3: no fatal, anonymous included, a clean 400. But `validate_input()`
+runs **before** the execute callback, so it preempts the plugin's own guard, and the reply degrades
+from *"Unknown input key: work_type. This ability accepts: job_type, company, location, …"* to core's
+*"work_type is not a valid property of the object"* — the accepted set gone, and localised into the
+site language while these messages are not. Self-correction in one turn is the entire point of the
+guard's wording, so the guard wins and the declarative form is deliberately not used on the two
+schemas that carry `properties`. `list-filters` is the exception and must stay one: it has no
+`properties` at all, so `additionalProperties => false` is the only thing that can refuse a key there.
+
+(The static lint in the WordPress `wp-abilities-verify` skill asks for the declarative form on every
+object schema. On this plugin that recommendation is wrong, and the measurement above is why. Do not
+"fix" it in a later tidy-up.)
+
 ### Exposure
 
-Three independent switches in `meta`: `show_in_rest`, `public` (WP 7.1; inert passthrough on 6.9/7.0),
+Three independent switches in `meta`: `show_in_rest`, `public` (WP 7.1; inert passthrough on 7.0),
 and `mcp.public` — not a core key at all, but the MCP adapter's own gate for discovery *and*
 execution. All three annotations (`readonly`, `destructive`, `idempotent`) are set explicitly, because
 they default to `null` and the REST run controller derives the HTTP verb from them: `readonly` makes
@@ -653,8 +687,9 @@ unfiltered one and against the count `list-filters` reports. A suite can pass wh
 reach `WP_Query` at all.
 
 Verify in-process **and** over HTTP: the empty-map-as-`[]` defect exists only at `json_encode` time,
-and the two consumers read different surfaces. And verify on WordPress **6.9**, where a Throwable out
-of a callback is an uncaught fatal rather than an error a client can act on.
+and the two consumers read different surfaces. And note that the floor is WP **7.0** since 1.5.0: a Throwable out
+of a callback is now caught by core and surfaces as an error a client can act on, rather than the
+blank page it produced on 6.9. Measurements are taken on 7.0.3 only.
 
 ---
 

@@ -3,17 +3,17 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.4.0  
+**Version:** 1.5.0  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
 **Tags:** ACF, Fields, CPT, CTT, Taxonomy, Forms  
 **Requires Plugins:** advanced-custom-fields-pro, acf-quickedit-fields  
-**Requires at least:** 6.9  
+**Requires at least:** 7.0  
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.4.0  
+**Stable tag:** 1.5.0  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -355,6 +355,13 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.5.0
+* Fixed: `jpkcom-acf-jobs/get-job` accepted input it does not understand. Sending a parameter the ability never declared — a mistyped name, or a filter that only exists on `query-jobs` — was answered with a normal, successful response in which that parameter had simply been ignored. The other two abilities refused the same input with a clear error naming what they accept, so a caller that had learned the rule from them had every reason to trust the one ability that did not follow it. `get-job` now refuses it the same way. **This can change what an existing caller sees:** a request that sent extra parameters and got an answer will now get an error instead, naming the parameter it rejected and the ones it accepts
+* Changed: the message all three abilities return for an unrecognised parameter is now worded for all of them. It previously explained the danger only in terms of filtering, which does not describe `get-job`, where the answer is determined by the job ID alone
+* Changed: WordPress 7.0 is now the minimum. Up to 6.9 an unexpected error inside an ability callback ended the whole request with a blank page instead of a readable message, and the plugin carried its own guards against that. From 7.0 WordPress catches it itself. The guards stay in place, but the plugin is no longer tested against 6.9 and no longer claims to run there
+* Hardened: two build checks were added, because the defect above was invisible to a green test suite — every check written for the parameter guard happened to target an ability that had it. One check now asserts that every ability calls the guard at all; the other compares the parameters each ability guards against the parameters it publishes in its schema, so the two cannot drift apart unnoticed
+* Changed: the "no input given" default of `list-filters` and `query-jobs` is now written directly as an empty object instead of being produced by a helper. What clients receive is unchanged
 
 ### 1.4.0
 * Added: three read-only WordPress Abilities — `jpkcom-acf-jobs/list-filters`, `jpkcom-acf-jobs/query-jobs` and `jpkcom-acf-jobs/get-job` — so AI assistants, MCP clients and REST automation can read your job listings as structured data instead of scraping the page. They are on by default for logged-in users with the `read` capability and can be switched off with `define( 'JPKCOM_ACFJOBS_ABILITIES', false )`; see the Abilities API section above

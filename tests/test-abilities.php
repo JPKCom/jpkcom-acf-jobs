@@ -4077,4 +4077,87 @@ unset(
 	$GLOBALS['jpkcom_test_fields'][ 184 ]['job_type']
 );
 
+// --- The unknown-key guard reaches every ability, and knows the right keys ----
+//
+// 1.4.0 shipped the guard on two abilities of three. get-job answered HTTP 200
+// to any undeclared key while query-jobs and list-filters answered 400 to the
+// same key — measured over the REST route on WordPress 7.0.3. Nothing in the
+// suite noticed, because every assertion about the guard was written against an
+// ability that had it. The two checks below are the pair that makes that
+// impossible: one that every ability calls it, one that what it is called with
+// matches what the schema declares.
+
+foreach ( array_keys( $defs ) as $ability_name ) {
+	$declared = array_keys( (array) ( $defs[ $ability_name ]['input_schema']['properties'] ?? [] ) );
+	$guarded  = JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS[ $ability_name ] ?? null;
+
+	if ( is_array( $guarded ) ) {
+		sort( $declared );
+		sort( $guarded );
+	}
+
+	chk(
+		$ability_name . ': guarded input keys match the schema properties',
+		$guarded === $declared,
+		'The constant and the input schema are two statements of one list. A key only in '
+		. 'the schema is refused by validate_input_keys() though it is declared to callers — '
+		. 'a guard rejecting a legitimate call, which is worse than the hole it closes. A key '
+		. 'only in the constant is waved through and then read by nobody. Got '
+		. var_export( $guarded, true ) . ', schema declares ' . var_export( $declared, true ) . '.'
+	);
+}
+
+/**
+ * Assert that every ability callback body calls the unknown-key guard.
+ *
+ * Reads the source rather than the behaviour because the alternative — calling
+ * each ability with a junk key — is what the suite already did for two of three
+ * and it stayed green on the one that was missing. A structural check cannot be
+ * satisfied by an ability that happens not to be in the list.
+ */
+function every_ability_calls_the_input_key_guard(): void {
+	global $root;
+
+	$source = (string) file_get_contents( $root . '/includes/abilities.php' );
+
+	foreach ( [ 'list_filters', 'query_jobs', 'get_job' ] as $slug ) {
+		$needle = 'function jpkcom_acf_jobs_ability_' . $slug . '_inner(';
+		$start  = strpos( $source, $needle );
+
+		if ( $start === false ) {
+			chk( $slug . '_inner exists', false, 'The callback was renamed; this guard needs the new name.' );
+			continue;
+		}
+
+		// Walk the braces so the slice is the function body and nothing after it.
+		$open  = strpos( $source, '{', $start );
+		$depth = 0;
+		$end   = $open;
+
+		for ( $i = $open, $len = strlen( $source ); $i < $len; $i++ ) {
+			if ( $source[ $i ] === '{' ) {
+				$depth++;
+			} elseif ( $source[ $i ] === '}' ) {
+				$depth--;
+				if ( $depth === 0 ) {
+					$end = $i;
+					break;
+				}
+			}
+		}
+
+		$body = substr( $source, $open, $end - $open );
+
+		chk(
+			'jpkcom-acf-jobs/' . str_replace( '_', '-', $slug ) . ' calls the unknown-key guard',
+			strpos( $body, 'jpkcom_acf_jobs_ability_validate_input_keys(' ) !== false,
+			'A guard on a subset of the abilities is a trap: a caller that learned the refusal '
+			. 'on one assumes it everywhere, and the ability that silently accepts is the one it '
+			. 'will trust. This exact gap shipped in 1.4.0.'
+		);
+	}
+}
+
+every_ability_calls_the_input_key_guard();
+
 summary();
