@@ -881,18 +881,21 @@ msgstr "Stellenangebote"
 msgid ""
 "Security verification failed: the update manifest could not be loaded, so "
 "the package cannot be verified."
-msgstr ""
+msgstr "Sicherheitsprüfung fehlgeschlagen: Das Update-Manifest konnte nicht geladen werden, daher kann das Paket nicht verifiziert werden."
+
 
 #: includes/class-plugin-updater.php:482
 msgid ""
 "Security verification failed: the update manifest contains no SHA-256 "
 "checksum, so the package cannot be verified."
-msgstr ""
+msgstr "Sicherheitsprüfung fehlgeschlagen: Das Update-Manifest enthält keine SHA-256-Prüfsumme, daher kann das Paket nicht verifiziert werden."
+
 
 #: includes/class-plugin-updater.php:492
 #, php-format
 msgid "Download failed: %s"
-msgstr ""
+msgstr "Download fehlgeschlagen: %s"
+
 
 #. translators: 1: expected SHA-256 hash, 2: calculated SHA-256 hash
 #: includes/class-plugin-updater.php:508
@@ -900,7 +903,8 @@ msgstr ""
 msgid ""
 "Security verification failed: Plugin checksum mismatch. Expected: %1$s, Got: "
 "%2$s"
-msgstr ""
+msgstr "Sicherheitsprüfung fehlgeschlagen: Die Prüfsumme des Plugins stimmt nicht überein. Erwartet: %1$s, erhalten: %2$s"
+
 
 #: includes/helpers.php:379
 msgid "Published in the future"
