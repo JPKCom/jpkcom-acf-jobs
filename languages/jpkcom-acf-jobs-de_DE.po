@@ -42,35 +42,35 @@ msgstr "https://www.jpkc.com/"
 
 #: includes/abilities.php:427 includes/acf-field_groups.php:332
 msgid "Vollzeit"
-msgstr ""
+msgstr "Vollzeit"
 
 #: includes/abilities.php:428 includes/acf-field_groups.php:333
 msgid "Teilzeit"
-msgstr ""
+msgstr "Teilzeit"
 
 #: includes/abilities.php:429 includes/acf-field_groups.php:334
 msgid "Stelle als Auftragnehmer"
-msgstr ""
+msgstr "Stelle als Auftragnehmer"
 
 #: includes/abilities.php:430 includes/acf-field_groups.php:335
 msgid "temporäre Stelle"
-msgstr ""
+msgstr "temporäre Stelle"
 
 #: includes/abilities.php:431 includes/acf-field_groups.php:336
 msgid "Praktikum"
-msgstr ""
+msgstr "Praktikum"
 
 #: includes/abilities.php:432 includes/acf-field_groups.php:337
 msgid "Ehrenamtlich"
-msgstr ""
+msgstr "Ehrenamtlich"
 
 #: includes/abilities.php:433 includes/acf-field_groups.php:338
 msgid "pro Tag bezahlt"
-msgstr ""
+msgstr "pro Tag bezahlt"
 
 #: includes/abilities.php:434 includes/acf-field_groups.php:339
 msgid "Ausbildung"
-msgstr ""
+msgstr "Ausbildung"
 
 #. translators: 1: comma-separated rejected keys, 2: comma-separated accepted keys.
 #: includes/abilities.php:767
@@ -782,83 +782,88 @@ msgstr ""
 
 #: includes/acf-field_groups.php:400
 msgid "Homeoffice"
-msgstr ""
+msgstr "Homeoffice"
 
 #: includes/acf-field_groups.php:401
 msgid "Präsenzarbeit"
-msgstr ""
+msgstr "Präsenzarbeit"
 
 #: includes/acf-field_groups.php:402
 msgid "Beides"
-msgstr ""
+msgstr "Beides"
 
 #: includes/acf-field_groups.php:560
 msgid "€"
-msgstr ""
+msgstr "€"
 
 #: includes/acf-field_groups.php:561
 msgid "$"
-msgstr ""
+msgstr "$"
 
 #: includes/acf-field_groups.php:596
 msgid "pro Stunde"
-msgstr ""
+msgstr "pro Stunde"
 
 #: includes/acf-field_groups.php:597
 msgid "pro Tag"
-msgstr ""
+msgstr "pro Tag"
 
 #: includes/acf-field_groups.php:598
 msgid "pro Woche"
-msgstr ""
+msgstr "pro Woche"
 
 #: includes/acf-field_groups.php:599
 msgid "pro Monat"
-msgstr ""
+msgstr "pro Monat"
 
 #: includes/acf-field_groups.php:600
 msgid "pro Jahr"
-msgstr ""
+msgstr "pro Jahr"
 
 #: includes/admin-pages.php:28 includes/admin-pages.php:29
 msgid "Options"
-msgstr ""
+msgstr "Optionen"
 
 #: includes/admin-pages.php:69
 msgid "Archive Settings"
-msgstr ""
+msgstr "Archiv-Einstellungen"
 
 #: includes/admin-pages.php:71
 msgid "Configure the job archive page behavior."
-msgstr ""
+msgstr "Konfigurieren Sie das Verhalten der Job-Archiv-Seite."
 
 #: includes/admin-pages.php:79
 msgid "Disable Job Archive"
-msgstr ""
+msgstr "Job-Archiv deaktivieren"
 
 #: includes/admin-pages.php:88
 msgid "Archive Redirect URL"
-msgstr ""
+msgstr "Archiv-Weiterleitungs-URL"
 
 #: includes/admin-pages.php:113
 msgid "Redirect all access to the job archive page (/jobs/)"
-msgstr ""
+msgstr "Alle Zugriffe auf die Job-Archiv-Seite umleiten (/jobs/)"
 
 #: includes/admin-pages.php:116
 msgid ""
 "When enabled, visitors will be redirected from the archive page. Single job "
 "pages remain accessible."
 msgstr ""
+"Wenn aktiviert, werden Besucher von der Archivseite weitergeleitet. Einzelne "
+"Stellenangebote bleiben zugänglich."
 
 #: includes/admin-pages.php:139
 msgid ""
 "Optional: Specify a custom redirect URL. If empty, redirects to the "
 "homepage. Only applies when archive is disabled."
 msgstr ""
+"Optional: Geben Sie eine benutzerdefinierte Weiterleitungs-URL an. Wenn "
+"leer, wird zur Startseite weitergeleitet. Gilt nur, wenn das Archiv "
+"deaktiviert ist."
 
 #: includes/admin-pages.php:160
 msgid "Settings saved successfully."
-msgstr ""
+msgstr "Einstellungen erfolgreich gespeichert."
 
 #: includes/breadcrumb.php:40
 msgid "Breadcrumb"
