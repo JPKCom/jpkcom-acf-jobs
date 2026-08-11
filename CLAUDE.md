@@ -199,6 +199,19 @@ Heed `make-pot`'s warnings. A `translators:` comment only reaches the catalogue 
 **immediately** above the `__()` call; an ordinary comment between the two detaches it silently, and
 that is what the first run of this step caught.
 
+> **Project decision: the Abilities API stays English, in every language.** The ability labels,
+> descriptions, schema texts and error messages are read by MCP clients and agents, not by people in
+> wp-admin, and their wording is the feature — a message that names the accepted keys is what lets a
+> caller correct itself in one turn instead of burning its budget. They are listed in the catalogue
+> so the state is visible, and left untranslated on purpose. **Do not "complete" them**, and do not
+> read an empty `msgstr` on an `includes/abilities.php` string as a backlog.
+>
+> One exception, and it is not one: the eight job-type labels (`Vollzeit`, `Teilzeit`, …) are
+> vocabulary, not prose. Their source literals are already German, `list-filters` returns them as
+> `label` beside the machine `value`, and the schema tells callers to filter by the value and never
+> by the label. They are localisable by design and translating them into further languages is
+> correct.
+
 > **Two routes produce the catalogues here, and `.l10n.php` is a first-class one.** Since WordPress
 > 6.5 the PHP translation file is the format core loads first; it is not a build artefact of the
 > `.po`. Read the `x-generator` key of any file here before assuming where it came from:
