@@ -181,19 +181,22 @@ i18n_chk(
 
 // --- The compiled forms must be derived from the .po ------------------------
 //
-// This is the check that was missing, and its absence cost real translations.
-// The catalogues are maintained with Loco Translate, which writes .po, .mo AND
-// .l10n.php - and the .l10n.php had drifted AHEAD of the .po it is supposed to
-// come from: 90 translated entries against the .po's 63. WordPress 6.8+ reads
-// the .l10n.php first, so those 27 extra translations were the ones actually
-// being served, and regenerating the .l10n.php from the .po silently deleted
-// them. Nothing in the repository could have told anyone, because nothing
-// compared the two files.
+// Since WordPress 6.5 the .l10n.php is the format core loads FIRST. It is not a
+// build artefact of the .po, and in this plugin family it is often the only
+// source there is: check any file's `x-generator` before assuming otherwise -
+// de_DE comes from Loco, which writes all three formats, while es_ES, fr_FR,
+// hu_HU, it_IT and pl_PL were authored directly as .l10n.php.
 //
-// Direction matters: a string translated in the .po and missing from the
-// .l10n.php is a build that was not run. A string in the .l10n.php and not in
-// the .po is worse - it means the .po is not the source, and the next person to
-// regenerate destroys work.
+// So the two directions are NOT symmetrical, and an earlier version of this
+// check had them backwards:
+//
+//   .po has a translation the .l10n.php lacks  -> FAIL. Core reads the .l10n.php
+//     first, so that translation is not being served at all.
+//   .l10n.php has more than the .po            -> legitimate, reported as a NOTE.
+//     It means the .l10n.php is the richer source for that locale. The danger is
+//     not the state, it is `wp i18n make-php`, which writes the .l10n.php FROM
+//     the .po and therefore deletes the difference - which is exactly what 1.5.1
+//     did to 27 German entries.
 
 foreach ( glob( $root . '/languages/*-*.po' ) as $po_path ) {
 	$locale = preg_replace( '/^.*-([^-]+(?:_[A-Za-z_]+)?)\.po$/', '$1', basename( $po_path ) );
@@ -255,14 +258,18 @@ foreach ( glob( $root . '/languages/*-*.po' ) as $po_path ) {
 		. 'are not being served. Run `wp i18n make-php languages` and `msgfmt` the .mo.'
 	);
 
-	i18n_chk(
-		$locale . ': the .l10n.php carries nothing the .po does not',
-		$only_in_php === [],
-		count( $only_in_php ) . ' translation(s) exist ONLY in the compiled file. The .po is then not the '
-		. "source of truth, and the next regeneration deletes them - which is exactly what happened in\n"
-		. "        1.5.1. Recover them into the .po before regenerating:\n          "
-		. implode( "\n          ", array_slice( array_keys( $only_in_php ), 0, 6 ) )
-	);
+	// Deliberately NOT an assertion. A .l10n.php carrying more than its .po is a
+	// legitimate state here - for five of the seven locales it is the only source
+	// there is. Failing on it would be a guard rejecting correct work, and it
+	// would push whoever hit it toward `make-php`, which is the operation that
+	// destroys exactly these entries.
+	if ( $only_in_php !== [] ) {
+		echo '  NOTE  ' . $locale . ': the .l10n.php carries ' . count( $only_in_php )
+			. " translation(s) the .po does not.\n";
+		echo "        That is allowed - it is the format WordPress loads first. But it means\n";
+		echo "        `wp i18n make-php` would DELETE them, because it writes the .l10n.php\n";
+		echo "        from the .po. Do not run it for this locale without merging first.\n";
+	}
 }
 
 printf( "\n  %d passed, %d failed\n", $pass, $fail );

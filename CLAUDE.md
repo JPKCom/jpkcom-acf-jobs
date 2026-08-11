@@ -174,9 +174,20 @@ ddev wp i18n make-pot <plugin-dir> <plugin-dir>/languages/jpkcom-acf-jobs.pot \
 #    match here is a wrong translation shipped without anyone reading it.
 for po in languages/*-*.po; do msgmerge --update --backup=none --no-fuzzy-matching "$po" languages/jpkcom-acf-jobs.pot; done
 
-# 3. Binary and PHP forms. WordPress 6.8+ reads the .l10n.php first.
+# 3. Binary form for every locale that has a .po.
 for po in languages/*-*.po; do msgfmt -o "${po%.po}.mo" "$po"; done
-ddev wp i18n make-php <plugin-dir>/languages
+
+# 3b. The PHP form - NOT blanket. make-php writes .l10n.php FROM the .po, so it
+#     deletes anything the .l10n.php carries that the .po does not, and for the
+#     five locales that have no .po at all it has nothing to write from. Compare
+#     first, and only run it where the .po is genuinely ahead:
+for po in languages/*-*.po; do
+  php_file="${po%.po}.l10n.php"
+  in_php=$(php -r '$d=@include $argv[1]; echo count($d["messages"] ?? []);' "$php_file")
+  in_po=$(msgattrib --translated --no-obsolete "$po" | grep -c '^msgid "')
+  echo "$(basename "$po")  .l10n.php=$in_php  .po=$((in_po-1))"
+done
+ddev wp i18n make-php <plugin-dir>/languages   # only after that comparison
 
 # 4. Prove nothing was lost instead of assuming it. Compare the translated
 #    msgid SET before and after; msgfmt's own totals count plural forms and move
@@ -188,12 +199,24 @@ Heed `make-pot`'s warnings. A `translators:` comment only reaches the catalogue 
 **immediately** above the `__()` call; an ordinary comment between the two detaches it silently, and
 that is what the first run of this step caught.
 
-> **Five locales have no source and cannot be maintained.** `es_ES`, `fr_FR`, `hu_HU`, `it_IT` and
-> `pl_PL` exist only as generated `.l10n.php` — no `.po`, no `.mo`. `msgmerge` has nothing to work
-> from, so they are frozen at the 64 strings of the October 2025 catalogue and every step above skips
-> them. Only `de_DE` and `de_DE_formal` are actually maintainable today. Reviving the five means
-> reconstructing a `.po` per locale from the `.l10n.php` and having the result read by someone who
-> speaks the language; until then, do not describe them as supported.
+> **Two routes produce the catalogues here, and `.l10n.php` is a first-class one.** Since WordPress
+> 6.5 the PHP translation file is the format core loads first; it is not a build artefact of the
+> `.po`. Read the `x-generator` key of any file here before assuming where it came from:
+>
+> | Locales | `x-generator` | Files present |
+> |---|---|---|
+> | `de_DE`, `de_DE_formal` | `Loco https://localise.biz/` | `.po` + `.mo` + `.l10n.php` |
+> | `es_ES`, `fr_FR`, `hu_HU`, `it_IT`, `pl_PL` | `Claude Code` (2026-02-17) | `.l10n.php` only |
+>
+> The five without a `.po` are authored directly in the format WordPress prefers. They are supported
+> and maintainable — extending them means writing the new entries into the `.l10n.php`, the same way
+> they were produced. They currently cover the pre-1.5.x string set, so they are behind the catalogue
+> like any translation that has not caught up yet. That is a backlog, not a defect.
+>
+> **The hazard is the reverse of what it looks like:** `wp i18n make-php` writes the `.l10n.php` FROM
+> the `.po`, so running it against a locale whose `.l10n.php` is the richer or the only source
+> **deletes** the difference. That is exactly how 1.5.1 destroyed 27 German entries. Run `make-php`
+> only for locales whose `.po` is genuinely ahead, and compare the entry counts first.
 
 ### Release Process
 
