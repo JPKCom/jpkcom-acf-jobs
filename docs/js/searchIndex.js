@@ -46,6 +46,11 @@ Search.appendIndex(
             "summary": "Highest\u0020page\u0020number\u0020the\u0020query\u0020ability\u0020will\u0020ask\u0020the\u0020database\u0020for.",
             "url": "namespaces/default.html#constant_JPKCOM_ACFJOBS_ABILITY_PAGE_MAX"
         },                {
+            "fqsen": "\\JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS",
+            "name": "JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS",
+            "summary": "Top\u002Dlevel\u0020input\u0020keys\u0020each\u0020ability\u0020declares.",
+            "url": "namespaces/default.html#constant_JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS"
+        },                {
             "fqsen": "\\jpkcom_acf_jobs_abilities_enabled\u0028\u0029",
             "name": "jpkcom_acf_jobs_abilities_enabled",
             "summary": "Decide\u0020whether\u0020the\u0020abilities\u0020may\u0020be\u0020registered\u0020at\u0020all.",
