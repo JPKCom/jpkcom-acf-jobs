@@ -753,12 +753,17 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_validate_input_keys' 
 
         return jpkcom_acf_jobs_ability_error(
             'jpkcom_acf_jobs_unknown_input_key',
+            // Reaches all three abilities since 1.5.0, so the rationale is stated for
+            // the general case. The filtering half stays because it is the concrete
+            // damage, and naming it is what makes a caller fix the call rather than
+            // retry it.
+            //
+            // Note the comment order below: a `translators:` comment only reaches the
+            // catalogue when it sits IMMEDIATELY above the __() call. This block used
+            // to sit between the two and silently detached it - caught by the first
+            // `wp i18n make-pot` run, which is why that run is now part of releasing.
             sprintf(
                 /* translators: 1: comma-separated rejected keys, 2: comma-separated accepted keys. */
-                // Reaches all three abilities since 1.5.0, so the rationale is stated
-                // for the general case. The filtering half stays because it is the
-                // concrete damage, and naming it is what makes a caller fix the call
-                // rather than retry it.
                 __( 'Unknown input key: %1$s. This ability accepts: %2$s. A key it does not declare is never read, so the request would be answered as though that key had not been sent — on the filtering abilities that means an unfiltered result set that looks like a filtered one.', 'jpkcom-acf-jobs' ),
                 implode( ', ', $unknown ),
                 implode( ', ', $allowed )

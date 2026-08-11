@@ -154,6 +154,47 @@ The version appears in five places and must be kept in sync:
 4. `phpdoc.xml` — `<version number="…">`
 5. `README.md` — `**Version:**`, `**Stable tag:**`, plus a new `### x.y.z` changelog block
 
+### Translation catalogue — the sixth place, and not a version number
+
+Any release that adds or edits a translatable string regenerates `languages/`. This was missing from
+the checklist and the consequence was not small: the `.pot` was generated in **October 2025** and
+never again. It held 64 entries while `includes/abilities.php` alone had 129 translatable strings, so
+the entire Abilities API surface shipped untranslated in 1.4.0 and 1.5.0 with nothing to say so.
+`tests/test-i18n.php` now fails the build when the catalogue is behind the code — treat the steps
+below as the fix, not as the detection.
+
+```bash
+# 1. Regenerate. CI has no WP-CLI, so this is a local step, and the plugin has
+#    to sit inside a DDEV project for the container to reach it.
+ddev wp i18n make-pot <plugin-dir> <plugin-dir>/languages/jpkcom-acf-jobs.pot \
+  --slug=jpkcom-acf-jobs --domain=jpkcom-acf-jobs \
+  --exclude="node_modules,tests,tools,docs,.github,debug-templates"
+
+# 2. Carry existing translations over. --no-fuzzy-matching on purpose: a fuzzy
+#    match here is a wrong translation shipped without anyone reading it.
+for po in languages/*-*.po; do msgmerge --update --backup=none --no-fuzzy-matching "$po" languages/jpkcom-acf-jobs.pot; done
+
+# 3. Binary and PHP forms. WordPress 6.8+ reads the .l10n.php first.
+for po in languages/*-*.po; do msgfmt -o "${po%.po}.mo" "$po"; done
+ddev wp i18n make-php <plugin-dir>/languages
+
+# 4. Prove nothing was lost instead of assuming it. Compare the translated
+#    msgid SET before and after; msgfmt's own totals count plural forms and move
+#    for reasons that are not losses, which makes them useless for this question.
+msgattrib --translated --no-obsolete languages/jpkcom-acf-jobs-de_DE.po | grep '^msgid "' | sort -u
+```
+
+Heed `make-pot`'s warnings. A `translators:` comment only reaches the catalogue when it sits
+**immediately** above the `__()` call; an ordinary comment between the two detaches it silently, and
+that is what the first run of this step caught.
+
+> **Five locales have no source and cannot be maintained.** `es_ES`, `fr_FR`, `hu_HU`, `it_IT` and
+> `pl_PL` exist only as generated `.l10n.php` — no `.po`, no `.mo`. `msgmerge` has nothing to work
+> from, so they are frozen at the 64 strings of the October 2025 catalogue and every step above skips
+> them. Only `de_DE` and `de_DE_formal` are actually maintainable today. Reviving the five means
+> reconstructing a `.po` per locale from the `.l10n.php` and having the result read by someone who
+> speaks the language; until then, do not describe them as supported.
+
 ### Release Process
 
 **Actions are pinned to commit SHAs.** Every `uses:` line in `.github/workflows/` references a 40-character commit SHA instead of a tag (`@v4`), with the version as a trailing comment. A tag is a movable pointer and can be repointed; a SHA cannot. Since the release workflow builds the plugin ZIP **and** the SHA256 checksum the auto-updater trusts, a compromised action would ship a tampered ZIP together with a matching checksum — the checksum secures the transport, the pinning secures the build. `.github/dependabot.yml` keeps the pins current weekly in one combined PR; when updating, always change the SHA *and* the version comment together.

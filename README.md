@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.5.0  
+**Version:** 1.5.1  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.5.0  
+**Stable tag:** 1.5.1  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -355,6 +355,12 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.5.1
+* Fixed: the translation catalogue was last generated in October 2025 and had fallen far behind. It listed 64 texts while the abilities file alone contains 129, so every message the abilities return appeared in English on a translated site, and nothing indicated that. The catalogue now covers the whole plugin: 64 entries became 210. The existing German translations are unchanged and one obsolete entry was dropped; the newly listed texts are not translated yet and still appear in English
+* Fixed: an explanatory comment had been placed between the note for translators and the text it describes, which silently detached the two — the note would never have reached a translator. Found by the first run of the regeneration step this release adds
+* Hardened: the build now fails when the catalogue falls behind the code. Regenerating it was neither automated nor on the release checklist, which is how ten months went by without anyone noticing. It is now both
+* Note: the Spanish, French, Hungarian, Italian and Polish translations exist only in their compiled form, without the source file they are generated from. They cannot be updated and are therefore frozen at the texts they already cover. German is unaffected
 
 ### 1.5.0
 * Fixed: `jpkcom-acf-jobs/get-job` accepted input it does not understand. Sending a parameter the ability never declared — a mistyped name, or a filter that only exists on `query-jobs` — was answered with a normal, successful response in which that parameter had simply been ignored. The other two abilities refused the same input with a clear error naming what they accept, so a caller that had learned the rule from them had every reason to trust the one ability that did not follow it. `get-job` now refuses it the same way. **This can change what an existing caller sees:** a request that sent extra parameters and got an answer will now get an error instead, naming the parameter it rejected and the ones it accepts
