@@ -97,7 +97,7 @@
 <strong>Plugin URI:</strong>
 https://github.com/JPKCom/jpkcom-acf-jobs<br />
 <strong>Description:</strong> Job application plugin for ACF<br />
-<strong>Version:</strong> 1.5.1<br />
+<strong>Version:</strong> 1.5.2<br />
 <strong>Author:</strong> Jean Pierre Kolb <a href="mailto:jpk@jpkc.com"
 class="email">jpk@jpkc.com</a><br />
 <strong>Author URI:</strong> https://www.jpkc.com/<br />
@@ -109,7 +109,7 @@ acf-quickedit-fields<br />
 <strong>Tested up to:</strong> 7.1<br />
 <strong>Requires PHP:</strong> 8.3<br />
 <strong>Network:</strong> true<br />
-<strong>Stable tag:</strong> 1.5.1<br />
+<strong>Stable tag:</strong> 1.5.2<br />
 <strong>License:</strong> GPL-2.0-or-later<br />
 <strong>License URI:</strong>
 https://www.gnu.org/licenses/gpl-2.0.html<br />
@@ -481,7 +481,24 @@ your theme supports Bootstrap 5 markup, or customize the templates -
 Enable <code>WP_DEBUG</code> to load debug templates for
 troubleshooting</p>
 <h2 id="changelog">Changelog</h2>
-<h3 id="section">1.5.1</h3>
+<h3 id="section">1.5.2</h3>
+<ul>
+<li>Fixed: version 1.5.1 removed 27 German translations. They existed
+only in the compiled translation file and not in the source file it is
+generated from, so regenerating the source overwrote them — and because
+WordPress reads the compiled file first, those were the translations
+actually being shown. Affected were parts of the settings screens and
+the employment type labels, among others. All 27 are restored and are
+now in the source file as well, so they can be maintained for the first
+time. Nothing else changed: no existing translation was altered</li>
+<li>Hardened: the build now also compares the compiled translation file
+against its source, in both directions. A translation in the source but
+not in the compiled file means the build step was skipped; one in the
+compiled file but not in the source means the source is not the source,
+and the next regeneration destroys work — which is precisely what
+happened in 1.5.1. Neither can pass unnoticed again</li>
+</ul>
+<h3 id="section-1">1.5.1</h3>
 <ul>
 <li>Fixed: the translation catalogue was last generated in October 2025
 and had fallen far behind. It listed 64 texts while the abilities file
@@ -503,7 +520,7 @@ translations exist only in their compiled form, without the source file
 they are generated from. They cannot be updated and are therefore frozen
 at the texts they already cover. German is unaffected</li>
 </ul>
-<h3 id="section-1">1.5.0</h3>
+<h3 id="section-2">1.5.0</h3>
 <ul>
 <li>Fixed: <code>jpkcom-acf-jobs/get-job</code> accepted input it does
 not understand. Sending a parameter the ability never declared — a
@@ -538,7 +555,7 @@ and <code>query-jobs</code> is now written directly as an empty object
 instead of being produced by a helper. What clients receive is
 unchanged</li>
 </ul>
-<h3 id="section-2">1.4.0</h3>
+<h3 id="section-3">1.4.0</h3>
 <ul>
 <li>Added: three read-only WordPress Abilities —
 <code>jpkcom-acf-jobs/list-filters</code>,
@@ -632,7 +649,7 @@ long-form field in this plugin is now read unformatted, and a test fails
 the build if that changes. <code>CLAUDE.md</code> documents this and
 eleven further traps in detail</li>
 </ul>
-<h3 id="section-3">1.3.11</h3>
+<h3 id="section-4">1.3.11</h3>
 <ul>
 <li>Fixed: the debug schema template printed an untranslated German
 sentence after the translated parse-error message; it now prints the
@@ -649,7 +666,7 @@ repository are now English throughout, and the developer notes in
 <code>CLAUDE.md</code> were translated and trimmed. No effect on the
 shipped plugin</li>
 </ul>
-<h3 id="section-4">1.3.10</h3>
+<h3 id="section-5">1.3.10</h3>
 <ul>
 <li>Changed: <code>Tested up to</code> raised to WordPress 7.1</li>
 <li>Changed: the bundled updater’s runtime floor now matches the
@@ -663,14 +680,14 @@ and <code>tested</code> now say 6.9 and 7.1. They only apply when the
 README metadata cannot be read, but a stale fallback would have
 published a minimum the plugin no longer supports</li>
 </ul>
-<h3 id="section-5">1.3.9</h3>
+<h3 id="section-6">1.3.9</h3>
 <ul>
 <li>Changed: the plugin banners
 (<code>assets/banner-1544x500.avif</code>,
 <code>assets/banner-772x250.avif</code>) are now a plain
 <code>#3c4955</code> surface with no lettering</li>
 </ul>
-<h3 id="section-6">1.3.8</h3>
+<h3 id="section-7">1.3.8</h3>
 <ul>
 <li>Fixed: the attributes partial looked terms up under
 <code>job_attribute</code>, the field name, instead of
@@ -693,7 +710,7 @@ three fields the list shortcode filters is taxonomy-backed, so the
 switch made in <code>jpkcom-acf-references</code> does not apply
 here</li>
 </ul>
-<h3 id="section-7">1.3.7</h3>
+<h3 id="section-8">1.3.7</h3>
 <ul>
 <li><strong>Fixed:</strong> job expiry was compared against the UTC
 date. WordPress sets the PHP timezone to UTC, so
@@ -724,7 +741,7 @@ pull request</li>
 &amp; Correctness section it was missing — the only JPKCom plugin
 without one</li>
 </ul>
-<h3 id="section-8">1.3.6</h3>
+<h3 id="section-9">1.3.6</h3>
 <ul>
 <li>Security: update packages are now verified <em>before</em>
 installation — the verified file is handed to WordPress instead of being
@@ -749,7 +766,7 @@ instead of being retried on every admin request</li>
 <li>Added: CI workflow on every pull request (PHP lint, named-argument
 check, YAML validation, action-pinning guard)</li>
 </ul>
-<h3 id="section-9">1.3.5</h3>
+<h3 id="section-10">1.3.5</h3>
 <ul>
 <li>Fixed broken <code>&lt;main&gt;</code> element in the single job
 template: it was closed immediately after opening, leaving the entire
@@ -759,14 +776,14 @@ end of the template</li>
 passed the ACF field array where an attachment ID is expected, which
 could render an unrelated image before every company logo</li>
 </ul>
-<h3 id="section-10">1.3.4</h3>
+<h3 id="section-11">1.3.4</h3>
 <ul>
 <li>Raised the minimum WordPress version to 6.9 and “Tested up to” to
 WordPress 7.0</li>
 <li>Switched license metadata to the SPDX identifier
 <code>GPL-2.0-or-later</code> with the HTTPS license URI</li>
 </ul>
-<h3 id="section-11">1.3.3</h3>
+<h3 id="section-12">1.3.3</h3>
 <ul>
 <li>Security: prevent JSON-LD script-tag breakout (stored XSS) in
 JobPosting schema output (<code>JSON_HEX_TAG | JSON_HEX_AMP</code>, plus
@@ -786,7 +803,7 @@ completing the <code>no_update</code> transient entry
 (<code>new_version</code>, <code>package</code>, <code>tested</code>,
 <code>requires_php</code>)</li>
 </ul>
-<h3 id="section-12">1.3.2</h3>
+<h3 id="section-13">1.3.2</h3>
 <ul>
 <li>Fixed missing output escaping across all templates and debug
 templates (<code>esc_html__()</code>, <code>esc_html()</code>,
@@ -800,135 +817,135 @@ longer rendered when no previous/next post exists</li>
 <li>Fixed pagination template: archive URL now escaped with
 <code>esc_url()</code></li>
 </ul>
-<h3 id="section-13">1.3.1</h3>
+<h3 id="section-14">1.3.1</h3>
 <ul>
 <li>Fixed updater checksum verification failing on manual ZIP uploads
 (local file path instead of URL)</li>
 <li>Fixed release ZIP missing top-level directory, causing WordPress to
 not recognize the update</li>
 </ul>
-<h3 id="section-14">1.3.0</h3>
+<h3 id="section-15">1.3.0</h3>
 <ul>
 <li>Added archiv redirect options</li>
 </ul>
-<h3 id="section-15">1.2.5</h3>
+<h3 id="section-16">1.2.5</h3>
 <ul>
 <li>Added translation for “job_type”</li>
 </ul>
-<h3 id="section-16">1.2.4</h3>
+<h3 id="section-17">1.2.4</h3>
 <ul>
 <li>Added translations for ES, FR, HU, IT and PL</li>
 </ul>
-<h3 id="section-17">1.2.3</h3>
+<h3 id="section-18">1.2.3</h3>
 <ul>
 <li>Added check for “SitePress” class</li>
 </ul>
-<h3 id="section-18">1.2.2</h3>
+<h3 id="section-19">1.2.2</h3>
 <ul>
 <li>Fix for incorrect database content caused by WPML</li>
 </ul>
-<h3 id="section-19">1.2.1</h3>
+<h3 id="section-20">1.2.1</h3>
 <ul>
 <li>Fix for incorrect database content caused by WPML</li>
 </ul>
-<h3 id="section-20">1.2.0</h3>
+<h3 id="section-21">1.2.0</h3>
 <ul>
 <li>Security enhancement</li>
 <li>AI support</li>
 </ul>
-<h3 id="section-21">1.1.12</h3>
+<h3 id="section-22">1.1.12</h3>
 <ul>
 <li>Added WPML support</li>
 </ul>
-<h3 id="section-22">1.1.11</h3>
+<h3 id="section-23">1.1.11</h3>
 <ul>
 <li>Improvements to jpkcom_acfjobs_textdomain()</li>
 </ul>
-<h3 id="section-23">1.1.10</h3>
+<h3 id="section-24">1.1.10</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-24">1.1.9</h3>
+<h3 id="section-25">1.1.9</h3>
 <ul>
 <li>“display_name” for update-core.php</li>
 </ul>
-<h3 id="section-25">1.1.8</h3>
+<h3 id="section-26">1.1.8</h3>
 <ul>
 <li>“display_name” for plugin-install.php</li>
 </ul>
-<h3 id="section-26">1.1.7</h3>
+<h3 id="section-27">1.1.7</h3>
 <ul>
 <li>New namespace for updater</li>
 </ul>
-<h3 id="section-27">1.1.6</h3>
+<h3 id="section-28">1.1.6</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-28">1.1.5</h3>
+<h3 id="section-29">1.1.5</h3>
 <ul>
 <li>Plugin icon support</li>
 </ul>
-<h3 id="section-29">1.1.4</h3>
+<h3 id="section-30">1.1.4</h3>
 <ul>
 <li>Plugin details</li>
 </ul>
-<h3 id="section-30">1.1.3</h3>
+<h3 id="section-31">1.1.3</h3>
 <ul>
 <li>Updater bugfix</li>
 </ul>
-<h3 id="section-31">1.1.2</h3>
+<h3 id="section-32">1.1.2</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-32">1.1.1</h3>
+<h3 id="section-33">1.1.1</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-33">1.1.0</h3>
+<h3 id="section-34">1.1.0</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 </ul>
-<h3 id="section-34">1.0.9</h3>
+<h3 id="section-35">1.0.9</h3>
 <ul>
 <li>Removed plugin dependency</li>
 </ul>
-<h3 id="section-35">1.0.8</h3>
+<h3 id="section-36">1.0.8</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 <li>Improvements to plugin JSON</li>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-36">1.0.7</h3>
+<h3 id="section-37">1.0.7</h3>
 <ul>
 <li>Improvements for GitHub workflow</li>
 <li>Bugfix plugin JSON</li>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-37">1.0.6</h3>
+<h3 id="section-38">1.0.6</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-38">1.0.5</h3>
+<h3 id="section-39">1.0.5</h3>
 <ul>
 <li>Bugfix plugin JSON</li>
 </ul>
-<h3 id="section-39">1.0.4</h3>
+<h3 id="section-40">1.0.4</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-40">1.0.3</h3>
+<h3 id="section-41">1.0.3</h3>
 <ul>
 <li>Updater improvements</li>
 </ul>
-<h3 id="section-41">1.0.2</h3>
+<h3 id="section-42">1.0.2</h3>
 <ul>
 <li>Bugfix for GitHub workflow</li>
 </ul>
-<h3 id="section-42">1.0.1</h3>
+<h3 id="section-43">1.0.1</h3>
 <ul>
 <li>GitHub workflow</li>
 </ul>
-<h3 id="section-43">1.0.0</h3>
+<h3 id="section-44">1.0.0</h3>
 <ul>
 <li>Initial Release</li>
 </ul>

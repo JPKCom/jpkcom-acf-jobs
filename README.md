@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.5.1  
+**Version:** 1.5.2  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.5.1  
+**Stable tag:** 1.5.2  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -355,6 +355,10 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.5.2
+* Fixed: version 1.5.1 removed 27 German translations. They existed only in the compiled translation file and not in the source file it is generated from, so regenerating the source overwrote them — and because WordPress reads the compiled file first, those were the translations actually being shown. Affected were parts of the settings screens and the employment type labels, among others. All 27 are restored and are now in the source file as well, so they can be maintained for the first time. Nothing else changed: no existing translation was altered
+* Hardened: the build now also compares the compiled translation file against its source, in both directions. A translation in the source but not in the compiled file means the build step was skipped; one in the compiled file but not in the source means the source is not the source, and the next regeneration destroys work — which is precisely what happened in 1.5.1. Neither can pass unnoticed again
 
 ### 1.5.1
 * Fixed: the translation catalogue was last generated in October 2025 and had fallen far behind. It listed 64 texts while the abilities file alone contains 129, so every message the abilities return appeared in English on a translated site, and nothing indicated that. The catalogue now covers the whole plugin: 64 entries became 210. The existing German translations are unchanged and one obsolete entry was dropped; the newly listed texts are not translated yet and still appear in English
