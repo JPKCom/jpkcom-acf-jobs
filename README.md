@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.5.3  
+**Version:** 1.5.4  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,7 +13,7 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.5.3  
+**Stable tag:** 1.5.4  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
@@ -355,6 +355,11 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.5.4
+* Added: the updater's four security messages are now translated in all seven languages — German, Spanish, French, Hungarian, Italian and Polish. These are the messages a site owner sees when an update is refused because its checksum does not match or cannot be checked at all, so they are exactly the ones that should not appear in a foreign language
+* Changed: the five translations without a `.po` — Spanish, French, Hungarian, Italian, Polish — were extended directly in their PHP translation file, the format WordPress loads first and the one they were written in. Their existing entries are untouched, verified entry by entry
+* Hardened: the build check added in 1.5.2 reported entries carrying a context as missing from the compiled catalogue although they were present. It now reads the context the way WordPress stores it
 
 ### 1.5.3
 * Fixed: the note published with 1.5.1 about the Spanish, French, Hungarian, Italian and Polish translations was wrong. It said they existed "only in their compiled form", could not be updated and were frozen. None of that is true. Those five are authored directly as PHP translation files — the format WordPress has loaded first since 6.5, and a supported way to ship a translation, not a by-product of something else. They are maintainable in exactly the way they were written. What is true is narrower: they cover the texts of the earlier releases and have not caught up with the newer ones, which is an ordinary backlog. The note has been corrected and the same wrong assumption removed from the developer documentation
