@@ -150,6 +150,45 @@ if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_PAGE_MAX' ) ) {
 
 }
 
+if ( ! defined( 'JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS' ) ) {
+
+    /**
+     * Top-level input keys each ability declares.
+     *
+     * One list, in one place, because the call sites used to carry it inline and
+     * one of the three did not carry it at all. get-job accepted any undeclared
+     * key with a 200 while query-jobs and list-filters refused the same key with
+     * a 400 — measured over the REST route on WordPress 7.0.3. That is the trap
+     * the comment at the first call site already named: a caller that learns the
+     * refusal on one ability assumes it everywhere, and the one ability that
+     * silently accepts is the one it will trust.
+     *
+     * On get-job an ignored key cannot widen a result set the way it can on
+     * query-jobs — the answer is determined by `id` alone — so this is a
+     * consistency defect rather than a wrong answer. It is still the shape that
+     * teaches a caller the wrong rule.
+     *
+     * Keep in step with the input schemas: tests/test-abilities.php compares
+     * this map against the `properties` of every registered schema and fails the
+     * build on either drift direction. Declaring `additionalProperties => false`
+     * would derive the list automatically, but it was measured to preempt
+     * jpkcom_acf_jobs_ability_validate_input_keys() entirely — validate_input()
+     * runs before the execute callback — and core's replacement message names
+     * neither the accepted keys nor where a nested filter belongs.
+     *
+     * @since 1.5.0
+     */
+    define(
+        'JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS',
+        [
+            'jpkcom-acf-jobs/list-filters' => [],
+            'jpkcom-acf-jobs/query-jobs'   => [ 'job_type', 'company', 'location', 'attribute', 'search', 'include_closed', 'page', 'per_page', 'order' ],
+            'jpkcom-acf-jobs/get-job'      => [ 'id' ],
+        ]
+    );
+
+}
+
 
 if ( ! function_exists( function: 'jpkcom_acf_jobs_abilities_enabled' ) ) {
 
@@ -716,7 +755,11 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_validate_input_keys' 
             'jpkcom_acf_jobs_unknown_input_key',
             sprintf(
                 /* translators: 1: comma-separated rejected keys, 2: comma-separated accepted keys. */
-                __( 'Unknown input key: %1$s. This ability accepts: %2$s. An axis it does not declare is not applied, so answering the request would mean returning an unfiltered result set that looks like a filtered one.', 'jpkcom-acf-jobs' ),
+                // Reaches all three abilities since 1.5.0, so the rationale is stated
+                // for the general case. The filtering half stays because it is the
+                // concrete damage, and naming it is what makes a caller fix the call
+                // rather than retry it.
+                __( 'Unknown input key: %1$s. This ability accepts: %2$s. A key it does not declare is never read, so the request would be answered as though that key had not been sent — on the filtering abilities that means an unfiltered result set that looks like a filtered one.', 'jpkcom-acf-jobs' ),
                 implode( ', ', $unknown ),
                 implode( ', ', $allowed )
             ),
@@ -1799,7 +1842,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     // validate_input() before the callback ever runs. An object
                     // rather than [], because PHP serialises an empty array as a
                     // JSON array and the MCP Adapter passes the schema on raw.
-                    'default'    => jpkcom_acf_jobs_ability_json_object( [] ),
+                    'default'    => (object) array(),
                     // NO `properties` key at all, and additionalProperties => false.
                     //
                     // Declaring it as an empty stdClass so the schema would encode as
@@ -1924,7 +1967,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_get_ability_definitions' ) ) 
                     // default and only for exactly null input; per-property
                     // defaults are never applied by core and are resolved in the
                     // callback instead.
-                    'default'    => jpkcom_acf_jobs_ability_json_object( [] ),
+                    'default'    => (object) array(),
                     'properties' => [
                         'job_type'       => [
                             'type'        => 'array',
@@ -2235,10 +2278,12 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_list_filters_inner' )
     function jpkcom_acf_jobs_ability_list_filters_inner( mixed $input = null ): array|WP_Error {
 
         // Every ability, not one of three: a guard on a subset is a trap, because a
-        // caller that learned the refusal on query-jobs assumes it everywhere.
+        // caller that learned the refusal on query-jobs assumes it everywhere. It
+        // WAS one of three until 1.5.0 - get-job carried no guard at all - which is
+        // why the list now lives in one constant instead of inline at each site.
         $keys_valid = jpkcom_acf_jobs_ability_validate_input_keys(
             is_array( value: $input ) ? $input : [],
-            []
+            JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS['jpkcom-acf-jobs/list-filters']
         );
 
         if ( $keys_valid instanceof WP_Error ) {
@@ -2715,7 +2760,7 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_query_jobs_inner' ) )
 
         $keys_valid = jpkcom_acf_jobs_ability_validate_input_keys(
             is_array( value: $input ) ? $input : [],
-            [ 'job_type', 'company', 'location', 'attribute', 'search', 'include_closed', 'page', 'per_page', 'order' ]
+            JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS['jpkcom-acf-jobs/query-jobs']
         );
 
         if ( $keys_valid instanceof WP_Error ) {
@@ -3658,6 +3703,21 @@ if ( ! function_exists( function: 'jpkcom_acf_jobs_ability_get_job_inner' ) ) {
                 'jpkcom_acf_jobs_invalid_input',
                 __( 'The input of jpkcom-acf-jobs/get-job has to be an object carrying an "id" property, for example {"id": 42}.', 'jpkcom-acf-jobs' )
             );
+
+        }
+
+        // At the earliest point $input is known to be an array, matching the two
+        // sibling abilities. Missing here until 1.5.0: get-job answered 200 to any
+        // undeclared key while its siblings answered 400 to the same key, which is
+        // the inconsistency the comment on the list-filters call site warns about.
+        $keys_valid = jpkcom_acf_jobs_ability_validate_input_keys(
+            $input,
+            JPKCOM_ACFJOBS_ABILITY_INPUT_KEYS['jpkcom-acf-jobs/get-job']
+        );
+
+        if ( $keys_valid instanceof WP_Error ) {
+
+            return $keys_valid;
 
         }
 
