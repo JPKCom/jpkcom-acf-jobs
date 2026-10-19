@@ -3,7 +3,7 @@
 **Plugin Name:** JPKCom ACF Jobs  
 **Plugin URI:** https://github.com/JPKCom/jpkcom-acf-jobs  
 **Description:** Job application plugin for ACF  
-**Version:** 1.5.5  
+**Version:** 1.5.6  
 **Author:** Jean Pierre Kolb <jpk@jpkc.com>  
 **Author URI:** https://www.jpkc.com/  
 **Contributors:** JPKCom  
@@ -13,11 +13,12 @@
 **Tested up to:** 7.1  
 **Requires PHP:** 8.3  
 **Network:** true  
-**Stable tag:** 1.5.5  
+**Stable tag:** 1.5.6  
 **License:** GPL-2.0-or-later  
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html  
 **Text Domain:** jpkcom-acf-jobs  
-**Domain Path:** /languages
+**Domain Path:** /languages  
+**Update URI:** https://github.com/JPKCom/jpkcom-acf-jobs
 
 A plugin to provide a job application tool for ACF Pro.
 
@@ -362,6 +363,12 @@ This plugin is **network-compatible**. To install on a multisite network:
 
 
 ## Changelog
+
+### 1.5.6
+* Security: the plugin header now carries `Update URI: https://github.com/JPKCom/jpkcom-acf-jobs`. Without it, WordPress also asks wordpress.org for updates under this plugin's slug, so a same-named plugin published there with a higher version would be offered as an update of this one. With the header, wordpress.org answers nothing for this plugin and updates come only from this repository
+* Changed: the updater keeps its manifest cache, its failure marker and its fetch lock in site transients. On multisite the network now fetches the manifest once instead of once per site; on a single site nothing changes. The old per-site entries expire on their own within a day
+* Changed: the release workflow downloads phpDocumentor from a fixed GitHub release and verifies its SHA-256 before running it, instead of executing whatever phpdoc.org serves that day. No effect on the shipped plugin
+* CI: `shivammathur/setup-php` pinned to 2.40.0
 
 ### 1.5.5
 
