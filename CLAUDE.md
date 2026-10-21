@@ -119,8 +119,18 @@ Custom GitHub-based updater in `includes/class-plugin-updater.php` (namespace: `
 **Hooks Used:**
 - `plugins_api` - Provides plugin info for "View Details" modal
 - `site_transient_update_plugins` - Injects update availability
-- `upgrader_pre_download` - Verifies checksum before installation
+- `upgrader_pre_download` (priority `PHP_INT_MAX - 100`) - Verifies checksum before installation
 - `upgrader_process_complete` - Clears cache after successful update
+- `pre_set_site_transient_update_plugins` - Removes package URLs before the update transient is stored
+- `deleted_plugin` - Drops the per-request plugin scan
+
+**Family updates (updater 1.5.0).** WordPress only runs the code of active plugins, so the updater copy inside an inactive JPKCom plugin never runs and that plugin was never offered an update. Since 1.5.0 every copy registers in a shared registry (`$GLOBALS['jpkcom_git_updater_registry']`); the copy with the highest `UPDATER_VERSION` is elected leader (ties: the first registered) and serves every installed JPKCom plugin, active or inactive. A plugin counts as JPKCom when its Plugin URI is `https://github.com/JPKCom/<slug>` and it sits in the canonical `<slug>/<slug>.php` layout. The leader provides the update rows with icons, "View details" and the SHA-256 gate (`upgrader_pre_download` at priority `PHP_INT_MAX - 100`, which also hashes a package an earlier filter supplied instead of trusting it). All other 1.5+ copies stay passive; a plugin whose pre-1.5 copy is loaded keeps serving itself and the leader leaves it alone.
+- Package URLs are removed before the update transient is stored (`pre_set_site_transient_update_plugins`) and re-injected on read. A request in which no 1.5+ copy is loaded therefore finds an empty package and core refuses the update ("Update package not available") instead of installing an unverified ZIP.
+- Version-control checkouts (`.git`, `.svn`, `.hg`, `.bzr`; core's `automatic_updates_is_vcs_checkout` filter applies) and renamed folders (e.g. `<slug>-main`) are told about a new release but never get a package (core shows "Automatic update is unavailable for this plugin", and the gate refuses an update through a stale row with core's `no_package` error): an update would wipe the working tree, or unpack into `<slug>/` and orphan the active plugin.
+- Installs without a plugin name (`wp plugin install <url>`, the details modal) are claimed by the asset's file name `<slug>.zip`, as in 1.4, so every URL GitHub serves for a release asset (`releases/latest/download/`, any case, `www.`, `http`, a query string) must match the manifest checksum.
+- Manifests are fetched while rendering update data only for users with `update_plugins`, in cron and in WP-CLI; an interactive request fetches at most 5 uncached manifests, and a host breaker (`jpk_git_update_host_fail`, 15 min) stops further reads after a transport error, a 429/5xx or a fetch slower than 3 s. Installs, updates and the details modal always may fetch. The manifest cache (`jpk_git_update_<md5(slug)>`, shared with older copies) lives 24–30 h, spread per plugin.
+- Multisite: at least one JPKCom plugin with updater 1.5+ must be network-active or active on the main site. A plugin that is active only on a subsite cannot serve updates (nothing is offered; nothing unverified is installed).
+- Covered by `tests/test-updater-family.php`, identical in every JPKCom plugin (170 checks, red against 1.4.0). Measured live on WordPress 7.1.3, single site and multisite.
 
 **Manifest Generation:** Automated by `.github/workflows/release.yml` (see Release Process below)
 
